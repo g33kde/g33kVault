@@ -1,24 +1,22 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 
 type Status = 'idle' | 'uploading' | 'success' | 'error';
 
 export default function Upload() {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState('');
-  const [preview, setPreview] = useState<string | null>(null);
-  const [fileKind, setFileKind] = useState<'image' | 'video' | null>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPreview(URL.createObjectURL(file));
-    setFileKind(file.type.startsWith('video') ? 'video' : 'image');
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    setFile(selected);
+    setPreview(URL.createObjectURL(selected));
     setStatus('idle');
   }
 
   async function handleUpload() {
-    const file = inputRef.current?.files?.[0];
     if (!file) return;
 
     setStatus('uploading');
@@ -34,9 +32,8 @@ export default function Upload() {
         throw new Error(data.error || 'Upload failed');
       }
       setStatus('success');
+      setFile(null);
       setPreview(null);
-      setFileKind(null);
-      if (inputRef.current) inputRef.current.value = '';
     } catch (err) {
       setStatus('error');
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -45,10 +42,11 @@ export default function Upload() {
 
   function reset() {
     setStatus('idle');
+    setFile(null);
     setPreview(null);
-    setFileKind(null);
-    if (inputRef.current) inputRef.current.value = '';
   }
+
+  const fileKind = file?.type.startsWith('video') ? 'video' : 'image';
 
   return (
     <div className="page upload-page">
@@ -68,13 +66,7 @@ export default function Upload() {
           {!preview && (
             <label className="file-picker">
               Choose photo or video
-              <input
-                ref={inputRef}
-                type="file"
-                accept="image/*,video/*"
-                onChange={handleFileChange}
-                hidden
-              />
+              <input type="file" accept="image/*,video/*" onChange={handleFileChange} hidden />
             </label>
           )}
 
