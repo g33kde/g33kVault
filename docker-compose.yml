@@ -7,11 +7,14 @@ services:
       - PORT=3000
       - MEDIA_DIR=/app/media
       - DB_PATH=/app/data/g33kvault.json
+      - IMPORT_DIR=/app/import
+      - IMPORT_SCAN_INTERVAL_MS=60000
       - MAX_FILE_SIZE_MB=100
       - SLIDESHOW_INTERVAL_MS=6000
     volumes:
       - media-data:/app/media
       - db-data:/app/data
+      - ./import:/app/import
     restart: unless-stopped
 
 volumes:

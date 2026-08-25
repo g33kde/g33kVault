@@ -44,6 +44,28 @@ the guest's phone (same Wi-Fi network) — the QR code is generated from whateve
 the host screen was loaded with, so open the host page using the machine's LAN IP
 (e.g. `http://192.168.1.42:3000`), not `localhost`.
 
+## Bulk import via a watched folder
+
+Besides uploading through `/upload`, g33kVault also watches a local folder and imports
+whatever it finds there — handy for seeding the gallery from an existing folder of photos
+without going through the browser at all.
+
+With Docker Compose, that folder is `./import` next to `docker-compose.yml` (a bind mount,
+so it's a real folder on the host you can drop files into directly, over Samba/SFTP, from a
+USB stick, etc. — created automatically on first `docker compose up`).
+
+- Scanned once on startup, then again every `IMPORT_SCAN_INTERVAL_MS` (default 60s) while
+  running — you don't need to restart the container for newly dropped files to show up.
+- Imported files are **moved** into the vault's storage (not copied) and removed from the
+  import folder, so a scan never re-imports the same file twice. Dropping a duplicate copy
+  back in later will import it again as a new item, since there's no content-based dedup.
+- A file has to sit untouched for 5 seconds before it's picked up, so a still-in-progress
+  copy from a USB stick doesn't get imported half-written.
+- Subfolders are scanned too (useful if you want to organize source photos by date/event
+  before dropping them in) — the folder structure itself isn't preserved, everything lands
+  in the same flat gallery.
+- Supported types match uploads: images (jpg/png/gif/webp), videos (mp4/mov/webm).
+
 ## Running on a Raspberry Pi
 
 Runs natively on a Pi — no native npm modules in this project need cross-compiling, and
@@ -70,6 +92,12 @@ layers automatically.
 3. Find the Pi's LAN IP (`hostname -I`) and open `http://<pi-ip>:3000` on the host screen —
    that's what the QR code will encode, so guests' phones need to be on the same Wi-Fi.
 
+To preload photos onto the Pi without going through the upload page, copy them into the
+`import` folder created next to `docker-compose.yml` on the Pi (e.g. `scp` from a laptop, a
+mounted USB stick, or a Samba share pointed at that folder) — see
+[Bulk import via a watched folder](#bulk-import-via-a-watched-folder) above. They're picked
+up automatically within a minute; no restart needed.
+
 Hardware guidance:
 
 - A Pi 4 or 5 (2GB+ RAM) is comfortable. The server itself is lightweight — just static
@@ -83,13 +111,15 @@ Hardware guidance:
 
 ## Configuration (env vars)
 
-| Variable                | Default              | Description                                   |
-|--------------------------|-----------------------|------------------------------------------------|
-| `PORT`                  | `3000`                | Server port                                    |
-| `MEDIA_DIR`              | `./media`             | Where uploaded files are stored                |
-| `DB_PATH`                | `./data/g33kvault.json` | JSON file storing upload metadata            |
-| `MAX_FILE_SIZE_MB`       | `100`                 | Max upload size per file                       |
-| `SLIDESHOW_INTERVAL_MS`  | `6000`                | How long each image displays before advancing  |
+| Variable                  | Default                 | Description                                    |
+|---------------------------|--------------------------|-------------------------------------------------|
+| `PORT`                    | `3000`                   | Server port                                    |
+| `MEDIA_DIR`                | `./media`                | Where uploaded files are stored                |
+| `DB_PATH`                  | `./data/g33kvault.json`  | JSON file storing upload metadata              |
+| `IMPORT_DIR`               | `./import`               | Folder watched for bulk-import files           |
+| `IMPORT_SCAN_INTERVAL_MS`  | `60000`                  | How often to rescan the import folder (`0` disables periodic rescans, keeping only the startup scan) |
+| `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per file                       |
+| `SLIDESHOW_INTERVAL_MS`    | `6000`                   | How long each image displays before advancing  |
 
 Videos play to completion (or their natural length) before advancing; images use
 `SLIDESHOW_INTERVAL_MS`. Newly uploaded items are inserted right after whatever is

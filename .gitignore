@@ -4,6 +4,12 @@ client/dist/
 server/public/
 server/media/
 server/data/
+server/import/
 *.log
 .env
 .DS_Store
+
+# host-side drop folder for docker compose (server/importFolder.ts) —
+# keep the folder tracked, ignore whatever gets dropped into it
+/import/*
+!/import/.gitkeep

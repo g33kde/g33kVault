@@ -8,6 +8,7 @@ import { mediaRouter } from './routes/media';
 import { uploadRouter } from './routes/upload';
 import { qrcodeRouter, uploadUrlRouter } from './routes/qrcode';
 import { configRouter } from './routes/config';
+import { scanImportFolder } from './importFolder';
 
 const app = express();
 const server = http.createServer(app);
@@ -38,6 +39,12 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {});
 });
 
+scanImportFolder(io);
+if (config.importScanIntervalMs > 0) {
+  setInterval(() => scanImportFolder(io), config.importScanIntervalMs);
+}
+
 server.listen(config.port, () => {
   console.log(`g33kVault listening on port ${config.port}`);
+  console.log(`Watching import folder: ${config.importDir}`);
 });
