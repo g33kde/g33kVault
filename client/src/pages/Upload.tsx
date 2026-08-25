@@ -1,52 +1,75 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-type Status = 'idle' | 'uploading' | 'success' | 'error';
+type Status = 'idle' | 'uploading' | 'done';
+
+interface UploadResult {
+  name: string;
+  ok: boolean;
+  error?: string;
+}
+
+const THUMB_LIMIT = 12;
 
 export default function Upload() {
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [status, setStatus] = useState<Status>('idle');
-  const [error, setError] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [results, setResults] = useState<UploadResult[]>([]);
+
+  useEffect(() => {
+    const toPreview = files.length === 1 ? files : files.slice(0, THUMB_LIMIT);
+    const urls = toPreview.map((f) => URL.createObjectURL(f));
+    setPreviewUrls(urls);
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [files]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
-    setFile(selected);
-    setPreview(URL.createObjectURL(selected));
+    const selected = Array.from(e.target.files ?? []);
+    setFiles(selected);
     setStatus('idle');
+    setResults([]);
   }
 
   async function handleUpload() {
-    if (!file) return;
-
+    if (files.length === 0) return;
     setStatus('uploading');
-    setError('');
+    setProgress(0);
+    const outcomes: UploadResult[] = [];
 
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Upload failed');
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        if (res.ok) {
+          outcomes.push({ name: file.name, ok: true });
+        } else {
+          const data = await res.json().catch(() => ({}));
+          outcomes.push({ name: file.name, ok: false, error: data.error || 'Upload failed' });
+        }
+      } catch {
+        outcomes.push({ name: file.name, ok: false, error: 'Network error' });
       }
-      setStatus('success');
-      setFile(null);
-      setPreview(null);
-    } catch (err) {
-      setStatus('error');
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setProgress((p) => p + 1);
     }
+
+    setResults(outcomes);
+    setStatus('done');
+    setFiles([]);
   }
 
   function reset() {
     setStatus('idle');
-    setFile(null);
-    setPreview(null);
+    setFiles([]);
+    setResults([]);
+    setProgress(0);
   }
 
-  const fileKind = file?.type.startsWith('video') ? 'video' : 'image';
+  const failed = results.filter((r) => !r.ok);
+  const succeeded = results.filter((r) => r.ok);
 
   return (
     <div className="page upload-page">
@@ -54,37 +77,74 @@ export default function Upload() {
         g33k<span>Vault</span>
       </h1>
 
-      {status === 'success' ? (
+      {status === 'done' ? (
         <div className="success-panel">
-          <p>Uploaded! It&apos;ll show up in the slideshow shortly.</p>
+          <p>
+            {succeeded.length} uploaded{failed.length > 0 ? `, ${failed.length} failed` : ''}.
+          </p>
+          {failed.length > 0 && (
+            <ul className="fail-list">
+              {failed.map((f) => (
+                <li key={f.name}>
+                  {f.name}: {f.error}
+                </li>
+              ))}
+            </ul>
+          )}
           <button className="btn btn-primary" onClick={reset}>
-            Upload another
+            Upload more
           </button>
         </div>
       ) : (
         <>
-          {!preview && (
+          {files.length === 0 && (
             <label className="file-picker">
-              Choose photo or video
-              <input type="file" accept="image/*,video/*" onChange={handleFileChange} hidden />
+              Choose photos or videos
+              <input type="file" accept="image/*,video/*" multiple onChange={handleFileChange} hidden />
             </label>
           )}
 
-          {preview && fileKind === 'image' && <img src={preview} className="preview" alt="preview" />}
-          {preview && fileKind === 'video' && <video src={preview} className="preview" controls />}
+          {files.length === 1 &&
+            status === 'idle' &&
+            (files[0].type.startsWith('video') ? (
+              <video src={previewUrls[0]} className="preview" controls />
+            ) : (
+              <img src={previewUrls[0]} className="preview" alt="preview" />
+            ))}
 
-          {preview && (
+          {files.length > 1 && status === 'idle' && (
+            <div className="thumb-grid">
+              {previewUrls.map((url, i) => (
+                <div key={i} className="thumb">
+                  {files[i].type.startsWith('video') ? (
+                    <video src={url} muted />
+                  ) : (
+                    <img src={url} alt="" />
+                  )}
+                </div>
+              ))}
+              {files.length > THUMB_LIMIT && (
+                <div className="thumb thumb-more">+{files.length - THUMB_LIMIT}</div>
+              )}
+            </div>
+          )}
+
+          {files.length > 0 && status === 'idle' && (
             <div className="actions">
-              <button className="btn btn-primary" onClick={handleUpload} disabled={status === 'uploading'}>
-                {status === 'uploading' ? 'Uploading…' : 'Upload'}
+              <button className="btn btn-primary" onClick={handleUpload}>
+                {files.length === 1 ? 'Upload' : `Upload all ${files.length}`}
               </button>
-              <button className="btn btn-secondary" onClick={reset} disabled={status === 'uploading'}>
+              <button className="btn btn-secondary" onClick={reset}>
                 Cancel
               </button>
             </div>
           )}
 
-          {status === 'error' && <p className="error-msg">{error}</p>}
+          {status === 'uploading' && (
+            <p>
+              Uploading {progress} / {files.length}…
+            </p>
+          )}
         </>
       )}
     </div>
