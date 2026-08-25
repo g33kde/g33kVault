@@ -1,0 +1,19 @@
+services:
+  g33kvault:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - MEDIA_DIR=/app/media
+      - DB_PATH=/app/data/g33kvault.json
+      - MAX_FILE_SIZE_MB=100
+      - SLIDESHOW_INTERVAL_MS=6000
+    volumes:
+      - media-data:/app/media
+      - db-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  media-data:
+  db-data:
