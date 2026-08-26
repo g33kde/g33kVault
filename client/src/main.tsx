@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import Host from './pages/Host';
 import Upload from './pages/Upload';
 import Slideshow from './pages/Slideshow';
+import Admin from './pages/Admin';
 import './styles/global.css';
 
 function App() {
@@ -11,6 +12,8 @@ function App() {
       return <Upload />;
     case '/slideshow':
       return <Slideshow />;
+    case '/admin':
+      return <Admin />;
     default:
       return <Host />;
   }

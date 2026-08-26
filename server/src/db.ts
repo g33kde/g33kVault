@@ -36,3 +36,12 @@ export function insertMedia(row: MediaRow) {
 export function getAllMedia(): MediaRow[] {
   return readAll().sort((a, b) => a.created_at - b.created_at);
 }
+
+export function deleteMedia(id: string): MediaRow | null {
+  const rows = readAll();
+  const idx = rows.findIndex((r) => r.id === id);
+  if (idx === -1) return null;
+  const [removed] = rows.splice(idx, 1);
+  writeAll(rows);
+  return removed;
+}

@@ -6,6 +6,7 @@ and everything shows up instantly in a fullscreen slideshow.
 - `/` — host screen: QR code for uploaders + button to launch the slideshow
 - `/upload` — mobile-friendly upload page (what the QR code points to)
 - `/slideshow` — fullscreen kiosk view, updates live via WebSocket as uploads arrive
+- `/admin` — password-protected view to delete an individual photo/video after the fact
 
 ## Stack
 
@@ -43,6 +44,22 @@ On a phone to scan the QR code, the host machine's IP/hostname needs to be reach
 the guest's phone (same Wi-Fi network) — the QR code is generated from whatever host/URL
 the host screen was loaded with, so open the host page using the machine's LAN IP
 (e.g. `http://192.168.1.42:3000`), not `localhost`.
+
+## Moderation
+
+There's no upload approval queue — photos go live on the slideshow instantly, by design
+(see [Notes / ideas for later](#notes--ideas-for-later)). What there is instead is a
+lightweight way to clean up after the fact: `/admin` shows every photo/video as a grid
+with a delete button on each. Deleting removes the file from disk, drops it from the
+metadata store, and broadcasts live over the same WebSocket as uploads — so it disappears
+from an open slideshow immediately, mid-event, without a page refresh.
+
+`/admin` is gated by a single shared password, set via the `ADMIN_PASSWORD` environment
+variable (copy `.env.example` to `.env` and fill it in — `.env` is picked up automatically
+by `docker compose` and is gitignored). **Leaving it unset disables `/admin` entirely**
+rather than defaulting to open — deletion always returns "invalid password" until a
+password is configured. The password is entered once and kept in the browser's session
+storage (cleared when the tab closes), so it isn't re-entered on every visit.
 
 ## iPhone photos (HEIC/HEIF)
 
@@ -149,6 +166,7 @@ Hardware guidance:
 | `IMPORT_SCAN_INTERVAL_MS`  | `60000`                  | How often to rescan the import folder (`0` disables periodic rescans, keeping only the startup scan) |
 | `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per file                       |
 | `SLIDESHOW_INTERVAL_MS`    | `6000`                   | How long each image displays before advancing  |
+| `ADMIN_PASSWORD`           | *(unset)*                | Password for `/admin`; unset disables it entirely |
 
 Videos play to completion (or their natural length) before advancing; images use
 `SLIDESHOW_INTERVAL_MS`. Newly uploaded items are inserted right after whatever is
@@ -156,8 +174,8 @@ currently showing, so they appear on the wall within one slide.
 
 ## Notes / ideas for later
 
-- No moderation queue right now — uploads go live instantly. If needed later, add a
-  `status` column to the `media` table and an admin approve/reject view.
+- Still no pre-upload approval queue by design — uploads go live instantly, and
+  moderation is after-the-fact via `/admin` (see [Moderation](#moderation)).
 - Uploads are anonymous (no name/caption field).
 - Videos autoplay muted (browser autoplay policies block unmuted autoplay without a
   user gesture) — could add a "tap to unmute" overlay on the slideshow later.

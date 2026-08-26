@@ -11,6 +11,7 @@ services:
       - IMPORT_SCAN_INTERVAL_MS=60000
       - MAX_FILE_SIZE_MB=100
       - SLIDESHOW_INTERVAL_MS=6000
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
     volumes:
       - media-data:/app/media
       - db-data:/app/data

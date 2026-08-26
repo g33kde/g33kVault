@@ -168,3 +168,65 @@ body,
 .slideshow-empty {
   color: var(--text-dim);
 }
+
+.admin-link {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+.admin-link:hover {
+  color: var(--accent);
+}
+
+.admin-login {
+  display: flex;
+  gap: 0.5rem;
+}
+.admin-login input {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent-dim);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+  max-width: 1000px;
+  width: 100%;
+}
+.admin-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--panel);
+}
+.admin-thumb img,
+.admin-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.admin-delete-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.65);
+  color: #ff5c5c;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.admin-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

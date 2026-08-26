@@ -8,4 +8,6 @@ export const config = {
   importScanIntervalMs: parseInt(process.env.IMPORT_SCAN_INTERVAL_MS || '60000', 10),
   maxFileSizeMb: parseInt(process.env.MAX_FILE_SIZE_MB || '100', 10),
   slideshowIntervalMs: parseInt(process.env.SLIDESHOW_INTERVAL_MS || '6000', 10),
+  // Empty/unset disables the admin view entirely rather than defaulting open.
+  adminPassword: process.env.ADMIN_PASSWORD || '',
 };

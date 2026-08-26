@@ -42,6 +42,23 @@ export default function Slideshow() {
       });
     });
 
+    socket.on('media:deleted', ({ id }: { id: string }) => {
+      setItems((prev) => {
+        const deleteIdx = prev.findIndex((i) => i.id === id);
+        if (deleteIdx === -1) return prev;
+        const next = prev.filter((i) => i.id !== id);
+
+        // Keep the slideshow pointed at the same logical item: shift the
+        // index down if something before it was removed, otherwise clamp it
+        // into the shrunk array (deleting the current item just slides the
+        // next one into its place).
+        const curIdx = indexRef.current;
+        setIndex(next.length === 0 ? 0 : deleteIdx < curIdx ? (curIdx - 1) % next.length : curIdx % next.length);
+
+        return next;
+      });
+    });
+
     return () => {
       socket.disconnect();
     };

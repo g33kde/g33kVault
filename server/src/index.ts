@@ -8,6 +8,7 @@ import { mediaRouter } from './routes/media';
 import { uploadRouter } from './routes/upload';
 import { qrcodeRouter, uploadUrlRouter } from './routes/qrcode';
 import { configRouter } from './routes/config';
+import { adminRouter } from './routes/admin';
 import { scanImportFolder } from './importFolder';
 
 const app = express();
@@ -18,11 +19,12 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/media', express.static(config.mediaDir));
-app.use('/api/media', mediaRouter);
+app.use('/api/media', mediaRouter(io));
 app.use('/api/upload', uploadRouter(io));
 app.use('/api/qrcode', qrcodeRouter);
 app.use('/api/upload-url', uploadUrlRouter);
 app.use('/api/config', configRouter);
+app.use('/api/admin', adminRouter);
 
 const clientDist = path.join(__dirname, '..', 'public');
 app.use(express.static(clientDist));

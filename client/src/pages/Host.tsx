@@ -25,6 +25,10 @@ export default function Host() {
       <a href="/slideshow" className="btn btn-primary" target="_blank" rel="noreferrer">
         Launch Slideshow
       </a>
+
+      <a href="/admin" className="admin-link">
+        Admin
+      </a>
     </div>
   );
 }
