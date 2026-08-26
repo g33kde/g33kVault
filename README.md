@@ -106,6 +106,21 @@ layers automatically.
 3. Find the Pi's LAN IP (`hostname -I`) and open `http://<pi-ip>:3000` on the host screen —
    that's what the QR code will encode, so guests' phones need to be on the same Wi-Fi.
 
+**Updating to the latest version**, once it's already set up:
+
+```bash
+cd g33kVault
+git pull
+docker compose up --build -d
+```
+
+This rebuilds the image with the new code and recreates the container. Already-imported
+photos and metadata are untouched — they live in the `media-data`/`db-data` Docker volumes
+and the bind-mounted `import` folder, separate from the app image being rebuilt. Check
+`docker compose logs -f` afterwards to confirm it came back up cleanly. If you update often,
+`docker image prune -f` afterwards clears out old superseded images so they don't quietly
+eat into the SD card's space over time.
+
 To preload photos onto the Pi without going through the upload page, copy them into the
 `import` folder created next to `docker-compose.yml` on the Pi (e.g. `scp` from a laptop, a
 mounted USB stick, or a Samba share pointed at that folder) — see
