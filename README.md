@@ -44,6 +44,18 @@ the guest's phone (same Wi-Fi network) — the QR code is generated from whateve
 the host screen was loaded with, so open the host page using the machine's LAN IP
 (e.g. `http://192.168.1.42:3000`), not `localhost`.
 
+## iPhone photos (HEIC/HEIF)
+
+iPhones often store photos as HEIC, which most non-Apple browsers can't render in an
+`<img>` tag — so the slideshow would silently fail to display them on anything but
+Safari. g33kVault converts HEIC/HEIF to JPEG server-side on the way in (both on upload
+and in the watched import folder), so this isn't a concern regardless of which browser
+guests use to upload or which browser/TV renders the slideshow.
+
+The conversion runs via `heic-convert`/`libheif-js`, which is WASM-based — no native
+compilation, so it works unmodified on the Pi's ARM CPU the same as on any other
+platform.
+
 ## Bulk import via a watched folder
 
 Besides uploading through `/upload`, g33kVault also watches a local folder and imports
@@ -64,7 +76,9 @@ USB stick, etc. — created automatically on first `docker compose up`).
 - Subfolders are scanned too (useful if you want to organize source photos by date/event
   before dropping them in) — the folder structure itself isn't preserved, everything lands
   in the same flat gallery.
-- Supported types match uploads: images (jpg/png/gif/webp), videos (mp4/mov/webm).
+- Supported types match uploads: images (jpg/png/gif/webp/heic/heif), videos
+  (mp4/mov/webm). HEIC/HEIF (iPhone's default photo format) is converted to JPEG on
+  import — see below.
 
 ## Running on a Raspberry Pi
 
@@ -132,5 +146,6 @@ currently showing, so they appear on the wall within one slide.
 - Uploads are anonymous (no name/caption field).
 - Videos autoplay muted (browser autoplay policies block unmuted autoplay without a
   user gesture) — could add a "tap to unmute" overlay on the slideshow later.
-- File type is validated by MIME type on upload (images: jpeg/png/gif/webp, videos:
-  mp4/mov/webm).
+- File type is validated by file extension on upload (browsers report inconsistent
+  MIME types for HEIC in particular) — images: jpg/jpeg/png/gif/webp/heic/heif,
+  videos: mp4/mov/webm.

@@ -39,9 +39,13 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {});
 });
 
-scanImportFolder(io);
+function runImportScan() {
+  scanImportFolder(io).catch((err) => console.error('Import folder scan failed:', err));
+}
+
+runImportScan();
 if (config.importScanIntervalMs > 0) {
-  setInterval(() => scanImportFolder(io), config.importScanIntervalMs);
+  setInterval(runImportScan, config.importScanIntervalMs);
 }
 
 server.listen(config.port, () => {

@@ -4,27 +4,8 @@ import { randomUUID } from 'crypto';
 import type { Server as SocketIOServer } from 'socket.io';
 import { config } from './config';
 import { insertMedia, MediaRow } from './db';
-
-const EXT_MIME: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.mp4': 'video/mp4',
-  '.mov': 'video/quicktime',
-  '.webm': 'video/webm',
-};
-
-const KIND: Record<string, 'image' | 'video'> = {
-  'image/jpeg': 'image',
-  'image/png': 'image',
-  'image/gif': 'image',
-  'image/webp': 'image',
-  'video/mp4': 'video',
-  'video/quicktime': 'video',
-  'video/webm': 'video',
-};
+import { kindForExt, mimeForExt, isHeic } from './mediaTypes';
+import { convertHeicToJpeg } from './heicConvert';
 
 // Skip files newer than this so a still-in-progress copy (e.g. from a USB
 // stick or network share) isn't imported half-written.
@@ -49,7 +30,22 @@ function collectFiles(dir: string): string[] {
   return results;
 }
 
-export function scanImportFolder(io: SocketIOServer): number {
+// Guards against a slow scan (e.g. converting several large HEIC files on a
+// Pi) still running when the next periodic scan is due to start.
+let scanning = false;
+
+export async function scanImportFolder(io: SocketIOServer): Promise<number> {
+  if (scanning) return 0;
+  scanning = true;
+
+  try {
+    return await runScan(io);
+  } finally {
+    scanning = false;
+  }
+}
+
+async function runScan(io: SocketIOServer): Promise<number> {
   fs.mkdirSync(config.importDir, { recursive: true });
   fs.mkdirSync(config.mediaDir, { recursive: true });
 
@@ -58,14 +54,14 @@ export function scanImportFolder(io: SocketIOServer): number {
   for (const srcPath of collectFiles(config.importDir)) {
     try {
       const ext = path.extname(srcPath).toLowerCase();
-      const mimeType = EXT_MIME[ext];
-      if (!mimeType) continue;
+      const kind = kindForExt(ext);
+      if (!kind) continue;
 
       const stat = fs.statSync(srcPath);
       if (Date.now() - stat.mtimeMs < SETTLE_MS) continue;
 
-      const destFilename = `${randomUUID()}${ext}`;
-      const destPath = path.join(config.mediaDir, destFilename);
+      let destFilename = `${randomUUID()}${ext}`;
+      let destPath = path.join(config.mediaDir, destFilename);
 
       try {
         fs.renameSync(srcPath, destPath);
@@ -76,13 +72,24 @@ export function scanImportFolder(io: SocketIOServer): number {
         fs.unlinkSync(srcPath);
       }
 
+      let mimeType = mimeForExt(ext) ?? 'application/octet-stream';
+
+      if (isHeic(ext)) {
+        const jpegFilename = destFilename.replace(/\.[^.]+$/, '.jpg');
+        const jpegPath = path.join(config.mediaDir, jpegFilename);
+        await convertHeicToJpeg(destPath, jpegPath);
+        destFilename = jpegFilename;
+        destPath = jpegPath;
+        mimeType = 'image/jpeg';
+      }
+
       const media: MediaRow = {
         id: randomUUID(),
         filename: destFilename,
         original_name: path.basename(srcPath),
         mime_type: mimeType,
-        kind: KIND[mimeType],
-        size: stat.size,
+        kind,
+        size: fs.statSync(destPath).size,
         created_at: stat.mtimeMs,
       };
 
