@@ -42,6 +42,10 @@ export default function Slideshow() {
       });
     });
 
+    socket.on('config:updated', (data: { slideshowIntervalMs: number }) => {
+      setImageDuration(data.slideshowIntervalMs);
+    });
+
     socket.on('media:deleted', ({ id }: { id: string }) => {
       setItems((prev) => {
         const deleteIdx = prev.findIndex((i) => i.id === id);

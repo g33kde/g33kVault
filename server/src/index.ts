@@ -24,7 +24,7 @@ app.use('/api/upload', uploadRouter(io));
 app.use('/api/qrcode', qrcodeRouter);
 app.use('/api/upload-url', uploadUrlRouter);
 app.use('/api/config', configRouter);
-app.use('/api/admin', adminRouter);
+app.use('/api/admin', adminRouter(io));
 
 const clientDist = path.join(__dirname, '..', 'public');
 app.use(express.static(clientDist));

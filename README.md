@@ -6,7 +6,7 @@ and everything shows up instantly in a fullscreen slideshow.
 - `/` — host screen: QR code for uploaders + button to launch the slideshow
 - `/upload` — mobile-friendly upload page (what the QR code points to)
 - `/slideshow` — fullscreen kiosk view, updates live via WebSocket as uploads arrive
-- `/admin` — password-protected view to delete an individual photo/video after the fact
+- `/admin` — password-protected view to delete photos/videos and adjust slideshow speed
 
 ## Stack
 
@@ -50,9 +50,10 @@ the host screen was loaded with, so open the host page using the machine's LAN I
 There's no upload approval queue — photos go live on the slideshow instantly, by design
 (see [Notes / ideas for later](#notes--ideas-for-later)). What there is instead is a
 lightweight way to clean up after the fact: `/admin` shows every photo/video as a grid
-with a delete button on each. Deleting removes the file from disk, drops it from the
-metadata store, and broadcasts live over the same WebSocket as uploads — so it disappears
-from an open slideshow immediately, mid-event, without a page refresh.
+with a delete button on each, plus a control for the slideshow speed (see
+[Configuration](#configuration-env-vars) below). Deleting removes the file from disk,
+drops it from the metadata store, and broadcasts live over the same WebSocket as uploads
+— so it disappears from an open slideshow immediately, mid-event, without a page refresh.
 
 `/admin` is gated by a single shared password, set via the `ADMIN_PASSWORD` environment
 variable (copy `.env.example` to `.env` and fill it in — `.env` is picked up automatically
@@ -165,12 +166,18 @@ Hardware guidance:
 | `IMPORT_DIR`               | `./import`               | Folder watched for bulk-import files           |
 | `IMPORT_SCAN_INTERVAL_MS`  | `60000`                  | How often to rescan the import folder (`0` disables periodic rescans, keeping only the startup scan) |
 | `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per file                       |
-| `SLIDESHOW_INTERVAL_MS`    | `6000`                   | How long each image displays before advancing  |
+| `SLIDESHOW_INTERVAL_MS`    | `6000`                   | Initial slideshow image duration — see below   |
 | `ADMIN_PASSWORD`           | *(unset)*                | Password for `/admin`; unset disables it entirely |
 
-Videos play to completion (or their natural length) before advancing; images use
-`SLIDESHOW_INTERVAL_MS`. Newly uploaded items are inserted right after whatever is
-currently showing, so they appear on the wall within one slide.
+Videos play to completion (or their natural length) before advancing; images use the
+slideshow interval. Newly uploaded items are inserted right after whatever is currently
+showing, so they appear on the wall within one slide.
+
+`SLIDESHOW_INTERVAL_MS` is only the *initial* value. It's also adjustable live from
+`/admin` ("Slideshow speed", in seconds) — that change is persisted (survives restarts,
+stored alongside the other app data) and pushed instantly over the same WebSocket to any
+slideshow that's already open, no page reload needed. The env var only matters the very
+first time the app runs, before any admin change has been saved.
 
 ## Notes / ideas for later
 

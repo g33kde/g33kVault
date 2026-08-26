@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { config } from '../config';
+import { getSlideshowIntervalMs } from '../settings';
 
 export const configRouter = Router();
 
 configRouter.get('/', (_req, res) => {
-  res.json({ slideshowIntervalMs: config.slideshowIntervalMs });
+  res.json({ slideshowIntervalMs: getSlideshowIntervalMs() });
 });
