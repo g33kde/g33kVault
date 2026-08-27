@@ -3,6 +3,11 @@
 A live event photo wall. Guests scan a QR code, upload photos/videos from their phone,
 and everything shows up instantly in a fullscreen slideshow.
 
+Current version: **0.1.7** — see [CHANGELOG.md](CHANGELOG.md) for version history. If
+you're picking this project up fresh (human or agent), also read
+[CLAUDE.md](CLAUDE.md) — it has one standing constraint that isn't obvious from the
+code alone.
+
 - `/` — host screen: QR code for uploaders + button to launch the slideshow
 - `/upload` — mobile-friendly upload page (what the QR code points to)
 - `/slideshow` — fullscreen kiosk view, updates live via WebSocket as uploads arrive
@@ -163,6 +168,7 @@ Hardware guidance:
 | `PORT`                    | `3000`                   | Server port                                    |
 | `MEDIA_DIR`                | `./media`                | Where uploaded files are stored                |
 | `DB_PATH`                  | `./data/g33kvault.json`  | JSON file storing upload metadata              |
+| `SETTINGS_PATH`            | `./data/settings.json`   | JSON file storing admin-adjustable settings (e.g. slideshow speed) |
 | `IMPORT_DIR`               | `./import`               | Folder watched for bulk-import files           |
 | `IMPORT_SCAN_INTERVAL_MS`  | `60000`                  | How often to rescan the import folder (`0` disables periodic rescans, keeping only the startup scan) |
 | `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per file                       |
