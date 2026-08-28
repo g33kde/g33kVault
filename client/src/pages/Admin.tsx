@@ -9,10 +9,29 @@ interface MediaItem {
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
+
+interface SettingsPayload {
+  slideshowIntervalMs: number;
+  shuffle: boolean;
+  transitionStyle: TransitionStyle;
+  partyMode: boolean;
+}
 
 const STORAGE_KEY = 'g33kvault-admin-password';
 const MIN_SECONDS = 1;
 const MAX_SECONDS = 600;
+
+const TRANSITION_LABELS: Record<TransitionStyle, string> = {
+  none: 'None (instant cut)',
+  fade: 'Smooth fade',
+  zoom: 'Zoom',
+  polaroid: 'Polaroid drop',
+  glitch: 'Glitch',
+  arcade: 'Arcade / game-style',
+  vhs: 'VHS',
+  random: 'Random',
+};
 
 export default function Admin() {
   const [password, setPassword] = useState<string | null>(() => sessionStorage.getItem(STORAGE_KEY));
@@ -23,6 +42,9 @@ export default function Admin() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [intervalSeconds, setIntervalSeconds] = useState('');
+  const [shuffle, setShuffle] = useState(false);
+  const [transitionStyle, setTransitionStyle] = useState<TransitionStyle>('none');
+  const [partyMode, setPartyMode] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState('');
 
@@ -63,8 +85,11 @@ export default function Admin() {
 
     fetch('/api/admin/settings', { headers: { 'X-Admin-Password': password } })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data: { slideshowIntervalMs: number }) => {
+      .then((data: SettingsPayload) => {
         setIntervalSeconds(String(data.slideshowIntervalMs / 1000));
+        setShuffle(data.shuffle);
+        setTransitionStyle(data.transitionStyle);
+        setPartyMode(data.partyMode);
       })
       .catch((status) => {
         if (status === 401) handleAuthFailure();
@@ -75,8 +100,11 @@ export default function Admin() {
     socket.on('media:deleted', ({ id }: { id: string }) =>
       setItems((prev) => prev.filter((i) => i.id !== id))
     );
-    socket.on('config:updated', (data: { slideshowIntervalMs: number }) => {
+    socket.on('config:updated', (data: SettingsPayload) => {
       setIntervalSeconds(String(data.slideshowIntervalMs / 1000));
+      setShuffle(data.shuffle);
+      setTransitionStyle(data.transitionStyle);
+      setPartyMode(data.partyMode);
     });
 
     return () => {
@@ -101,7 +129,12 @@ export default function Admin() {
       const res = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
-        body: JSON.stringify({ slideshowIntervalMs: Math.round(seconds * 1000) }),
+        body: JSON.stringify({
+          slideshowIntervalMs: Math.round(seconds * 1000),
+          shuffle,
+          transitionStyle,
+          partyMode,
+        }),
       });
 
       if (res.status === 401) {
@@ -203,6 +236,50 @@ export default function Admin() {
           }}
         />
         <span>seconds per photo</span>
+
+        <label htmlFor="shuffle-input" className="admin-checkbox-label">
+          <input
+            id="shuffle-input"
+            type="checkbox"
+            checked={shuffle}
+            onChange={(e) => {
+              setShuffle(e.target.checked);
+              setSaveStatus('idle');
+            }}
+          />
+          Randomize playback order
+        </label>
+
+        <label htmlFor="transition-input">Transition</label>
+        <select
+          id="transition-input"
+          value={transitionStyle}
+          disabled={partyMode}
+          onChange={(e) => {
+            setTransitionStyle(e.target.value as TransitionStyle);
+            setSaveStatus('idle');
+          }}
+        >
+          {(Object.keys(TRANSITION_LABELS) as TransitionStyle[]).map((style) => (
+            <option key={style} value={style}>
+              {TRANSITION_LABELS[style]}
+            </option>
+          ))}
+        </select>
+
+        <label htmlFor="party-mode-input" className="admin-checkbox-label">
+          <input
+            id="party-mode-input"
+            type="checkbox"
+            checked={partyMode}
+            onChange={(e) => {
+              setPartyMode(e.target.checked);
+              setSaveStatus('idle');
+            }}
+          />
+          🎉 Party Mode (random transition every slide)
+        </label>
+
         <button className="btn btn-primary" type="submit" disabled={saveStatus === 'saving'}>
           {saveStatus === 'saving' ? 'Saving…' : 'Save'}
         </button>

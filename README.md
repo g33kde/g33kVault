@@ -10,8 +10,11 @@ code alone.
 
 - `/` — host screen: QR code for uploaders + button to launch the slideshow
 - `/upload` — mobile-friendly upload page (what the QR code points to)
+- `/booth` — in-browser photo booth: countdown, camera capture, auto-upload (see
+  [Photo booth](#photo-booth) below)
 - `/slideshow` — fullscreen kiosk view, updates live via WebSocket as uploads arrive
-- `/admin` — password-protected view to delete photos/videos and adjust slideshow speed
+- `/admin` — password-protected view to delete photos/videos and adjust slideshow
+  speed, shuffle, and transitions
 
 ## Stack
 
@@ -185,13 +188,60 @@ stored alongside the other app data) and pushed instantly over the same WebSocke
 slideshow that's already open, no page reload needed. The env var only matters the very
 first time the app runs, before any admin change has been saved.
 
+`/admin` also has a **Randomize playback order** toggle — when on, the slideshow shuffles
+on load and re-shuffles each time it loops back to the start, instead of always playing
+chronologically.
+
+## "Now Showing" transitions
+
+Instead of a plain cut, a short animated transition plays whenever the slideshow moves to
+a new photo or video. Pick a style from `/admin`:
+
+- Smooth fade
+- Zoom
+- Polaroid drop
+- Glitch
+- Arcade / game-style
+- VHS
+- Random (a different style picked each slide)
+- None (instant cut — the original behavior, and the default)
+
+**🎉 Party Mode** is a separate toggle in `/admin` that overrides the style picker and
+randomly chooses a transition for every slide, so the wall keeps surprising people
+throughout the event. Like the other slideshow settings, the choice is persisted and
+pushed live over the existing WebSocket — it applies to an already-open slideshow
+immediately, no reload needed.
+
+## Photo booth
+
+`/booth` is an in-browser camera so guests can take a photo directly instead of picking
+one from their camera roll — nothing to install, nothing to leave the page for. Point a
+QR code at it from the host screen (toggle "📸 Booth QR" on `/`, next to the regular
+upload QR).
+
+- **Countdown** — 3…2…1 before each capture.
+- **Front/back camera** — a flip button switches between them (falls back gracefully on
+  devices/browsers that only expose one).
+- **Burst** — captures 4 shots in quick succession instead of one, each uploaded as its
+  own gallery item.
+- **Frame** — adds a Polaroid-style white border with a randomly picked funny caption.
+- **Event overlay** — adds a branded lower-third bar (the g33kVault wordmark + accent
+  underline) instead of a full frame.
+- **Normal** — just the photo, no decoration.
+
+Captured photos upload automatically through the same `/api/upload` endpoint the regular
+upload page uses, so they show up on the slideshow the same way. All of the image
+processing (countdown, capture, frame/overlay compositing) happens client-side via
+`<canvas>` — no new server dependencies.
+
 ## Notes / ideas for later
 
 - Still no pre-upload approval queue by design — uploads go live instantly, and
   moderation is after-the-fact via `/admin` (see [Moderation](#moderation)).
 - Uploads are anonymous (no name/caption field).
-- Videos autoplay muted (browser autoplay policies block unmuted autoplay without a
-  user gesture) — could add a "tap to unmute" overlay on the slideshow later.
 - File type is validated by file extension on upload (browsers report inconsistent
   MIME types for HEIC in particular) — images: jpg/jpeg/png/gif/webp/heic/heif,
   videos: mp4/mov/webm.
+- The photo booth's "Burst" mode uploads 4 separate stills rather than compositing an
+  animated GIF — avoids pulling in a client-side GIF encoder. Could revisit if an actual
+  animated-GIF export is wanted later.

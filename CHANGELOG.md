@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased]
+
+### Slideshow: randomized playback, "Now Showing" transitions, Party Mode
+
+- Slideshow can shuffle instead of playing chronologically (`/admin` → "Randomize
+  playback order"), re-shuffling each time it loops back to the start.
+- Videos start muted (required for autoplay) but now show a "🔇 Tap for sound" overlay;
+  tapping it unmutes for the rest of the session.
+- New transition when the slideshow moves to a new item: fade, zoom, Polaroid drop,
+  glitch, arcade/game-style, VHS, random, or none (default) — chosen from `/admin`.
+- 🎉 Party Mode toggle overrides the transition picker and randomly chooses a style per
+  slide.
+
+### Photo booth (`/booth`)
+
+- New in-browser camera page: countdown, front/back camera switch, and four capture
+  modes (Normal, Burst — 4 shots, Frame — funny caption + Polaroid border, Event overlay
+  — branded lower-third bar).
+- Captures upload automatically through the existing upload endpoint, so they land on
+  the slideshow the same way a regular upload does.
+- Host screen (`/`) got a QR toggle to switch the displayed QR/URL between `/upload` and
+  `/booth`.
+
 ## [0.1.7] — 2026-08-27
 
 First tagged version. Everything below shipped in the initial build-out; grouped by

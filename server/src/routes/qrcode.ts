@@ -1,16 +1,26 @@
 import { Router } from 'express';
 import QRCode from 'qrcode';
 
-function uploadUrlFor(req: import('express').Request): string {
+const DESTINATIONS: Record<string, string> = {
+  upload: '/upload',
+  booth: '/booth',
+};
+
+function destPath(req: import('express').Request): string {
+  const dest = typeof req.query.dest === 'string' ? req.query.dest : 'upload';
+  return DESTINATIONS[dest] ?? DESTINATIONS.upload;
+}
+
+function urlFor(req: import('express').Request): string {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
-  return `${baseUrl}/upload`;
+  return `${baseUrl}${destPath(req)}`;
 }
 
 export const qrcodeRouter = Router();
 
 qrcodeRouter.get('/', async (req, res) => {
   try {
-    const png = await QRCode.toBuffer(uploadUrlFor(req), { width: 400, margin: 1 });
+    const png = await QRCode.toBuffer(urlFor(req), { width: 400, margin: 1 });
     res.set('Content-Type', 'image/png');
     res.send(png);
   } catch (err) {
@@ -21,5 +31,5 @@ qrcodeRouter.get('/', async (req, res) => {
 export const uploadUrlRouter = Router();
 
 uploadUrlRouter.get('/', (req, res) => {
-  res.json({ url: uploadUrlFor(req) });
+  res.json({ url: urlFor(req) });
 });

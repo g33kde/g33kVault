@@ -1,10 +1,30 @@
 import { Router } from 'express';
 import type { Server as SocketIOServer } from 'socket.io';
 import { checkAdminPassword } from '../adminAuth';
-import { getSlideshowIntervalMs, setSlideshowIntervalMs } from '../settings';
+import {
+  getSlideshowIntervalMs,
+  setSlideshowIntervalMs,
+  getShuffle,
+  setShuffle,
+  getTransitionStyle,
+  setTransitionStyle,
+  getPartyMode,
+  setPartyMode,
+  TRANSITION_STYLES,
+  TransitionStyle,
+} from '../settings';
 
 const MIN_INTERVAL_MS = 1000;
 const MAX_INTERVAL_MS = 10 * 60 * 1000;
+
+function currentSettings() {
+  return {
+    slideshowIntervalMs: getSlideshowIntervalMs(),
+    shuffle: getShuffle(),
+    transitionStyle: getTransitionStyle(),
+    partyMode: getPartyMode(),
+  };
+}
 
 export function adminRouter(io: SocketIOServer) {
   const router = Router();
@@ -22,7 +42,7 @@ export function adminRouter(io: SocketIOServer) {
       res.status(401).json({ error: 'Invalid password' });
       return;
     }
-    res.json({ slideshowIntervalMs: getSlideshowIntervalMs() });
+    res.json(currentSettings());
   });
 
   router.put('/settings', (req, res) => {
@@ -31,7 +51,8 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
-    const { slideshowIntervalMs } = req.body ?? {};
+    const { slideshowIntervalMs, shuffle, transitionStyle, partyMode } = req.body ?? {};
+
     if (
       typeof slideshowIntervalMs !== 'number' ||
       !Number.isFinite(slideshowIntervalMs) ||
@@ -44,9 +65,29 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
-    const updated = setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
-    io.emit('config:updated', { slideshowIntervalMs: updated });
-    res.json({ slideshowIntervalMs: updated });
+    if (typeof shuffle !== 'boolean') {
+      res.status(400).json({ error: 'shuffle must be a boolean' });
+      return;
+    }
+
+    if (typeof transitionStyle !== 'string' || !TRANSITION_STYLES.includes(transitionStyle as TransitionStyle)) {
+      res.status(400).json({ error: `transitionStyle must be one of: ${TRANSITION_STYLES.join(', ')}` });
+      return;
+    }
+
+    if (typeof partyMode !== 'boolean') {
+      res.status(400).json({ error: 'partyMode must be a boolean' });
+      return;
+    }
+
+    setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
+    setShuffle(shuffle);
+    setTransitionStyle(transitionStyle as TransitionStyle);
+    setPartyMode(partyMode);
+
+    const updated = currentSettings();
+    io.emit('config:updated', updated);
+    res.json(updated);
   });
 
   return router;
