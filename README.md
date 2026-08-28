@@ -234,11 +234,28 @@ upload page uses, so they show up on the slideshow the same way. All of the imag
 processing (countdown, capture, frame/overlay compositing) happens client-side via
 `<canvas>` — no new server dependencies.
 
+## Event statistics
+
+The upload page (`/upload`) shows a small live "EVENT STATISTICS" panel below the
+upload controls: photo count, video count, contributors, total storage used, and how
+long the server's been running. It's served from `GET /api/stats` and updates live —
+the same `media:new`/`media:deleted` WebSocket events that drive the slideshow also
+trigger a stats refresh here, so the numbers move as guests upload without a page
+reload.
+
+**Contributors is a hardcoded placeholder (`107`)**, not a real count — uploads are
+anonymous (see below), so there's currently no way to identify a unique uploader.
+Wiring up a real count needs an actual contributor-identity mechanism first (e.g. the
+name/caption field below, or something IP-based, which is unreliable behind shared
+event Wi-Fi/NAT).
+
 ## Notes / ideas for later
 
 - Still no pre-upload approval queue by design — uploads go live instantly, and
   moderation is after-the-fact via `/admin` (see [Moderation](#moderation)).
-- Uploads are anonymous (no name/caption field).
+- Uploads are anonymous (no name/caption field) — this is also why the "Contributors"
+  stat on `/upload` is a hardcoded placeholder rather than a real count (see
+  [Event statistics](#event-statistics)).
 - File type is validated by file extension on upload (browsers report inconsistent
   MIME types for HEIC in particular) — images: jpg/jpeg/png/gif/webp/heic/heif,
   videos: mp4/mov/webm.

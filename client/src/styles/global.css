@@ -714,3 +714,75 @@ body,
 .booth-secondary-link:hover {
   color: var(--accent);
 }
+
+/* --- Event statistics panel --- */
+
+@keyframes stats-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(57, 255, 136, 0.55);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 4px rgba(57, 255, 136, 0);
+  }
+}
+
+.stats-panel {
+  width: 100%;
+  max-width: 360px;
+  background: var(--panel);
+  border: 1px solid var(--accent-dim);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  box-shadow: 0 0 28px rgba(57, 255, 136, 0.14);
+  text-align: left;
+}
+
+.stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--accent-dim);
+  font-size: 0.8rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.stats-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: stats-live-pulse 1.8s ease-in-out infinite;
+}
+
+.stats-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.stats-label {
+  font-size: 0.875rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.stats-leader {
+  flex: 1;
+  border-bottom: 1px dotted rgba(127, 156, 138, 0.4);
+  height: 0;
+}
+
+.stats-value {
+  font-size: 0.9375rem;
+  color: var(--text);
+  font-weight: bold;
+}

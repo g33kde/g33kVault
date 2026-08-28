@@ -23,6 +23,14 @@
 - Host screen (`/`) got a QR toggle to switch the displayed QR/URL between `/upload` and
   `/booth`.
 
+### Event statistics panel on `/upload`
+
+- New live "EVENT STATISTICS" panel on the upload page: photo/video counts, total
+  storage used, and server uptime, backed by a new `GET /api/stats` endpoint and
+  refreshed live over the existing WebSocket as uploads come in.
+- "Contributors" is a hardcoded placeholder (`107`) for now — uploads are anonymous, so
+  there's no real way to count unique uploaders yet.
+
 ## [0.1.7] — 2026-08-27
 
 First tagged version. Everything below shipped in the initial build-out; grouped by

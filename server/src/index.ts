@@ -9,6 +9,7 @@ import { uploadRouter } from './routes/upload';
 import { qrcodeRouter, uploadUrlRouter } from './routes/qrcode';
 import { configRouter } from './routes/config';
 import { adminRouter } from './routes/admin';
+import { statsRouter } from './routes/stats';
 import { scanImportFolder } from './importFolder';
 
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api/qrcode', qrcodeRouter);
 app.use('/api/upload-url', uploadUrlRouter);
 app.use('/api/config', configRouter);
 app.use('/api/admin', adminRouter(io));
+app.use('/api/stats', statsRouter);
 
 const clientDist = path.join(__dirname, '..', 'public');
 app.use(express.static(clientDist));

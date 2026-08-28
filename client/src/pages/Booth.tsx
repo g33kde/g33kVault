@@ -127,6 +127,14 @@ export default function Booth() {
     setCameraReady(false);
     setCameraError('');
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        // Most browsers (Safari on iOS in particular) don't expose this API
+        // at all on an insecure (non-HTTPS, non-localhost) origin, so this
+        // fires before any permission prompt ever appears.
+        setCameraError('Camera access needs HTTPS — this page was loaded over an insecure connection.');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: nextFacingMode } },
         audio: false,
@@ -135,8 +143,10 @@ export default function Booth() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-    } catch {
-      setCameraError('Could not access the camera. Check permissions and try again.');
+    } catch (err) {
+      console.error('getUserMedia failed:', err);
+      const name = err instanceof Error ? err.name : 'UnknownError';
+      setCameraError(`Could not access the camera (${name}). Check permissions and try again.`);
     }
   }
 
