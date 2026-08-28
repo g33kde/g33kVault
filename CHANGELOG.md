@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Admin: photo rotation, newest-first grid
+
+- `/admin`'s grid now shows newest uploads first instead of chronological order.
+- New 🔄 rotate button next to each photo's delete button — actually re-encodes and
+  overwrites the stored file 90° clockwise (not a CSS-only flip), so the correct
+  orientation holds everywhere, including direct file access. Loops back to the
+  original orientation every 4 clicks. Images only (no videos, no GIFs); each rotation
+  is a lossy JPEG re-encode. Pushed live over the existing WebSocket, with cache-busted
+  thumbnail/slideshow URLs so already-open views pick up the new orientation
+  immediately.
+- New dependency: `sharp` — this project's one deliberate exception to its otherwise
+  zero-native-dependency policy (chosen over the pure-JS alternative on request).
+  Requires a 64-bit (`arm64`) Raspberry Pi OS; see [CLAUDE.md](CLAUDE.md).
+
 ### Slideshow: randomized playback, "Now Showing" transitions, Party Mode
 
 - Slideshow can shuffle instead of playing chronologically (`/admin` → "Randomize

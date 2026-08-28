@@ -7,6 +7,7 @@ interface MediaItem {
   mime_type: string;
   kind: 'image' | 'video';
   created_at: number;
+  size: number;
 }
 
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
@@ -116,6 +117,10 @@ export default function Slideshow() {
       }
     });
 
+    socket.on('media:updated', (updated: MediaItem) => {
+      setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+    });
+
     socket.on('media:deleted', ({ id }: { id: string }) => {
       setItems((prev) => {
         const deleteIdx = prev.findIndex((i) => i.id === id);
@@ -185,7 +190,7 @@ export default function Slideshow() {
   }
 
   const current = items[index % items.length];
-  const src = `/media/${current.filename}`;
+  const src = `/media/${current.filename}?v=${current.size}`;
 
   return (
     <div className="page slideshow-page">

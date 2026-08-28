@@ -26,6 +26,12 @@ uploaded or imported. This was set as an explicit standing rule by the project o
 - The watched-import folder (`server/src/importFolder.ts`) moves files out of
   `import/` into `MEDIA_DIR` by design — that's expected, not a violation of this rule.
   The rule is about not losing data *after* it's in the vault's storage.
+- Admin-triggered photo rotation (`POST /api/media/:id/rotate`, see below) overwrites
+  the stored file in place with a re-encoded, rotated version — an intentional content
+  edit the admin explicitly requests, not the kind of accidental data loss this rule
+  guards against. It's a lossy JPEG re-encode each time, though, so many repeated
+  rotations of the same photo will slowly degrade its quality — accepted trade-off,
+  not a bug.
 - Before any change touching storage/schema/volumes: would this make already-imported
   photos disappear from the gallery or fail to load? If yes, find a non-destructive
   path, or flag it to the user before proceeding rather than deciding alone.
@@ -36,14 +42,25 @@ uploaded or imported. This was set as an explicit standing rule by the project o
   Socket.IO, and the import-folder scanner fit together.
 - `server/src/config.ts` is the single source of truth for env vars and their
   defaults — check it before assuming a default value.
-- Each client page (`client/src/pages/{Host,Upload,Slideshow,Admin}.tsx`) is a
+- Each client page (`client/src/pages/{Host,Upload,Booth,Slideshow,Admin}.tsx`) is a
   self-contained route, switched on `window.location.pathname` in `client/src/main.tsx`
   (no router library — deliberately dropped `react-router-dom`, see CHANGELOG).
-- No native/compiled npm dependencies anywhere in this project, on purpose — it was
-  actively kept that way (moved off `better-sqlite3` and `uuid` early on) specifically
-  so it builds and runs on the Pi's ARM CPU without node-gyp/Python toolchain issues.
-  Think twice before adding a dependency that needs native compilation; prefer a
-  WASM-based or pure-JS alternative (see how HEIC support was done via `heic-convert`).
+- No native/compiled npm dependencies anywhere in this project, on purpose (with one
+  deliberate exception — see below) — it was actively kept that way (moved off
+  `better-sqlite3` and `uuid` early on) specifically so it builds and runs on the Pi's
+  ARM CPU without node-gyp/Python toolchain issues. Think twice before adding a
+  dependency that needs native compilation; prefer a WASM-based or pure-JS alternative
+  (see how HEIC support was done via `heic-convert`).
+  - **Exception: `sharp`** (used for admin photo rotation, `server/src/routes/media.ts`).
+    This *is* a native dependency (libvips), chosen deliberately over the pure-JS
+    alternative after the project owner explicitly preferred it over the zero-native-deps
+    default. Its install script fetches prebuilt binaries per-platform rather than
+    compiling, and this project's Dockerfile runs `npm install` fresh inside each actual
+    target image/stage (no cross-stage copying of `node_modules`), so the right binary
+    for wherever the image is actually built should resolve automatically. **Caveat:**
+    sharp does not ship prebuilt binaries for 32-bit Linux ARM (`armv7`) — this requires
+    a 64-bit Raspberry Pi OS (`arm64`) if deploying to a Pi. If you ever need to drop
+    back to zero native deps, `jimp` (pure JS) was the alternative considered.
 
 ## Working in this repo
 

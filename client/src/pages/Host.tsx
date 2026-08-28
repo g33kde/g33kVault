@@ -38,11 +38,21 @@ export default function Host() {
         </button>
       </div>
 
-      <div className="qr-wrap">
-        <img src={`/api/qrcode?dest=${dest}`} alt="Scan to open g33kVault" className="qr-code" />
-      </div>
+      {url ? (
+        <a href={url} className="qr-wrap" aria-label={`Open ${dest === 'upload' ? 'the upload page' : 'the photo booth'}`}>
+          <img src={`/api/qrcode?dest=${dest}`} alt="Scan or tap to open g33kVault" className="qr-code" />
+        </a>
+      ) : (
+        <div className="qr-wrap">
+          <img src={`/api/qrcode?dest=${dest}`} alt="Scan to open g33kVault" className="qr-code" />
+        </div>
+      )}
 
-      {url && <p className="upload-url">{url}</p>}
+      {url && (
+        <a href={url} className="upload-url">
+          {url}
+        </a>
+      )}
 
       <a href="/slideshow" className="btn btn-primary" target="_blank" rel="noreferrer">
         Launch Slideshow

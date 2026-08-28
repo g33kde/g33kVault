@@ -6,6 +6,7 @@ interface MediaItem {
   filename: string;
   kind: 'image' | 'video';
   original_name: string | null;
+  size: number;
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -40,6 +41,8 @@ export default function Admin() {
   const [verifying, setVerifying] = useState(false);
   const [items, setItems] = useState<MediaItem[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [rotatingId, setRotatingId] = useState<string | null>(null);
+  const [rotateError, setRotateError] = useState('');
 
   const [intervalSeconds, setIntervalSeconds] = useState('');
   const [shuffle, setShuffle] = useState(false);
@@ -99,6 +102,9 @@ export default function Admin() {
     socket.on('media:new', (item: MediaItem) => setItems((prev) => [...prev, item]));
     socket.on('media:deleted', ({ id }: { id: string }) =>
       setItems((prev) => prev.filter((i) => i.id !== id))
+    );
+    socket.on('media:updated', (updated: MediaItem) =>
+      setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
     );
     socket.on('config:updated', (data: SettingsPayload) => {
       setIntervalSeconds(String(data.slideshowIntervalMs / 1000));
@@ -177,6 +183,37 @@ export default function Admin() {
       }
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleRotate(id: string) {
+    if (!password) return;
+
+    setRotatingId(id);
+    setRotateError('');
+    try {
+      const res = await fetch(`/api/media/${id}/rotate`, {
+        method: 'POST',
+        headers: { 'X-Admin-Password': password },
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setRotateError(data.error || 'Could not rotate this image');
+        return;
+      }
+
+      const updated: MediaItem = await res.json();
+      setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+    } catch {
+      setRotateError('Network error');
+    } finally {
+      setRotatingId(null);
     }
   }
 
@@ -288,19 +325,31 @@ export default function Admin() {
       {saveStatus === 'error' && <p className="error-msg">{saveError}</p>}
 
       <p className="tagline">
-        {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete
+        {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete, 🔄 to rotate
       </p>
+      {rotateError && <p className="error-msg">{rotateError}</p>}
 
       {items.length === 0 ? (
         <p>No photos yet.</p>
       ) : (
         <div className="admin-grid">
-          {items.map((item) => (
+          {[...items].reverse().map((item) => (
             <div key={item.id} className="admin-thumb">
               {item.kind === 'video' ? (
                 <video src={`/media/${item.filename}`} controls muted playsInline />
               ) : (
-                <img src={`/media/${item.filename}`} alt="" />
+                <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+              )}
+              {item.kind === 'image' && (
+                <button
+                  className="admin-rotate-btn"
+                  onClick={() => handleRotate(item.id)}
+                  disabled={rotatingId === item.id}
+                  aria-label="Rotate 90°"
+                  title="Rotate 90°"
+                >
+                  {rotatingId === item.id ? '…' : '🔄'}
+                </button>
               )}
               <button
                 className="admin-delete-btn"

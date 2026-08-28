@@ -18,7 +18,8 @@ code alone.
 
 ## Stack
 
-- **Server**: Node.js, TypeScript, Express, Socket.IO, Multer for uploads
+- **Server**: Node.js, TypeScript, Express, Socket.IO, Multer for uploads, sharp for
+  photo rotation (the project's one deliberate native dependency — see [CLAUDE.md](CLAUDE.md))
 - **Client**: React, TypeScript, Vite
 - **Storage**: uploaded files on local disk, metadata in a JSON file (no database server needed)
 
@@ -57,11 +58,22 @@ the host screen was loaded with, so open the host page using the machine's LAN I
 
 There's no upload approval queue — photos go live on the slideshow instantly, by design
 (see [Notes / ideas for later](#notes--ideas-for-later)). What there is instead is a
-lightweight way to clean up after the fact: `/admin` shows every photo/video as a grid
-with a delete button on each, plus a control for the slideshow speed (see
+lightweight way to clean up after the fact: `/admin` shows every photo/video as a grid,
+newest upload first, with a rotate button and a delete button on each photo (delete-only
+for videos — see below), plus a control for the slideshow speed (see
 [Configuration](#configuration-env-vars) below). Deleting removes the file from disk,
 drops it from the metadata store, and broadcasts live over the same WebSocket as uploads
 — so it disappears from an open slideshow immediately, mid-event, without a page refresh.
+
+**Rotating a photo** (🔄) actually re-encodes and overwrites the stored file 90°
+clockwise — not just a CSS flip — so it's correctly oriented everywhere, including if
+someone copies the raw files off the Pi later. Click it repeatedly to keep turning; it
+loops back to the original orientation every 4 clicks. It's image-only (videos don't get
+the button), and doesn't support GIFs (rotating an animated GIF frame-by-frame isn't
+implemented). Each rotation is a lossy JPEG re-encode, so many repeated rotations of the
+same photo will slowly degrade its quality — a deliberate trade-off, not a bug. The
+change is pushed live over the same WebSocket as everything else, so an already-open
+slideshow or admin view picks up the new orientation immediately.
 
 `/admin` is gated by a single shared password, set via the `ADMIN_PASSWORD` environment
 variable (copy `.env.example` to `.env` and fill it in — `.env` is picked up automatically
@@ -108,9 +120,14 @@ USB stick, etc. — created automatically on first `docker compose up`).
 
 ## Running on a Raspberry Pi
 
-Runs natively on a Pi — no native npm modules in this project need cross-compiling, and
-`node:20-alpine` (the base image) is multi-arch, so Docker pulls the correct `arm64`/`armv7`
-layers automatically.
+Runs natively on a Pi — `node:20-alpine` (the base image) is multi-arch, so Docker pulls
+the correct `arm64`/`armv7` layers automatically, and the one native dependency this
+project has (`sharp`, used for admin photo rotation) ships prebuilt binaries fetched at
+install time rather than needing a compiler on the Pi. **It requires a 64-bit
+(`arm64`) Raspberry Pi OS**, though — sharp doesn't publish 32-bit ARM (`armv7`)
+binaries. Raspberry Pi OS has defaulted to 64-bit on Pi 4/5 for a while now, so this is
+usually a non-issue, but worth checking (`uname -m` should print `aarch64`, not `armv7l`)
+if you're on an older install.
 
 1. Install Docker on Raspberry Pi OS:
 
@@ -262,3 +279,7 @@ event Wi-Fi/NAT).
 - The photo booth's "Burst" mode uploads 4 separate stills rather than compositing an
   animated GIF — avoids pulling in a client-side GIF encoder. Could revisit if an actual
   animated-GIF export is wanted later.
+- Photo rotation (see [Moderation](#moderation)) doesn't support GIFs — only
+  jpg/jpeg/png/webp. Rotating a GIF returns an error rather than corrupting it.
+- Only images can be rotated, not videos — rotating a video would need re-encoding it
+  (e.g. via ffmpeg), a much heavier dependency than this project otherwise carries.

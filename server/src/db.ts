@@ -45,3 +45,16 @@ export function deleteMedia(id: string): MediaRow | null {
   writeAll(rows);
   return removed;
 }
+
+export function getMediaById(id: string): MediaRow | null {
+  return readAll().find((r) => r.id === id) ?? null;
+}
+
+export function updateMedia(id: string, patch: Partial<Omit<MediaRow, 'id'>>): MediaRow | null {
+  const rows = readAll();
+  const idx = rows.findIndex((r) => r.id === id);
+  if (idx === -1) return null;
+  rows[idx] = { ...rows[idx], ...patch };
+  writeAll(rows);
+  return rows[idx];
+}
