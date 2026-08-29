@@ -172,7 +172,8 @@ export function adminRouter(io: SocketIOServer) {
     try {
       const media = getAllMedia();
 
-      for (const item of media) {
+      for (let i = 0; i < media.length; i++) {
+        const item = media[i];
         const filePath = path.join(config.mediaDir, item.filename);
         const patch: { content_hash?: string; phash?: string | null } = {};
 
@@ -196,6 +197,12 @@ export function adminRouter(io: SocketIOServer) {
           updateMedia(item.id, patch);
           Object.assign(item, patch);
         }
+
+        // Broadcast over the same WebSocket the rest of the app already
+        // uses for live updates, so /admin can show real progress on a
+        // slow first scan instead of a blank "is this stuck?" wait. Cheap
+        // enough to emit every item at the gallery sizes this app expects.
+        io.emit('duplicates:progress', { current: i + 1, total: media.length });
       }
 
       res.json(findDuplicateGroups(media));

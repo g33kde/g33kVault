@@ -85,6 +85,8 @@ export default function Admin() {
   const [duplicates, setDuplicates] = useState<DuplicateGroups | null>(null);
   const [scanningDuplicates, setScanningDuplicates] = useState(false);
   const [duplicatesError, setDuplicatesError] = useState('');
+  const [scanProgress, setScanProgress] = useState<{ current: number; total: number } | null>(null);
+  const [deletingAllDuplicates, setDeletingAllDuplicates] = useState(false);
 
   async function verifyPassword(candidate: string) {
     if (!candidate) return;
@@ -149,6 +151,7 @@ export default function Admin() {
       setPartyMode(data.partyMode);
       setLastBackupState(data.lastBackup);
     });
+    socket.on('duplicates:progress', (data: { current: number; total: number }) => setScanProgress(data));
 
     return () => {
       socket.disconnect();
@@ -239,36 +242,82 @@ export default function Admin() {
     }
   }
 
+  // Shared by the single-item delete button and the bulk "delete all
+  // duplicates" action below. Returns whether the delete actually succeeded
+  // so callers can distinguish it from a 401 (session expiry already
+  // handled centrally via handleAuthFailure) or a genuine failure.
+  async function deleteMediaItem(id: string): Promise<boolean> {
+    if (!password) return false;
+    const res = await fetch(`/api/media/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Password': password },
+    });
+
+    if (res.status === 401) {
+      handleAuthFailure();
+      return false;
+    }
+
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      // Also drop it from any duplicate-group results already on screen,
+      // removing a group entirely once it's down to one item — a "group"
+      // of one isn't a duplicate anymore.
+      setDuplicates((prev) => {
+        if (!prev) return prev;
+        const strip = (groups: MediaItem[][]) =>
+          groups.map((g) => g.filter((i) => i.id !== id)).filter((g) => g.length > 1);
+        return { exact: strip(prev.exact), similar: strip(prev.similar) };
+      });
+      return true;
+    }
+    return false;
+  }
+
   async function handleDelete(id: string) {
     if (!password) return;
     if (!window.confirm('Delete this photo/video? This cannot be undone.')) return;
 
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/media/${id}`, {
-        method: 'DELETE',
-        headers: { 'X-Admin-Password': password },
-      });
-
-      if (res.status === 401) {
-        handleAuthFailure();
-        return;
-      }
-
-      if (res.ok) {
-        setItems((prev) => prev.filter((i) => i.id !== id));
-        // Also drop it from any duplicate-group results already on screen,
-        // removing a group entirely once it's down to one item — a "group"
-        // of one isn't a duplicate anymore.
-        setDuplicates((prev) => {
-          if (!prev) return prev;
-          const strip = (groups: MediaItem[][]) =>
-            groups.map((g) => g.filter((i) => i.id !== id)).filter((g) => g.length > 1);
-          return { exact: strip(prev.exact), similar: strip(prev.similar) };
-        });
-      }
+      await deleteMediaItem(id);
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  // Keeps the first item of every exact/similar group (the same ordering
+  // already shown on screen) and deletes the rest. Groups can share members
+  // between the exact and similar sections (an exact-duplicate pair's phash
+  // necessarily matches too, see duplicateDetect.ts), so collect the ids to
+  // delete into a Set first rather than deleting the same id twice.
+  async function handleDeleteAllDuplicates() {
+    if (!password || !duplicates) return;
+
+    const allGroups = [...duplicates.exact, ...duplicates.similar];
+    const idsToDelete = new Set<string>();
+    for (const group of allGroups) {
+      for (const item of group.slice(1)) {
+        idsToDelete.add(item.id);
+      }
+    }
+    if (idsToDelete.size === 0) return;
+
+    if (
+      !window.confirm(
+        `Delete ${idsToDelete.size} duplicate photo${idsToDelete.size === 1 ? '' : 's'}? One copy of each will be kept. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    setDeletingAllDuplicates(true);
+    try {
+      for (const id of idsToDelete) {
+        await deleteMediaItem(id);
+      }
+    } finally {
+      setDeletingAllDuplicates(false);
     }
   }
 
@@ -277,6 +326,7 @@ export default function Admin() {
 
     setScanningDuplicates(true);
     setDuplicatesError('');
+    setScanProgress(null);
     try {
       const res = await fetch('/api/admin/duplicates', { headers: { 'X-Admin-Password': password } });
 
@@ -296,6 +346,7 @@ export default function Admin() {
       setDuplicatesError('Network error');
     } finally {
       setScanningDuplicates(false);
+      setScanProgress(null);
     }
   }
 
@@ -484,7 +535,11 @@ export default function Admin() {
 
       <div className="admin-duplicates">
         <button className="btn btn-primary" onClick={handleScanDuplicates} disabled={scanningDuplicates}>
-          {scanningDuplicates ? 'Scanning…' : '🔍 Scan for Duplicates'}
+          {scanningDuplicates
+            ? scanProgress && scanProgress.total > 0
+              ? `Scanning… ${Math.round((scanProgress.current / scanProgress.total) * 100)}%`
+              : 'Scanning…'
+            : '🔍 Scan for Duplicates'}
         </button>
         {duplicatesError && <p className="error-msg">{duplicatesError}</p>}
 
@@ -494,6 +549,13 @@ export default function Admin() {
               <p className="tagline">No duplicates found.</p>
             ) : (
               <>
+                <button
+                  className="btn btn-danger admin-delete-all-duplicates-btn"
+                  onClick={handleDeleteAllDuplicates}
+                  disabled={deletingAllDuplicates}
+                >
+                  {deletingAllDuplicates ? 'Deleting…' : '🗑 Delete All Duplicates (keep one of each)'}
+                </button>
                 {duplicates.exact.length > 0 && (
                   <>
                     <p className="tagline duplicates-heading">

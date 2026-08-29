@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Duplicate-scan progress + one-click bulk cleanup
+
+- The "Scan for Duplicates" button now shows a live percentage (e.g. "Scanning… 52%")
+  while a scan is running, instead of just "Scanning…" with no sense of whether it's
+  stuck. The server broadcasts progress over the same Socket.IO connection already used
+  for live gallery updates as it backfills each photo's hash; verified end-to-end with
+  Playwright against a real slow first scan (large, never-before-hashed images), and
+  confirmed the percentage does *not* appear on a fast, already-hashed rescan since
+  there's no meaningful backfill work left to report progress on.
+- New "🗑 Delete All Duplicates (keep one of each)" button on the results, for when a
+  scan turns up a lot of duplicates and clicking ✕ on each one individually isn't worth
+  it. Keeps the first photo shown in every exact/similar group and deletes the rest,
+  after a single confirmation naming exactly how many photos will be deleted. A photo
+  that appears in both an exact-duplicate group and a similar-photos group (expected —
+  see below) is only deleted once. Verified against a real dataset of exact and
+  near-duplicate groups: the right single copy survived in each group and nothing
+  outside the groups was touched.
+
 ### Fix: "Scan failed" with no detail on the duplicate-detection scan
 
 - The `/api/admin/duplicates` handler had no top-level error handling — since this

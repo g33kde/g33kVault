@@ -120,6 +120,12 @@ a.upload-url:focus-visible {
   background: transparent;
   color: var(--text);
 }
+.btn-danger {
+  background: #ff4d4d;
+  color: #2a0505;
+  border-color: #ff4d4d;
+  font-weight: bold;
+}
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -579,6 +585,9 @@ a.upload-url:focus-visible {
   max-width: 1000px;
 }
 .admin-duplicates > .btn {
+  padding: 0.5rem 1.2rem;
+}
+.admin-delete-all-duplicates-btn {
   padding: 0.5rem 1.2rem;
 }
 .duplicates-results {
