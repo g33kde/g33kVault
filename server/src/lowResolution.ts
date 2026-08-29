@@ -2,11 +2,11 @@ import sharp from 'sharp';
 
 // Checked against the shorter and longer edge independently, not raw width
 // vs height, so orientation doesn't matter — a normal 1080x1920 portrait
-// phone photo isn't mistaken for a "640x480" thumbnail just because its
-// width is under 640, and a genuine landscape thumbnail saved sideways
+// phone photo isn't mistaken for a "160x120" thumbnail just because its
+// width is under 160, and a genuine landscape thumbnail saved sideways
 // still gets caught.
-const MIN_LONG_EDGE = 640;
-const MIN_SHORT_EDGE = 480;
+const MAX_LONG_EDGE = 160;
+const MAX_SHORT_EDGE = 120;
 
 export interface ImageDimensions {
   width: number;
@@ -30,5 +30,5 @@ export async function getImageDimensions(filePath: string): Promise<ImageDimensi
 export function isLowResolution({ width, height }: ImageDimensions): boolean {
   const shortEdge = Math.min(width, height);
   const longEdge = Math.max(width, height);
-  return shortEdge < MIN_SHORT_EDGE || longEdge < MIN_LONG_EDGE;
+  return shortEdge <= MAX_SHORT_EDGE || longEdge <= MAX_LONG_EDGE;
 }

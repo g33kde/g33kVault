@@ -337,8 +337,8 @@ export function adminRouter(io: SocketIOServer) {
     }
   });
 
-  // Lists images below 640x480 (checked orientation-independently — see
-  // lowResolution.ts) — usually a thumbnail, a resized re-upload, or a
+  // Lists images at or below 160x120 (checked orientation-independently —
+  // see lowResolution.ts) — usually a thumbnail, a resized re-upload, or a
   // screenshot rather than the original camera photo. Nothing is cached on
   // the row; every call re-reads dimensions fresh.
   router.get('/low-resolution', async (req, res) => {

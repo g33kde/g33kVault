@@ -629,7 +629,7 @@ export default function Admin() {
   function lowResSummary(): string {
     if (!lowResItems) return 'Not scanned yet';
     if (lowResItems.length === 0) return 'No low-resolution photos found';
-    return `${lowResItems.length} photo${lowResItems.length === 1 ? '' : 's'} below 640×480`;
+    return `${lowResItems.length} photo${lowResItems.length === 1 ? '' : 's'} at or below 160×120`;
   }
 
   function renderDuplicateGroups(groups: MediaItem[][]) {
