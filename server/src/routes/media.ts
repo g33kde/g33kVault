@@ -26,6 +26,12 @@ export function mediaRouter(io: SocketIOServer) {
       return;
     }
 
+    const { direction } = req.body ?? {};
+    if (direction !== 'cw' && direction !== 'ccw') {
+      res.status(400).json({ error: "direction must be 'cw' or 'ccw'" });
+      return;
+    }
+
     const media = getMediaById(req.params.id);
     if (!media) {
       res.status(404).json({ error: 'Not found' });
@@ -53,7 +59,7 @@ export function mediaRouter(io: SocketIOServer) {
       // apply the requested 90° turn on top — otherwise a photo that already
       // carries EXIF orientation metadata could end up rotated twice.
       const normalized = await sharp(input).rotate().toBuffer();
-      let pipeline = sharp(normalized).rotate(90);
+      let pipeline = sharp(normalized).rotate(direction === 'cw' ? 90 : 270);
       if (ext === '.jpg' || ext === '.jpeg') pipeline = pipeline.jpeg({ quality: 92 });
       else if (ext === '.png') pipeline = pipeline.png();
       else pipeline = pipeline.webp();

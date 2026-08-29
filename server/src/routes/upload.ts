@@ -35,6 +35,17 @@ const upload = multer({
   fileFilter,
 });
 
+const MAX_UPLOADER_LENGTH = 40;
+
+// Free-text, optional, guest-supplied — trim and cap it defensively rather
+// than trusting it, same as any other public-facing input. Never required:
+// an empty/missing value just means an anonymous upload, as before.
+function sanitizeUploader(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim().slice(0, MAX_UPLOADER_LENGTH);
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export function uploadRouter(io: SocketIOServer) {
   const router = Router();
 
@@ -82,6 +93,7 @@ export function uploadRouter(io: SocketIOServer) {
       kind,
       size: fs.statSync(path.join(config.mediaDir, filename)).size,
       created_at: Date.now(),
+      uploader: sanitizeUploader(req.body?.uploader),
     };
 
     insertMedia(media);

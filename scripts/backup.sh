@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Bundles g33kVault's two Docker volumes (media-data: uploaded photos/videos,
+# db-data: metadata + admin settings JSON) into a single timestamped tarball.
+#
+# Usage: ./scripts/backup.sh [output-dir]
+#   output-dir defaults to ./backups
+#
+# Must be run from the directory containing docker-compose.yml (or set
+# COMPOSE_FILE), since it relies on `docker compose` to resolve the project's
+# actual (name-prefixed) volumes rather than guessing them.
+#
+# Safe to run while the app is up — reads volumes read-only. For a
+# perfectly consistent snapshot (no chance of catching an in-progress
+# upload), stop the app first: `docker compose stop`.
+
+set -euo pipefail
+
+OUT_DIR="${1:-./backups}"
+TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+OUT_FILE="g33kvault-backup-${TIMESTAMP}.tar.gz"
+
+if [ ! -f docker-compose.yml ]; then
+  echo "Error: run this from the g33kVault repo root (docker-compose.yml not found here)." >&2
+  exit 1
+fi
+
+mkdir -p "$OUT_DIR"
+ABS_OUT_DIR="$(cd "$OUT_DIR" && pwd)"
+
+echo "Backing up media-data and db-data volumes..."
+docker compose run --rm --no-deps \
+  -v media-data:/backup/media:ro \
+  -v db-data:/backup/db:ro \
+  -v "${ABS_OUT_DIR}:/out" \
+  --entrypoint sh \
+  g33kvault \
+  -c "tar czf /out/${OUT_FILE} -C /backup media db"
+
+echo "Backup written to ${ABS_OUT_DIR}/${OUT_FILE}"

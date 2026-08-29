@@ -8,6 +8,7 @@ interface MediaItem {
   kind: 'image' | 'video';
   created_at: number;
   size: number;
+  uploader?: string | null;
 }
 
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
@@ -20,6 +21,12 @@ interface ConfigPayload {
 }
 
 const DEFAULT_IMAGE_DURATION_MS = 6000;
+
+// A freshly-uploaded image jumps the queue and plays immediately, overriding
+// the normal per-image duration for this one slide — with a "New Upload"
+// badge shown for the first part of that window.
+const NEW_UPLOAD_DISPLAY_MS = 10000;
+const NEW_UPLOAD_BADGE_MS = 5000;
 
 // "random"/Party Mode pick from this pool — "none" is deliberately excluded
 // since picking "no transition" at random would just look like a dropped frame.
@@ -56,15 +63,36 @@ export default function Slideshow() {
   const [shuffle, setShuffle] = useState(false);
   const [muted, setMuted] = useState(true);
   const [transitionClass, setTransitionClass] = useState('');
+  const [showNewUploadBadge, setShowNewUploadBadge] = useState(false);
   const indexRef = useRef(0);
+  const itemsRef = useRef<MediaItem[]>([]);
   const shuffleRef = useRef(false);
   const transitionStyleRef = useRef<TransitionStyle>('none');
   const partyModeRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const badgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // id of the item currently being shown as a "New Upload" — cleared once we
+  // move past it, so it only ever highlights the one slide it belongs to.
+  const highlightItemIdRef = useRef<string | null>(null);
+  // Whether we're currently displaying a highlighted new upload — kept in
+  // sync from the render effect below (derived from highlightItemIdRef vs.
+  // the actual current item), not set ad hoc, so it can't drift out of sync
+  // if the highlighted item gets deleted mid-highlight.
+  const highlightActiveRef = useRef(false);
+  // New images that arrive while a highlight is already playing wait here
+  // instead of interrupting it, so back-to-back uploads each get their full
+  // uninterrupted turn.
+  const highlightQueueRef = useRef<MediaItem[]>([]);
+
+  const current = items.length > 0 ? items[index % items.length] : null;
 
   useEffect(() => {
     indexRef.current = index;
   }, [index]);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   useEffect(() => {
     shuffleRef.current = shuffle;
@@ -86,16 +114,45 @@ export default function Slideshow() {
     const socket: Socket = io({ path: '/socket.io' });
 
     socket.on('media:new', (item: MediaItem) => {
-      setItems((prev) => {
-        const next = [...prev];
-        // In shuffle mode, drop the new item anywhere in the not-yet-shown
-        // portion of the queue instead of always right after the current
-        // one, so it doesn't defeat the randomization.
-        const lower = Math.min(indexRef.current + 1, next.length);
-        const insertAt = shuffleRef.current ? lower + Math.floor(Math.random() * (next.length - lower + 1)) : lower;
-        next.splice(insertAt, 0, item);
-        return next;
-      });
+      if (item.kind === 'image') {
+        if (highlightActiveRef.current) {
+          // A highlight is already playing — queue this one instead of
+          // cutting it short, so back-to-back uploads don't interrupt each
+          // other. Still gets added to the gallery right away; it just
+          // waits its turn for the highlight treatment.
+          highlightQueueRef.current.push(item);
+          setItems((prev) => {
+            const next = [...prev];
+            const insertAt = Math.min(indexRef.current + 1, next.length);
+            next.splice(insertAt, 0, item);
+            return next;
+          });
+          return;
+        }
+
+        // No highlight active — interrupt whatever's currently showing and
+        // jump straight to the new upload, regardless of shuffle —
+        // "immediately" overrides the normal queued-insertion behavior below.
+        setItems((prev) => {
+          const next = [...prev];
+          const insertAt = Math.min(indexRef.current + 1, next.length);
+          next.splice(insertAt, 0, item);
+          highlightItemIdRef.current = item.id;
+          setIndex(insertAt);
+          return next;
+        });
+      } else {
+        // Videos keep the existing (non-interrupting) queued behavior.
+        setItems((prev) => {
+          const next = [...prev];
+          const lower = Math.min(indexRef.current + 1, next.length);
+          const insertAt = shuffleRef.current
+            ? lower + Math.floor(Math.random() * (next.length - lower + 1))
+            : lower;
+          next.splice(insertAt, 0, item);
+          return next;
+        });
+      }
     });
 
     socket.on('config:updated', (data: ConfigPayload) => {
@@ -157,39 +214,76 @@ export default function Slideshow() {
     });
   }
 
+  // Called when a highlight's 10 seconds are up. If another upload queued up
+  // while this one was playing, jump straight to it — otherwise resume
+  // normal rotation. Skips over any queued item that got deleted before its
+  // turn instead of getting stuck on it.
+  //
+  // Deliberately a plain function reading itemsRef (not a setItems updater):
+  // React (in StrictMode dev builds) may invoke a setState updater twice to
+  // check it's pure, and highlightQueueRef.current.shift() is not idempotent
+  // — a second invocation would silently discard an extra queued item.
+  function playNextHighlightOrAdvance() {
+    while (highlightQueueRef.current.length > 0) {
+      const queued = highlightQueueRef.current.shift()!;
+      const idx = itemsRef.current.findIndex((i) => i.id === queued.id);
+      if (idx !== -1) {
+        highlightItemIdRef.current = queued.id;
+        setIndex(idx);
+        return;
+      }
+    }
+    advance();
+  }
+
   useEffect(() => {
-    if (items.length === 0) return undefined;
-    const current = items[index % items.length];
+    if (!current) return undefined;
+    const isNewUpload = highlightItemIdRef.current === current.id;
+    highlightActiveRef.current = isNewUpload;
 
     // Picked once per slide (not on every re-render) so an unrelated state
     // change — e.g. tapping unmute — doesn't reshuffle or interrupt the
     // transition that's already playing.
     setTransitionClass(pickTransitionClass(transitionStyleRef.current, partyModeRef.current));
+    setShowNewUploadBadge(isNewUpload);
 
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
 
-    if (current.kind === 'image') {
+    if (isNewUpload) {
+      timerRef.current = setTimeout(() => {
+        highlightItemIdRef.current = null;
+        playNextHighlightOrAdvance();
+      }, NEW_UPLOAD_DISPLAY_MS);
+      badgeTimerRef.current = setTimeout(() => setShowNewUploadBadge(false), NEW_UPLOAD_BADGE_MS);
+    } else if (current.kind === 'image') {
       timerRef.current = setTimeout(advance, imageDuration);
     }
+    // videos (not a highlighted new upload) advance via onEnded, no timer.
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
     };
+    // Deliberately keyed on current?.id rather than items/items.length: an
+    // upload queueing (or any other change to items that doesn't affect
+    // what's actually being displayed right now) must NOT reset this timer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, items.length, imageDuration]);
+  }, [current?.id, imageDuration]);
 
-  if (items.length === 0) {
+  if (!current) {
     return (
       <div className="page slideshow-page slideshow-empty">
         <h1 className="brand">
-          g33k<span>Vault</span>
+          <a href="/" className="brand-link">
+            g33k<span>Vault</span>
+          </a>
         </h1>
         <p>Waiting for the first upload…</p>
       </div>
     );
   }
 
-  const current = items[index % items.length];
   const src = `/media/${current.filename}?v=${current.size}`;
 
   return (
@@ -206,6 +300,8 @@ export default function Slideshow() {
           🔇 Tap for sound
         </button>
       )}
+      {current.uploader && <div className="slide-uploader-tag">{current.uploader}</div>}
+      {showNewUploadBadge && <div className="new-upload-badge">🆕 New Upload</div>}
     </div>
   );
 }

@@ -15,6 +15,9 @@ const FUNNY_CAPTIONS = ['😂 SAY CHEESE', '🎉 CAUGHT ON CAMERA', '🥳 PARTY 
 const BURST_SHOTS = 4;
 const BURST_GAP_MS = 500;
 const COUNTDOWN_STEP_MS = 800;
+// Same key as Upload.tsx — a name typed on either page carries over to the
+// other for the same guest/browser.
+const UPLOADER_STORAGE_KEY = 'g33kvault-uploader-name';
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -92,9 +95,12 @@ function canvasToFile(canvas: HTMLCanvasElement, name: string): Promise<File> {
   });
 }
 
-async function uploadFile(file: File): Promise<boolean> {
+async function uploadFile(file: File, uploader: string): Promise<boolean> {
   const formData = new FormData();
   formData.append('file', file);
+  if (uploader.trim()) {
+    formData.append('uploader', uploader.trim());
+  }
   try {
     const res = await fetch('/api/upload', { method: 'POST', body: formData });
     return res.ok;
@@ -113,9 +119,20 @@ export default function Booth() {
   const [flash, setFlash] = useState(false);
   const [resultThumbs, setResultThumbs] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
+  const [uploaderName, setUploaderName] = useState(
+    () => localStorage.getItem(UPLOADER_STORAGE_KEY) ?? ''
+  );
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    if (uploaderName) {
+      localStorage.setItem(UPLOADER_STORAGE_KEY, uploaderName);
+    } else {
+      localStorage.removeItem(UPLOADER_STORAGE_KEY);
+    }
+  }, [uploaderName]);
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -190,7 +207,7 @@ export default function Booth() {
       canvases.map((c, i) => canvasToFile(c, `booth-${Date.now()}-${i}.jpg`))
     );
     const thumbs = canvases.map((c) => c.toDataURL('image/jpeg', 0.6));
-    const results = await Promise.all(files.map(uploadFile));
+    const results = await Promise.all(files.map((f) => uploadFile(f, uploaderName)));
 
     if (results.every(Boolean)) {
       setResultThumbs(thumbs);
@@ -210,8 +227,20 @@ export default function Booth() {
   return (
     <div className="booth-page">
       <h1 className="brand booth-brand">
-        g33k<span>Vault</span> booth
+        <a href="/" className="brand-link">
+          g33k<span>Vault</span> booth
+        </a>
       </h1>
+
+      <input
+        type="text"
+        className="booth-uploader-input"
+        placeholder="Your name (optional)"
+        maxLength={40}
+        value={uploaderName}
+        onChange={(e) => setUploaderName(e.target.value)}
+        disabled={busy}
+      />
 
       <div className="booth-viewport">
         {cameraError ? (

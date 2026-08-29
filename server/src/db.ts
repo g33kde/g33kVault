@@ -10,6 +10,7 @@ export interface MediaRow {
   kind: 'image' | 'video';
   size: number;
   created_at: number;
+  uploader?: string | null;
 }
 
 fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });

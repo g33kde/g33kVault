@@ -15,7 +15,9 @@ export default function Host() {
   return (
     <div className="page host-page">
       <h1 className="brand">
-        g33k<span>Vault</span>
+        <a href="/" className="brand-link">
+          g33k<span>Vault</span>
+        </a>
       </h1>
       <p className="tagline">
         {dest === 'upload'

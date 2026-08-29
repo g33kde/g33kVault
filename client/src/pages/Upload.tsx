@@ -19,6 +19,7 @@ interface Stats {
 
 const THUMB_LIMIT = 12;
 const STATS_TICK_MS = 30_000;
+const UPLOADER_STORAGE_KEY = 'g33kvault-uploader-name';
 
 function formatStorage(bytes: number): string {
   return `${(bytes / 1e9).toFixed(1)} GB`;
@@ -41,6 +42,18 @@ export default function Upload() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsFetchedAt, setStatsFetchedAt] = useState(0);
   const [now, setNow] = useState(Date.now());
+
+  const [uploaderName, setUploaderName] = useState(
+    () => localStorage.getItem(UPLOADER_STORAGE_KEY) ?? ''
+  );
+
+  useEffect(() => {
+    if (uploaderName) {
+      localStorage.setItem(UPLOADER_STORAGE_KEY, uploaderName);
+    } else {
+      localStorage.removeItem(UPLOADER_STORAGE_KEY);
+    }
+  }, [uploaderName]);
 
   useEffect(() => {
     const toPreview = files.length === 1 ? files : files.slice(0, THUMB_LIMIT);
@@ -91,6 +104,9 @@ export default function Upload() {
     for (const file of files) {
       const formData = new FormData();
       formData.append('file', file);
+      if (uploaderName.trim()) {
+        formData.append('uploader', uploaderName.trim());
+      }
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: formData });
         if (res.ok) {
@@ -123,8 +139,21 @@ export default function Upload() {
   return (
     <div className="page upload-page">
       <h1 className="brand">
-        g33k<span>Vault</span>
+        <a href="/" className="brand-link">
+          g33k<span>Vault</span>
+        </a>
       </h1>
+
+      {status !== 'done' && (
+        <input
+          type="text"
+          className="uploader-input"
+          placeholder="Your name (optional)"
+          maxLength={40}
+          value={uploaderName}
+          onChange={(e) => setUploaderName(e.target.value)}
+        />
+      )}
 
       {status === 'done' ? (
         <div className="success-panel">

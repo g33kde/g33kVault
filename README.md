@@ -59,18 +59,19 @@ the host screen was loaded with, so open the host page using the machine's LAN I
 There's no upload approval queue — photos go live on the slideshow instantly, by design
 (see [Notes / ideas for later](#notes--ideas-for-later)). What there is instead is a
 lightweight way to clean up after the fact: `/admin` shows every photo/video as a grid,
-newest upload first, with a rotate button and a delete button on each photo (delete-only
+newest upload first, with rotate buttons and a delete button on each photo (delete-only
 for videos — see below), plus a control for the slideshow speed (see
 [Configuration](#configuration-env-vars) below). Deleting removes the file from disk,
 drops it from the metadata store, and broadcasts live over the same WebSocket as uploads
 — so it disappears from an open slideshow immediately, mid-event, without a page refresh.
 
-**Rotating a photo** (🔄) actually re-encodes and overwrites the stored file 90°
-clockwise — not just a CSS flip — so it's correctly oriented everywhere, including if
-someone copies the raw files off the Pi later. Click it repeatedly to keep turning; it
-loops back to the original orientation every 4 clicks. It's image-only (videos don't get
-the button), and doesn't support GIFs (rotating an animated GIF frame-by-frame isn't
-implemented). Each rotation is a lossy JPEG re-encode, so many repeated rotations of the
+**Rotating a photo** — ↺ (bottom-left, counter-clockwise) and ↻ (bottom-right,
+clockwise) — actually re-encodes and overwrites the stored file, not just a CSS flip, so
+it's correctly oriented everywhere, including if someone copies the raw files off the Pi
+later. Click either repeatedly to keep turning; four clicks in the same direction loops
+back to the original orientation. It's image-only (videos don't get the buttons), and
+doesn't support GIFs (rotating an animated GIF frame-by-frame isn't implemented). Each
+rotation is a lossy JPEG re-encode, so many repeated rotations of the
 same photo will slowly degrade its quality — a deliberate trade-off, not a bug. The
 change is pushed live over the same WebSocket as everything else, so an already-open
 slideshow or admin view picks up the new orientation immediately.
@@ -181,6 +182,124 @@ Hardware guidance:
   event use; use a USB drive instead if you're running this often and want to reduce SD
   card wear.
 
+## Running on x86_64 Linux (VM or bare metal)
+
+Runs the same way as the Pi deployment above, just on more common hardware — a VM (any
+hypervisor) or a physical x86_64 machine. If anything, it's a safer target than the Pi:
+`sharp` (the one native dependency this project has, used for admin photo rotation) has
+mature prebuilt binaries for `linux-x64` on both glibc and musl (Alpine) distros, so
+there's none of the 32-bit-vs-64-bit ambiguity that applies on ARM.
+
+1. Install Docker on a fresh install (the script auto-detects and works across most
+   Debian/Ubuntu/Fedora-family distros):
+
+   ```bash
+   curl -fsSL https://get.docker.com | sh
+   sudo usermod -aG docker $USER
+   # log out/in (or reboot) for the group change to take effect
+   ```
+
+2. Get the code and build/run it:
+
+   ```bash
+   git clone https://github.com/g33kde/g33kVault.git
+   cd g33kVault
+   docker compose up --build -d
+   ```
+
+3. Find the machine's LAN IP (`ip addr` or `hostname -I`) and open
+   `http://<machine-ip>:3000` on the host screen — that's what the QR code will encode,
+   so guests' phones need to be able to reach that IP.
+
+**If this is a VM**, make sure its network adapter is set to **bridged mode**, not the
+default NAT mode most hypervisors ship with. A NAT'd VM gets its own private IP that's
+typically only reachable from the host machine itself — guests' phones on the same
+Wi-Fi won't be able to reach it, even though `docker compose` and everything else works
+fine. Bridged mode puts the VM directly on the LAN with its own real IP, same as any
+physical machine.
+
+Updating to the latest version and bulk-importing photos work exactly as described in
+the [Raspberry Pi section](#running-on-a-raspberry-pi) above — same commands, same
+Docker volumes, nothing platform-specific about either of those.
+
+Resource guidance: any modern x86_64 machine is comfortable, even a modest VM (1-2
+vCPUs, 1GB+ RAM) — the server itself is lightweight (static file serving + a JSON
+metadata store, no video transcoding), and x86_64 hardware is generally faster than the
+Pi hardware this project is otherwise documented against.
+
+## Backup & migration
+
+Everything that matters — uploaded photos/videos, their metadata, and admin settings
+(slideshow speed, shuffle, transitions) — lives in two Docker volumes: `media-data`
+(the files) and `db-data` (`g33kvault.json` + `settings.json`). Migrating to a new
+machine, or just taking a backup, means moving those two volumes.
+
+### One-click backup from `/admin`
+
+The simplest option for a quick backup (not a migration — see below for that): `/admin`
+has a **⬇ Download Backup** button that streams a `.tar.gz` of both the media files and
+the metadata straight to your browser, same format the CLI scripts use (`media/` and
+`data/` at the top level). No Docker knowledge needed — the running server already has
+direct filesystem access to both, so it just shells out to `tar` locally rather than
+going through Docker volumes. Next to the button, a status line shows when the last
+backup was taken, its size, and how many items it covered — turning amber if it's more
+than 7 days old, or reading "⚠ No backup taken yet" if you've never used it.
+
+### Automated, for migrating to a new machine (`scripts/backup.sh` / `scripts/restore.sh`)
+
+```bash
+# On the OLD instance — bundles both volumes into one timestamped tarball:
+./scripts/backup.sh                       # writes to ./backups/ by default
+./scripts/backup.sh /path/to/somewhere    # or a custom output directory
+
+# Copy the resulting .tar.gz to the new machine however you like
+# (scp, USB stick, etc.), then on the NEW instance:
+git clone https://github.com/g33kde/g33kVault.git
+cd g33kVault
+cp .env.example .env   # and fill in ADMIN_PASSWORD — see Moderation above;
+                        # this is NOT part of the backup, set it up fresh
+./scripts/restore.sh /path/to/g33kvault-backup-<timestamp>.tar.gz
+docker compose up -d
+```
+
+Both scripts must be run from the repo root (where `docker-compose.yml` lives) — they
+use `docker compose run` to reach the project's actual volumes, rather than guessing
+Docker's name-prefixing scheme. `backup.sh` reads the volumes read-only and is safe to
+run while the app is up, though stopping it first (`docker compose stop`) guarantees a
+perfectly consistent snapshot with zero chance of catching an in-progress upload
+mid-write. `restore.sh` is for populating a **fresh, empty** instance (a new machine, or
+one you've just `docker compose down -v`'d) — it asks for confirmation before writing,
+since extracting on top of an instance that already has real data would overwrite files
+in the backup without removing anything newer that isn't in it.
+
+Verified end-to-end while writing this: seeded a test instance with photos and custom
+settings, ran a backup, wiped the volumes entirely, restored into the empty instance,
+and confirmed the photos, metadata, and settings all came back byte-for-byte identical.
+
+### Manual procedure (what the scripts automate)
+
+If you'd rather not use the scripts, or want to back up just one volume, this is the
+standard Docker named-volume backup pattern — a throwaway container mounts the volume
+and a fresh output location, and tars one into the other:
+
+```bash
+# Back up (run from the repo root, app can be running or stopped):
+docker compose run --rm --no-deps \
+  -v media-data:/backup/media:ro -v db-data:/backup/db:ro -v "$(pwd):/out" \
+  --entrypoint sh g33kvault -c "tar czf /out/backup.tar.gz -C /backup media db"
+
+# On the new instance, after `git clone` (do NOT `docker compose up` yet —
+# stop after volumes are created if you already have, since restoring
+# overwrites, not merges):
+docker compose run --rm --no-deps \
+  -v media-data:/restore/media -v db-data:/restore/db -v "$(pwd):/in:ro" \
+  --entrypoint sh g33kvault -c \
+  "tar xzf /in/backup.tar.gz -C /restore/media --strip-components=1 media && \
+   tar xzf /in/backup.tar.gz -C /restore/db --strip-components=1 db"
+
+docker compose up -d
+```
+
 ## Configuration (env vars)
 
 | Variable                  | Default                 | Description                                    |
@@ -196,8 +315,10 @@ Hardware guidance:
 | `ADMIN_PASSWORD`           | *(unset)*                | Password for `/admin`; unset disables it entirely |
 
 Videos play to completion (or their natural length) before advancing; images use the
-slideshow interval. Newly uploaded items are inserted right after whatever is currently
-showing, so they appear on the wall within one slide.
+slideshow interval — except a freshly uploaded image, which interrupts immediately (see
+[New uploads jump the queue](#new-uploads-jump-the-queue) below). A newly uploaded
+*video* is inserted right after whatever is currently showing instead, so it appears on
+the wall within one slide without interrupting anything already playing.
 
 `SLIDESHOW_INTERVAL_MS` is only the *initial* value. It's also adjustable live from
 `/admin` ("Slideshow speed", in seconds) — that change is persisted (survives restarts,
@@ -229,6 +350,31 @@ throughout the event. Like the other slideshow settings, the choice is persisted
 pushed live over the existing WebSocket — it applies to an already-open slideshow
 immediately, no reload needed.
 
+## New uploads jump the queue
+
+A freshly uploaded **photo** interrupts the slideshow immediately — whatever's currently
+showing gets cut away from right then, not queued to wait its turn. The new photo:
+
+- Plays a normal "Now Showing" transition in, like any other slide.
+- Shows a glowing "🆕 New Upload" badge at the top of the screen for the first 5 seconds.
+- Stays on screen for 10 seconds total (overriding the configured slideshow speed for
+  just this one slide), then the badge fades and the slideshow resumes normally from
+  there — whatever it interrupted isn't lost, it just comes back around on its regular
+  turn like anything else in the gallery.
+
+**Back-to-back uploads don't interrupt each other.** If a second photo arrives while one
+is already being highlighted, it waits in line instead of cutting the first one short —
+each queued photo gets its own full, uninterrupted 10-second turn with the badge, in the
+order they were uploaded, before the slideshow returns to normal. There's no cap on how
+many can queue up this way (e.g. bulk-importing a large batch via the
+[watched import folder](#bulk-import-via-a-watched-folder) while the slideshow is running
+would play through all of them, one at a time, before resuming normal rotation).
+
+This only applies to photos. A newly uploaded **video** keeps the older, non-interrupting
+behavior — inserted to play in its normal turn soon, without cutting away from whatever's
+currently on screen — since a video's own length doesn't fit a fixed "shown for 10
+seconds" rule the way a photo does.
+
 ## Photo booth
 
 `/booth` is an in-browser camera so guests can take a photo directly instead of picking
@@ -251,6 +397,22 @@ upload page uses, so they show up on the slideshow the same way. All of the imag
 processing (countdown, capture, frame/overlay compositing) happens client-side via
 `<canvas>` — no new server dependencies.
 
+## Uploader name
+
+Both `/upload` and `/booth` have an optional "Your name" field — not required, and it's
+not a real identity system, just a free-text label. If filled in, it's attached to every
+file uploaded in that batch/capture and shown as a small tag in the corner: bottom-right
+on the slideshow, top-left on each thumbnail in `/admin` (handy for moderation context —
+knowing who to ask about a photo). It's stored as plain metadata alongside the photo, not
+burned into the image pixels, so it can be shown, hidden, or changed without touching the
+file itself, and it works for videos too (just an overlay, not limited to what can be
+drawn onto an image).
+
+The name typed in is remembered in the browser (`localStorage`, shared between `/upload`
+and `/booth` — type it once on either page and it carries over to the other) so a guest
+doesn't have to retype it if they come back to upload more later in the event. It's local
+to that phone/browser, not synced anywhere.
+
 ## Event statistics
 
 The upload page (`/upload`) shows a small live "EVENT STATISTICS" panel below the
@@ -260,19 +422,19 @@ the same `media:new`/`media:deleted` WebSocket events that drive the slideshow a
 trigger a stats refresh here, so the numbers move as guests upload without a page
 reload.
 
-**Contributors is a hardcoded placeholder (`107`)**, not a real count — uploads are
-anonymous (see below), so there's currently no way to identify a unique uploader.
-Wiring up a real count needs an actual contributor-identity mechanism first (e.g. the
-name/caption field below, or something IP-based, which is unreliable behind shared
-event Wi-Fi/NAT).
+**Contributors is the count of distinct uploader names** (see
+[Uploader name](#uploader-name) above), normalized (trimmed, lowercased) so casing
+differences on the same name don't inflate it — not a real headcount, since it's free
+text with no identity behind it and anonymous uploads (no name given) aren't counted at
+all. Good enough as an approximation; not meant to be exact.
 
 ## Notes / ideas for later
 
 - Still no pre-upload approval queue by design — uploads go live instantly, and
   moderation is after-the-fact via `/admin` (see [Moderation](#moderation)).
-- Uploads are anonymous (no name/caption field) — this is also why the "Contributors"
-  stat on `/upload` is a hardcoded placeholder rather than a real count (see
-  [Event statistics](#event-statistics)).
+- Uploads can optionally carry a name (see [Uploader name](#uploader-name)) but it's
+  still not a real identity system — no login, nothing to stop someone typing any name
+  they like, including someone else's.
 - File type is validated by file extension on upload (browsers report inconsistent
   MIME types for HEIC in particular) — images: jpg/jpeg/png/gif/webp/heic/heif,
   videos: mp4/mov/webm.

@@ -1,6 +1,11 @@
 import { Router } from 'express';
+import path from 'path';
+import { spawn } from 'child_process';
+import { PassThrough } from 'stream';
 import type { Server as SocketIOServer } from 'socket.io';
 import { checkAdminPassword } from '../adminAuth';
+import { config } from '../config';
+import { getAllMedia } from '../db';
 import {
   getSlideshowIntervalMs,
   setSlideshowIntervalMs,
@@ -10,6 +15,8 @@ import {
   setTransitionStyle,
   getPartyMode,
   setPartyMode,
+  getLastBackup,
+  setLastBackup,
   TRANSITION_STYLES,
   TransitionStyle,
 } from '../settings';
@@ -23,6 +30,7 @@ function currentSettings() {
     shuffle: getShuffle(),
     transitionStyle: getTransitionStyle(),
     partyMode: getPartyMode(),
+    lastBackup: getLastBackup(),
   };
 }
 
@@ -88,6 +96,59 @@ export function adminRouter(io: SocketIOServer) {
     const updated = currentSettings();
     io.emit('config:updated', updated);
     res.json(updated);
+  });
+
+  // Streams a tar.gz of MEDIA_DIR and the metadata directory straight to the
+  // browser — no temp file, no Docker needed (unlike scripts/backup.sh),
+  // since this runs with direct filesystem access to both already. Uses the
+  // system `tar` binary (present on every platform this project targets)
+  // rather than adding a new npm dependency just for this.
+  router.get('/backup', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    const mediaParent = path.dirname(config.mediaDir);
+    const mediaBase = path.basename(config.mediaDir);
+    const dataDir = path.dirname(config.dbPath);
+    const dataParent = path.dirname(dataDir);
+    const dataBase = path.basename(dataDir);
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `g33kvault-backup-${timestamp}.tar.gz`;
+
+    const tar = spawn('tar', ['czf', '-', '-C', mediaParent, mediaBase, '-C', dataParent, dataBase]);
+
+    tar.on('error', (err) => {
+      console.error('Backup failed to start:', err);
+      if (!res.headersSent) res.status(500).json({ error: 'Backup failed to start' });
+    });
+
+    let totalBytes = 0;
+    const counter = new PassThrough();
+    counter.on('data', (chunk: Buffer) => {
+      totalBytes += chunk.length;
+    });
+
+    res.setHeader('Content-Type', 'application/gzip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    tar.stdout.pipe(counter).pipe(res);
+    tar.stderr.on('data', (chunk: Buffer) => console.error('backup tar:', chunk.toString()));
+
+    tar.on('close', (code) => {
+      if (code === 0) {
+        const info = setLastBackup({
+          lastBackupAt: Date.now(),
+          lastBackupSizeBytes: totalBytes,
+          lastBackupItemCount: getAllMedia().length,
+        });
+        io.emit('config:updated', { ...currentSettings(), lastBackup: info });
+      } else {
+        console.error(`Backup tar exited with code ${code}`);
+      }
+    });
   });
 
   return router;

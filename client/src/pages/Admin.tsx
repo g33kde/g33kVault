@@ -7,21 +7,43 @@ interface MediaItem {
   kind: 'image' | 'video';
   original_name: string | null;
   size: number;
+  uploader?: string | null;
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
+
+interface LastBackup {
+  lastBackupAt: number;
+  lastBackupSizeBytes: number;
+  lastBackupItemCount: number;
+}
 
 interface SettingsPayload {
   slideshowIntervalMs: number;
   shuffle: boolean;
   transitionStyle: TransitionStyle;
   partyMode: boolean;
+  lastBackup: LastBackup | null;
 }
 
 const STORAGE_KEY = 'g33kvault-admin-password';
 const MIN_SECONDS = 1;
 const MAX_SECONDS = 600;
+const STALE_BACKUP_MS = 7 * 24 * 60 * 60 * 1000;
+
+function formatBackupSize(bytes: number): string {
+  return bytes < 1e9 ? `${(bytes / 1e6).toFixed(1)} MB` : `${(bytes / 1e9).toFixed(1)} GB`;
+}
+
+function formatRelativeTime(ms: number): string {
+  const diffMinutes = Math.floor((Date.now() - ms) / 60_000);
+  if (diffMinutes < 1) return 'just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${Math.floor(diffHours / 24)}d ago`;
+}
 
 const TRANSITION_LABELS: Record<TransitionStyle, string> = {
   none: 'None (instant cut)',
@@ -50,6 +72,10 @@ export default function Admin() {
   const [partyMode, setPartyMode] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState('');
+
+  const [lastBackup, setLastBackupState] = useState<LastBackup | null>(null);
+  const [backingUp, setBackingUp] = useState(false);
+  const [backupError, setBackupError] = useState('');
 
   async function verifyPassword(candidate: string) {
     if (!candidate) return;
@@ -93,6 +119,7 @@ export default function Admin() {
         setShuffle(data.shuffle);
         setTransitionStyle(data.transitionStyle);
         setPartyMode(data.partyMode);
+        setLastBackupState(data.lastBackup);
       })
       .catch((status) => {
         if (status === 401) handleAuthFailure();
@@ -111,6 +138,7 @@ export default function Admin() {
       setShuffle(data.shuffle);
       setTransitionStyle(data.transitionStyle);
       setPartyMode(data.partyMode);
+      setLastBackupState(data.lastBackup);
     });
 
     return () => {
@@ -162,6 +190,46 @@ export default function Admin() {
     }
   }
 
+  async function handleBackup() {
+    if (!password) return;
+
+    setBackingUp(true);
+    setBackupError('');
+    try {
+      const res = await fetch('/api/admin/backup', { headers: { 'X-Admin-Password': password } });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setBackupError(data.error || 'Backup failed');
+        return;
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || 'g33kvault-backup.tar.gz';
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      // lastBackup status updates via the 'config:updated' broadcast the
+      // server sends once the backup completes server-side.
+    } catch {
+      setBackupError('Network error');
+    } finally {
+      setBackingUp(false);
+    }
+  }
+
   async function handleDelete(id: string) {
     if (!password) return;
     if (!window.confirm('Delete this photo/video? This cannot be undone.')) return;
@@ -186,7 +254,7 @@ export default function Admin() {
     }
   }
 
-  async function handleRotate(id: string) {
+  async function handleRotate(id: string, direction: 'cw' | 'ccw') {
     if (!password) return;
 
     setRotatingId(id);
@@ -194,7 +262,8 @@ export default function Admin() {
     try {
       const res = await fetch(`/api/media/${id}/rotate`, {
         method: 'POST',
-        headers: { 'X-Admin-Password': password },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body: JSON.stringify({ direction }),
       });
 
       if (res.status === 401) {
@@ -221,7 +290,9 @@ export default function Admin() {
     return (
       <div className="page admin-page">
         <h1 className="brand">
-          g33k<span>Vault</span>
+          <a href="/" className="brand-link">
+            g33k<span>Vault</span>
+          </a>
         </h1>
         <p className="tagline">Admin</p>
         <form
@@ -250,7 +321,9 @@ export default function Admin() {
   return (
     <div className="page admin-page">
       <h1 className="brand">
-        g33k<span>Vault</span> admin
+        <a href="/" className="brand-link">
+          g33k<span>Vault</span> admin
+        </a>
       </h1>
 
       <form
@@ -324,8 +397,23 @@ export default function Admin() {
       </form>
       {saveStatus === 'error' && <p className="error-msg">{saveError}</p>}
 
+      <div className="admin-backup">
+        <button className="btn btn-primary" onClick={handleBackup} disabled={backingUp}>
+          {backingUp ? 'Preparing backup…' : '⬇ Download Backup'}
+        </button>
+        {lastBackup ? (
+          <span className={`backup-status ${Date.now() - lastBackup.lastBackupAt > STALE_BACKUP_MS ? 'stale' : ''}`}>
+            Last backup: {formatRelativeTime(lastBackup.lastBackupAt)} · {formatBackupSize(lastBackup.lastBackupSizeBytes)}{' '}
+            · {lastBackup.lastBackupItemCount} item{lastBackup.lastBackupItemCount === 1 ? '' : 's'}
+          </span>
+        ) : (
+          <span className="backup-status stale">⚠ No backup taken yet</span>
+        )}
+      </div>
+      {backupError && <p className="error-msg">{backupError}</p>}
+
       <p className="tagline">
-        {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete, 🔄 to rotate
+        {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete, ↺/↻ to rotate
       </p>
       {rotateError && <p className="error-msg">{rotateError}</p>}
 
@@ -340,16 +428,32 @@ export default function Admin() {
               ) : (
                 <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
               )}
+              {item.uploader && (
+                <span className="admin-thumb-uploader" title={item.uploader}>
+                  {item.uploader}
+                </span>
+              )}
               {item.kind === 'image' && (
-                <button
-                  className="admin-rotate-btn"
-                  onClick={() => handleRotate(item.id)}
-                  disabled={rotatingId === item.id}
-                  aria-label="Rotate 90°"
-                  title="Rotate 90°"
-                >
-                  {rotatingId === item.id ? '…' : '🔄'}
-                </button>
+                <>
+                  <button
+                    className="admin-rotate-btn admin-rotate-ccw-btn"
+                    onClick={() => handleRotate(item.id, 'ccw')}
+                    disabled={rotatingId === item.id}
+                    aria-label="Rotate counter-clockwise"
+                    title="Rotate counter-clockwise"
+                  >
+                    {rotatingId === item.id ? '…' : '↺'}
+                  </button>
+                  <button
+                    className="admin-rotate-btn admin-rotate-cw-btn"
+                    onClick={() => handleRotate(item.id, 'cw')}
+                    disabled={rotatingId === item.id}
+                    aria-label="Rotate clockwise"
+                    title="Rotate clockwise"
+                  >
+                    {rotatingId === item.id ? '…' : '↻'}
+                  </button>
+                </>
               )}
               <button
                 className="admin-delete-btn"

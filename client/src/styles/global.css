@@ -40,6 +40,15 @@ body,
 .brand span {
   color: var(--accent);
 }
+.brand-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.brand-link:hover,
+.brand-link:focus-visible {
+  opacity: 0.85;
+}
 
 .tagline {
   color: var(--text-dim);
@@ -123,6 +132,22 @@ a.upload-url:focus-visible {
   cursor: pointer;
   color: var(--accent);
   font-size: 1.1rem;
+}
+
+.uploader-input {
+  font-family: inherit;
+  font-size: 1rem;
+  width: 100%;
+  max-width: 320px;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent-dim);
+  background: var(--panel);
+  color: var(--text);
+  text-align: center;
+}
+.uploader-input::placeholder {
+  color: var(--text-dim);
 }
 
 .preview {
@@ -400,6 +425,58 @@ a.upload-url:focus-visible {
   color: var(--accent);
 }
 
+.slide-uploader-tag {
+  position: absolute;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 1rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent-dim);
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--accent);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+@keyframes new-upload-badge-kf {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -12px) scale(0.9);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -12px) scale(0.9);
+  }
+}
+.new-upload-badge {
+  position: absolute;
+  top: 1.5rem;
+  left: 50%;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 1.3rem;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  padding: 0.6rem 1.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: rgba(5, 23, 12, 0.85);
+  color: var(--accent);
+  box-shadow: 0 0 30px rgba(57, 255, 136, 0.5);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  animation: new-upload-badge-kf 5s ease-in-out both;
+}
+
 .admin-link {
   color: var(--text-dim);
   font-size: 0.85rem;
@@ -475,6 +552,24 @@ a.upload-url:focus-visible {
   color: var(--accent);
 }
 
+.admin-backup {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.admin-backup .btn {
+  padding: 0.5rem 1.2rem;
+}
+.backup-status {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+.backup-status.stale {
+  color: #ffb454;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -494,6 +589,20 @@ a.upload-url:focus-visible {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.admin-thumb-uploader {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  max-width: calc(100% - 44px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  color: var(--accent);
+  font-size: 0.7rem;
 }
 .admin-delete-btn {
   position: absolute;
@@ -516,21 +625,26 @@ a.upload-url:focus-visible {
 
 .admin-rotate-btn {
   position: absolute;
-  top: 6px;
-  right: 40px;
+  bottom: 6px;
   width: 28px;
   height: 28px;
   border-radius: 50%;
   border: none;
   background: rgba(0, 0, 0, 0.65);
   color: var(--accent);
-  font-size: 0.9rem;
+  font-size: 1rem;
   line-height: 1;
   cursor: pointer;
 }
 .admin-rotate-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.admin-rotate-ccw-btn {
+  left: 6px;
+}
+.admin-rotate-cw-btn {
+  right: 6px;
 }
 
 /* --- Photo Booth --- */
@@ -557,6 +671,34 @@ a.upload-url:focus-visible {
   z-index: 5;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
   pointer-events: none;
+}
+.booth-brand .brand-link {
+  pointer-events: auto;
+}
+
+.booth-uploader-input {
+  position: absolute;
+  top: 2.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-family: inherit;
+  font-size: 0.85rem;
+  width: 200px;
+  max-width: 65vw;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent-dim);
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--text);
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+.booth-uploader-input::placeholder {
+  color: var(--text-dim);
+}
+.booth-uploader-input:disabled {
+  opacity: 0.6;
 }
 
 .booth-viewport {

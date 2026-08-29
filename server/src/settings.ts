@@ -14,11 +14,18 @@ export const TRANSITION_STYLES = [
 ] as const;
 export type TransitionStyle = (typeof TRANSITION_STYLES)[number];
 
+interface BackupInfo {
+  lastBackupAt: number;
+  lastBackupSizeBytes: number;
+  lastBackupItemCount: number;
+}
+
 interface Settings {
   slideshowIntervalMs?: number;
   shuffle?: boolean;
   transitionStyle?: TransitionStyle;
   partyMode?: boolean;
+  lastBackup?: BackupInfo;
 }
 
 fs.mkdirSync(path.dirname(config.settingsPath), { recursive: true });
@@ -80,4 +87,15 @@ export function setPartyMode(value: boolean): boolean {
   settings.partyMode = value;
   writeSettings(settings);
   return value;
+}
+
+export function getLastBackup(): BackupInfo | null {
+  return readSettings().lastBackup ?? null;
+}
+
+export function setLastBackup(info: BackupInfo): BackupInfo {
+  const settings = readSettings();
+  settings.lastBackup = info;
+  writeSettings(settings);
+  return info;
 }

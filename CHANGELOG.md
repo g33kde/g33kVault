@@ -2,14 +2,70 @@
 
 ## [Unreleased]
 
+### One-click backup in /admin
+
+- New "⬇ Download Backup" button on `/admin` — streams a `.tar.gz` of both the media
+  files and metadata straight to the browser (server has direct filesystem access, so
+  no Docker required, unlike the migration scripts). New status line next to it shows
+  the last backup's time/size/item count, turning amber past 7 days old or reading "No
+  backup taken yet" if none exists. Backed by two new settings getters/setters
+  (`lastBackup`) and broadcast live over the existing WebSocket.
+
+### Backup & migration scripts
+
+- New `scripts/backup.sh` / `scripts/restore.sh`, bundling the `media-data` and
+  `db-data` Docker volumes (photos/videos, metadata, admin settings) into a single
+  tarball and restoring it on a fresh instance — for moving g33kVault to a new
+  machine or just taking a backup. Documented in a new README section, both manual
+  and scripted paths. Verified end-to-end: backed up a seeded instance, wiped its
+  volumes, restored, confirmed everything (including file bytes) came back identical.
+
+### New photo uploads interrupt the slideshow
+
+- A freshly uploaded photo now cuts the slideshow away from whatever's currently
+  showing and plays immediately, with a "🆕 New Upload" badge for the first 5 of its
+  10 seconds on screen. Videos keep the previous (non-interrupting, queued) behavior.
+- Back-to-back uploads no longer interrupt each other's highlight — a photo that
+  arrives while another is already being highlighted queues instead, so each gets its
+  own full, uninterrupted 10 seconds in upload order (no cap on queue depth).
+- Fixed two bugs found while building the queue: the per-slide timer was keyed on
+  `items.length`, so any upload landing in the background (even one just joining the
+  queue, not being displayed) reset the currently-highlighted photo's remaining time —
+  now keyed on the displayed item's id instead. Also removed a side effect
+  (`Array.shift()`) from inside a `setState` updater, which React can invoke more than
+  once (e.g. under StrictMode in dev) — was silently dropping a queued photo when it did.
+
+### Docs: x86_64 Linux / VM deployment
+
+- New README section alongside the Raspberry Pi one, with install steps for a fresh
+  x86_64 Linux install (VM or bare metal) and a note about bridged vs. NAT networking
+  on VMs (guests' phones can't reach a NAT'd VM's IP).
+
+### Clickable "g33kVault" heading
+
+- The brand heading is now a link back to `/` on every page (Host, Upload, Booth,
+  Slideshow, Admin — both its logged-out and logged-in views).
+
+### Optional uploader name
+
+- `/upload` and `/booth` both have a new optional "Your name" field, remembered in the
+  browser (`localStorage`, shared between the two pages) across visits. Attached to
+  every file uploaded/captured as plain metadata (not burned into image pixels), shown
+  as a small overlay tag: bottom-right on the slideshow, top-left on each `/admin`
+  thumbnail.
+- The "Contributors" stat on `/upload` is now wired up to this — count of distinct
+  uploader names (normalized so casing doesn't inflate it), replacing the old hardcoded
+  placeholder. Still an approximation, not a real headcount (see README).
+
 ### Admin: photo rotation, newest-first grid
 
 - `/admin`'s grid now shows newest uploads first instead of chronological order.
-- New 🔄 rotate button next to each photo's delete button — actually re-encodes and
-  overwrites the stored file 90° clockwise (not a CSS-only flip), so the correct
-  orientation holds everywhere, including direct file access. Loops back to the
-  original orientation every 4 clicks. Images only (no videos, no GIFs); each rotation
-  is a lossy JPEG re-encode. Pushed live over the existing WebSocket, with cache-busted
+- New ↺/↻ rotate buttons in the bottom corners of each photo (counter-clockwise /
+  clockwise) — actually re-encode and overwrite the stored file, not a CSS-only flip,
+  so the correct orientation holds everywhere, including direct file access. Click
+  either repeatedly to keep turning; four clicks the same direction loops back to the
+  original orientation. Images only (no videos, no GIFs); each rotation is a lossy
+  JPEG re-encode. Pushed live over the existing WebSocket, with cache-busted
   thumbnail/slideshow URLs so already-open views pick up the new orientation
   immediately.
 - New dependency: `sharp` — this project's one deliberate exception to its otherwise

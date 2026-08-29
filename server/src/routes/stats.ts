@@ -1,11 +1,6 @@
 import { Router } from 'express';
 import { getAllMedia } from '../db';
 
-// No tracking of unique uploaders exists yet (uploads are anonymous — see
-// README "Notes / ideas for later"), so this is a fixed placeholder until a
-// real contributor-identity mechanism (e.g. a caption/name field) lands.
-const CONTRIBUTORS_PLACEHOLDER = 107;
-
 export const statsRouter = Router();
 
 statsRouter.get('/', (_req, res) => {
@@ -14,10 +9,21 @@ statsRouter.get('/', (_req, res) => {
   const videos = media.filter((m) => m.kind === 'video').length;
   const storageBytes = media.reduce((sum, m) => sum + m.size, 0);
 
+  // Approximate, not a real headcount: the uploader name is optional free
+  // text with no identity behind it, normalized (trimmed, lowercased) so
+  // casing differences on the same name don't inflate the count. Anonymous
+  // uploads (no name given) aren't counted at all, so this undercounts
+  // actual contributors whenever names are skipped.
+  const contributors = new Set(
+    media
+      .map((m) => m.uploader?.trim().toLowerCase())
+      .filter((name): name is string => !!name)
+  ).size;
+
   res.json({
     photos,
     videos,
-    contributors: CONTRIBUTORS_PLACEHOLDER,
+    contributors,
     storageBytes,
     uptimeMs: Math.round(process.uptime() * 1000),
   });
