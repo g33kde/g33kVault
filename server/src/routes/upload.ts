@@ -9,6 +9,7 @@ import { config } from '../config';
 import { insertMedia } from '../db';
 import { kindForExt, mimeForExt, isHeic } from '../mediaTypes';
 import { convertHeicToJpeg } from '../heicConvert';
+import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
 
 fs.mkdirSync(config.mediaDir, { recursive: true });
 
@@ -85,15 +86,18 @@ export function uploadRouter(io: SocketIOServer) {
       mimeType = 'image/jpeg';
     }
 
+    const finalPath = path.join(config.mediaDir, filename);
     const media = {
       id: randomUUID(),
       filename,
       original_name: req.file.originalname,
       mime_type: mimeType,
       kind,
-      size: fs.statSync(path.join(config.mediaDir, filename)).size,
+      size: fs.statSync(finalPath).size,
       created_at: Date.now(),
       uploader: sanitizeUploader(req.body?.uploader),
+      content_hash: computeContentHash(finalPath),
+      phash: kind === 'image' ? await computePerceptualHash(finalPath) : null,
     };
 
     insertMedia(media);

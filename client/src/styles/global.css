@@ -570,6 +570,43 @@ a.upload-url:focus-visible {
   color: #ffb454;
 }
 
+.admin-duplicates {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  max-width: 1000px;
+}
+.admin-duplicates > .btn {
+  padding: 0.5rem 1.2rem;
+}
+.duplicates-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+.duplicates-heading {
+  margin: 0.5rem 0 0;
+}
+.duplicate-group {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 0.75rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.duplicate-thumb {
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));

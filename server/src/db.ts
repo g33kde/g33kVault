@@ -11,6 +11,11 @@ export interface MediaRow {
   size: number;
   created_at: number;
   uploader?: string | null;
+  // Both undefined = not yet computed (backfilled lazily by the duplicate
+  // scan); phash is explicitly null once computed for something it doesn't
+  // apply to (video, or an image sharp couldn't decode).
+  content_hash?: string;
+  phash?: string | null;
 }
 
 fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });

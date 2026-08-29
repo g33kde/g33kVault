@@ -83,6 +83,32 @@ rather than defaulting to open — deletion always returns "invalid password" un
 password is configured. The password is entered once and kept in the browser's session
 storage (cleared when the tab closes), so it isn't re-entered on every visit.
 
+## Duplicate detection
+
+`/admin` has a **🔍 Scan for Duplicates** button that finds two different kinds of
+duplicate, shown as separate groups of thumbnails (with the usual delete button on each,
+so cleanup is still a manual, deliberate choice — nothing gets auto-deleted):
+
+- **Exact duplicates** — byte-identical files (a SHA-256 content hash), e.g. the same
+  photo uploaded twice, or imported twice via the watched folder (which has no
+  content-based dedup of its own).
+- **Similar photos** — visually near-identical but not byte-identical, via a perceptual
+  hash (`dHash`) that's tolerant of re-encoding, quality changes, and resizing but not of
+  rotation — a photo and its 90°-rotated copy come out looking like two different
+  photos, since orientation is exactly what this hash is sensitive to. Won't catch
+  photo-booth burst shots (deliberately different moments of the same scene, not
+  encoding variants of one shot) — that's a much harder computer-vision problem this
+  doesn't attempt.
+
+Both hashes are computed once, when a photo is created (upload, import, booth capture)
+or rotated (rotation changes both the file's bytes and, since it changes orientation,
+the perceptual hash) — not recomputed on every scan. Photos that predate this feature
+get backfilled automatically the first time you scan, which can take a little while on a
+large, long-untouched gallery (one image decode per photo); every scan after that is
+fast, since it's just comparing already-known values. Verified end-to-end during
+development: an exact copy, a re-saved-at-different-quality copy, and a genuinely
+different photo were all sorted into the right (or no) group correctly.
+
 ## iPhone photos (HEIC/HEIF)
 
 iPhones often store photos as HEIC, which most non-Apple browsers can't render in an

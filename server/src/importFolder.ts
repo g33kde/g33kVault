@@ -8,6 +8,7 @@ import { insertMedia, MediaRow } from './db';
 import { kindForExt, mimeForExt, isHeic } from './mediaTypes';
 import { convertHeicToJpeg } from './heicConvert';
 import { archiveKindFor, extractArchive, isJunkArchiveEntry } from './archiveExtract';
+import { computeContentHash, computePerceptualHash } from './duplicateDetect';
 
 // Skip files newer than this so a still-in-progress copy (e.g. from a USB
 // stick or network share) isn't imported half-written.
@@ -88,6 +89,8 @@ async function importSingleFile(srcPath: string, stat: fs.Stats, io: SocketIOSer
     kind,
     size: fs.statSync(destPath).size,
     created_at: stat.mtimeMs,
+    content_hash: computeContentHash(destPath),
+    phash: kind === 'image' ? await computePerceptualHash(destPath) : null,
   };
 
   insertMedia(media);

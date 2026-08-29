@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Duplicate photo detection in /admin
+
+- New "🔍 Scan for Duplicates" button, finding both exact duplicates (SHA-256 content
+  hash) and visually similar photos (perceptual `dHash`, tolerant of re-encoding/resize
+  but not rotation). Results shown as grouped thumbnails with the existing delete
+  button on each — review and cleanup stays manual, nothing auto-deletes.
+- Hashes are computed once per photo (on upload/import/booth-capture, and recomputed on
+  rotation) and cached in the metadata store rather than recomputed on every scan;
+  older photos are backfilled automatically the first time a scan runs.
+- Found a real grouping bug while testing against actual re-saved copies: excluding
+  exact-duplicate members from the similar-photos comparison pool caused a genuine
+  near-duplicate to lose its only match partner and vanish from the results entirely.
+  Fixed — both passes now run over the full set independently.
+
 ### Archive support in the watched import folder
 
 - `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.7z`, and `.rar` files dropped into the import

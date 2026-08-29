@@ -6,6 +6,7 @@ import type { Server as SocketIOServer } from 'socket.io';
 import { config } from '../config';
 import { getAllMedia, getMediaById, deleteMedia, updateMedia } from '../db';
 import { checkAdminPassword } from '../adminAuth';
+import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
 
 // Formats sharp can re-encode losslessly-ish on this project's own terms.
 // GIF is deliberately excluded — animated-GIF rotation needs per-frame
@@ -67,7 +68,15 @@ export function mediaRouter(io: SocketIOServer) {
       const output = await pipeline.toBuffer();
       fs.writeFileSync(filePath, output);
 
-      const updated = updateMedia(media.id, { size: output.length });
+      // Rotation changes the file's bytes (new content hash) and its pixel
+      // orientation (new perceptual hash) — both would otherwise go stale
+      // and could cause an incorrect duplicate match against the old
+      // orientation.
+      const updated = updateMedia(media.id, {
+        size: output.length,
+        content_hash: computeContentHash(filePath),
+        phash: await computePerceptualHash(filePath),
+      });
       io.emit('media:updated', updated);
       res.json(updated);
     } catch (err) {

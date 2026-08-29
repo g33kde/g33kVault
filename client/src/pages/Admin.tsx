@@ -19,6 +19,11 @@ interface LastBackup {
   lastBackupItemCount: number;
 }
 
+interface DuplicateGroups {
+  exact: MediaItem[][];
+  similar: MediaItem[][];
+}
+
 interface SettingsPayload {
   slideshowIntervalMs: number;
   shuffle: boolean;
@@ -76,6 +81,10 @@ export default function Admin() {
   const [lastBackup, setLastBackupState] = useState<LastBackup | null>(null);
   const [backingUp, setBackingUp] = useState(false);
   const [backupError, setBackupError] = useState('');
+
+  const [duplicates, setDuplicates] = useState<DuplicateGroups | null>(null);
+  const [scanningDuplicates, setScanningDuplicates] = useState(false);
+  const [duplicatesError, setDuplicatesError] = useState('');
 
   async function verifyPassword(candidate: string) {
     if (!candidate) return;
@@ -248,9 +257,45 @@ export default function Admin() {
 
       if (res.ok) {
         setItems((prev) => prev.filter((i) => i.id !== id));
+        // Also drop it from any duplicate-group results already on screen,
+        // removing a group entirely once it's down to one item — a "group"
+        // of one isn't a duplicate anymore.
+        setDuplicates((prev) => {
+          if (!prev) return prev;
+          const strip = (groups: MediaItem[][]) =>
+            groups.map((g) => g.filter((i) => i.id !== id)).filter((g) => g.length > 1);
+          return { exact: strip(prev.exact), similar: strip(prev.similar) };
+        });
       }
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleScanDuplicates() {
+    if (!password) return;
+
+    setScanningDuplicates(true);
+    setDuplicatesError('');
+    try {
+      const res = await fetch('/api/admin/duplicates', { headers: { 'X-Admin-Password': password } });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setDuplicatesError(data.error || 'Scan failed');
+        return;
+      }
+
+      setDuplicates(await res.json());
+    } catch {
+      setDuplicatesError('Network error');
+    } finally {
+      setScanningDuplicates(false);
     }
   }
 
@@ -284,6 +329,31 @@ export default function Admin() {
     } finally {
       setRotatingId(null);
     }
+  }
+
+  function renderDuplicateGroups(groups: MediaItem[][]) {
+    return groups.map((group) => (
+      <div key={group.map((i) => i.id).join(',')} className="duplicate-group">
+        {group.map((item) => (
+          <div key={item.id} className="admin-thumb duplicate-thumb">
+            {item.kind === 'video' ? (
+              <video src={`/media/${item.filename}`} controls muted playsInline />
+            ) : (
+              <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+            )}
+            <button
+              className="admin-delete-btn"
+              onClick={() => handleDelete(item.id)}
+              disabled={deletingId === item.id}
+              aria-label="Delete"
+              title="Delete"
+            >
+              {deletingId === item.id ? '…' : '✕'}
+            </button>
+          </div>
+        ))}
+      </div>
+    ));
   }
 
   if (!password) {
@@ -411,6 +481,42 @@ export default function Admin() {
         )}
       </div>
       {backupError && <p className="error-msg">{backupError}</p>}
+
+      <div className="admin-duplicates">
+        <button className="btn btn-primary" onClick={handleScanDuplicates} disabled={scanningDuplicates}>
+          {scanningDuplicates ? 'Scanning…' : '🔍 Scan for Duplicates'}
+        </button>
+        {duplicatesError && <p className="error-msg">{duplicatesError}</p>}
+
+        {duplicates && (
+          <div className="duplicates-results">
+            {duplicates.exact.length === 0 && duplicates.similar.length === 0 ? (
+              <p className="tagline">No duplicates found.</p>
+            ) : (
+              <>
+                {duplicates.exact.length > 0 && (
+                  <>
+                    <p className="tagline duplicates-heading">
+                      Exact duplicates — {duplicates.exact.length} group
+                      {duplicates.exact.length === 1 ? '' : 's'}
+                    </p>
+                    {renderDuplicateGroups(duplicates.exact)}
+                  </>
+                )}
+                {duplicates.similar.length > 0 && (
+                  <>
+                    <p className="tagline duplicates-heading">
+                      Similar photos — {duplicates.similar.length} group
+                      {duplicates.similar.length === 1 ? '' : 's'}
+                    </p>
+                    {renderDuplicateGroups(duplicates.similar)}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       <p className="tagline">
         {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete, ↺/↻ to rotate

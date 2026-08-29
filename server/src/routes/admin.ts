@@ -5,7 +5,8 @@ import { PassThrough } from 'stream';
 import type { Server as SocketIOServer } from 'socket.io';
 import { checkAdminPassword } from '../adminAuth';
 import { config } from '../config';
-import { getAllMedia } from '../db';
+import { getAllMedia, updateMedia } from '../db';
+import { computeContentHash, computePerceptualHash, findDuplicateGroups } from '../duplicateDetect';
 import {
   getSlideshowIntervalMs,
   setSlideshowIntervalMs,
@@ -149,6 +150,45 @@ export function adminRouter(io: SocketIOServer) {
         console.error(`Backup tar exited with code ${code}`);
       }
     });
+  });
+
+  // Backfills content_hash/phash for any media that predates this feature
+  // (or slipped through some other path without one), then groups by exact
+  // file match and by near-identical perceptual hash. Backfilling here
+  // rather than in a migration means a first scan on a large, long-running
+  // gallery can take a while (one image decode per unhashed photo) — later
+  // scans are fast, since everything's cached in the metadata store by then.
+  router.get('/duplicates', async (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    const media = getAllMedia();
+
+    for (const item of media) {
+      const filePath = path.join(config.mediaDir, item.filename);
+      const patch: { content_hash?: string; phash?: string | null } = {};
+
+      if (item.content_hash === undefined) {
+        try {
+          patch.content_hash = computeContentHash(filePath);
+        } catch (err) {
+          console.error(`Could not hash ${item.filename}:`, err);
+        }
+      }
+
+      if (item.phash === undefined) {
+        patch.phash = item.kind === 'image' ? await computePerceptualHash(filePath) : null;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        updateMedia(item.id, patch);
+        Object.assign(item, patch);
+      }
+    }
+
+    res.json(findDuplicateGroups(media));
   });
 
   return router;
