@@ -285,20 +285,27 @@ and a fresh output location, and tars one into the other:
 ```bash
 # Back up (run from the repo root, app can be running or stopped):
 docker compose run --rm --no-deps \
-  -v media-data:/backup/media:ro -v db-data:/backup/db:ro -v "$(pwd):/out" \
-  --entrypoint sh g33kvault -c "tar czf /out/backup.tar.gz -C /backup media db"
+  -v media-data:/backup/media:ro -v db-data:/backup/data:ro -v "$(pwd):/out" \
+  --entrypoint sh g33kvault -c "tar czf /out/backup.tar.gz -C /backup media data"
 
 # On the new instance, after `git clone` (do NOT `docker compose up` yet —
 # stop after volumes are created if you already have, since restoring
 # overwrites, not merges):
 docker compose run --rm --no-deps \
-  -v media-data:/restore/media -v db-data:/restore/db -v "$(pwd):/in:ro" \
+  -v media-data:/restore/media -v db-data:/restore/data -v "$(pwd):/in:ro" \
   --entrypoint sh g33kvault -c \
   "tar xzf /in/backup.tar.gz -C /restore/media --strip-components=1 media && \
-   tar xzf /in/backup.tar.gz -C /restore/db --strip-components=1 db"
+   tar xzf /in/backup.tar.gz -C /restore/data --strip-components=1 data"
 
 docker compose up -d
 ```
+
+The two top-level archive folders are named `media` and `data` — deliberately matching
+what the `/admin` "Download Backup" button produces (it derives those names from
+`MEDIA_DIR`'s and `DB_PATH`'s actual basenames, which default to exactly `media` and
+`data`), so a backup taken either way restores the same. If you've customized
+`MEDIA_DIR`/`DB_PATH` to different directory names, the button's archive will follow
+suit and these commands need adjusting to match.
 
 ## Configuration (env vars)
 

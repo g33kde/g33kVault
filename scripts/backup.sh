@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Bundles g33kVault's two Docker volumes (media-data: uploaded photos/videos,
-# db-data: metadata + admin settings JSON) into a single timestamped tarball.
+# db-data: metadata + admin settings JSON) into a single timestamped tarball,
+# with top-level archive folders "media" and "data" — deliberately matching
+# what the /admin "Download Backup" button produces (server/src/routes/admin.ts
+# derives those names from MEDIA_DIR's and DB_PATH's actual basenames, "media"
+# and "data" under the default Docker Compose paths), so a backup taken either
+# way restores the same. If you've customized MEDIA_DIR/DB_PATH to different
+# basenames, the button's archive folder names will follow suit and this
+# script's fixed "media"/"data" names (and restore.sh) will need adjusting.
 #
 # Usage: ./scripts/backup.sh [output-dir]
 #   output-dir defaults to ./backups
@@ -30,10 +37,10 @@ ABS_OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 echo "Backing up media-data and db-data volumes..."
 docker compose run --rm --no-deps \
   -v media-data:/backup/media:ro \
-  -v db-data:/backup/db:ro \
+  -v db-data:/backup/data:ro \
   -v "${ABS_OUT_DIR}:/out" \
   --entrypoint sh \
   g33kvault \
-  -c "tar czf /out/${OUT_FILE} -C /backup media db"
+  -c "tar czf /out/${OUT_FILE} -C /backup media data"
 
 echo "Backup written to ${ABS_OUT_DIR}/${OUT_FILE}"

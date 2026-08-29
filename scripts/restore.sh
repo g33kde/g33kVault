@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Restores a backup created by scripts/backup.sh into this instance's
-# media-data and db-data Docker volumes.
+# Restores a backup created by scripts/backup.sh (or the /admin "Download
+# Backup" button, which uses the same "media"/"data" archive layout) into
+# this instance's media-data and db-data Docker volumes.
 #
 # Usage: ./scripts/restore.sh path/to/g33kvault-backup-<timestamp>.tar.gz
 #
@@ -51,11 +52,11 @@ echo "Make sure the app isn't running while you restore: docker compose stop"
 echo "Restoring..."
 docker compose run --rm --no-deps \
   -v media-data:/restore/media \
-  -v db-data:/restore/db \
+  -v db-data:/restore/data \
   -v "${BACKUP_DIR}:/in:ro" \
   --entrypoint sh \
   g33kvault \
   -c "tar xzf /in/${BACKUP_NAME} -C /restore/media --strip-components=1 media && \
-      tar xzf /in/${BACKUP_NAME} -C /restore/db --strip-components=1 db"
+      tar xzf /in/${BACKUP_NAME} -C /restore/data --strip-components=1 data"
 
 echo "Restore complete. Start the app with: docker compose up -d"

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fix: backup/restore archive-folder mismatch
+
+- `scripts/restore.sh` failed with `tar: db: not found in archive` on any
+  backup downloaded from the `/admin` button — it expected a `db/` folder
+  inside the tarball, but the button's backup (and, it turns out, the CLI's
+  own `backup.sh`) actually produces `data/`. Standardized both CLI scripts
+  and the README's manual procedure on `data/`, matching what the button
+  already produced, so backups from either path now restore via either
+  method. Verified end-to-end in both directions.
+
 ### One-click backup in /admin
 
 - New "⬇ Download Backup" button on `/admin` — streams a `.tar.gz` of both the media
