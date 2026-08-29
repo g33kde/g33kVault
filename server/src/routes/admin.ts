@@ -9,7 +9,7 @@ import { config } from '../config';
 import { getAllMedia, updateMedia, deleteManyMedia, MediaRow } from '../db';
 import { computeContentHash, computePerceptualHash, findDuplicateGroups, planDuplicateDeletions } from '../duplicateDetect';
 import { extractPhotoTakenAt } from '../photoDate';
-import { getImageDimensions, isLowResolution } from '../lowResolution';
+import { getImageDimensions, isLowResolution, makeThreshold, ResolutionThreshold } from '../lowResolution';
 import {
   getSlideshowIntervalMs,
   setSlideshowIntervalMs,
@@ -44,6 +44,17 @@ interface LowResResult {
   height: number;
 }
 
+// Query params come in as strings (or arrays, or missing) — this is the one
+// place that turns req.query.maxWidth/maxHeight into a real threshold or
+// null, so both routes below reject the same way rather than one silently
+// falling back to a default the admin didn't ask for.
+function parseThresholdQuery(query: Record<string, unknown>): ResolutionThreshold | null {
+  const a = Number(query.maxWidth);
+  const b = Number(query.maxHeight);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return null;
+  return makeThreshold(a, b);
+}
+
 // Shared by the scan route and the delete-all route below, so both agree on
 // exactly which images count as low-resolution — recomputed fresh each call
 // rather than cached on the row, since dimensions are cheap to read (just
@@ -53,7 +64,8 @@ async function scanLowResolutionImages(
   media: MediaRow[],
   mediaDir: string,
   io: SocketIOServer,
-  progressEvent: string
+  progressEvent: string,
+  threshold: ResolutionThreshold
 ): Promise<LowResResult[]> {
   const images = media.filter((m) => m.kind === 'image');
   const flagged: LowResResult[] = [];
@@ -61,7 +73,7 @@ async function scanLowResolutionImages(
   for (let i = 0; i < images.length; i++) {
     const item = images[i];
     const dims = await getImageDimensions(path.join(mediaDir, item.filename));
-    if (dims && isLowResolution(dims)) {
+    if (dims && isLowResolution(dims, threshold)) {
       flagged.push({ item, width: dims.width, height: dims.height });
     }
     io.emit(progressEvent, { current: i + 1, total: images.length });
@@ -337,19 +349,26 @@ export function adminRouter(io: SocketIOServer) {
     }
   });
 
-  // Lists images at or below 160x120 (checked orientation-independently —
-  // see lowResolution.ts) — usually a thumbnail, a resized re-upload, or a
-  // screenshot rather than the original camera photo. Nothing is cached on
-  // the row; every call re-reads dimensions fresh.
+  // Lists images at or below an admin-chosen threshold (?maxWidth=&maxHeight=,
+  // checked orientation-independently — see lowResolution.ts) — usually a
+  // thumbnail, a resized re-upload, or a screenshot rather than the original
+  // camera photo. Nothing is cached on the row; every call re-reads
+  // dimensions fresh.
   router.get('/low-resolution', async (req, res) => {
     if (!checkAdminPassword(req.header('x-admin-password'))) {
       res.status(401).json({ error: 'Invalid password' });
       return;
     }
 
+    const threshold = parseThresholdQuery(req.query);
+    if (!threshold) {
+      res.status(400).json({ error: 'maxWidth and maxHeight must be positive numbers' });
+      return;
+    }
+
     try {
       const media = getAllMedia();
-      const flagged = await scanLowResolutionImages(media, config.mediaDir, io, 'lowRes:progress');
+      const flagged = await scanLowResolutionImages(media, config.mediaDir, io, 'lowRes:progress', threshold);
       res.json({ items: flagged.map(({ item, width, height }) => ({ ...item, width, height })) });
     } catch (err) {
       console.error('Low-resolution scan failed:', err);
@@ -360,16 +379,25 @@ export function adminRouter(io: SocketIOServer) {
   // Recomputes the low-resolution set itself rather than trusting ids the
   // client sends (same reasoning as duplicates/delete-all — a stale client
   // list could delete a photo that's no longer actually low-res, e.g. after
-  // a rotation), then deletes all of them in one batch.
+  // a rotation), then deletes all of them in one batch. Takes the same
+  // ?maxWidth=&maxHeight= as the scan — the client always sends whatever
+  // threshold it just scanned with, so this can't delete against a
+  // different, stale threshold.
   router.post('/low-resolution/delete-all', async (req, res) => {
     if (!checkAdminPassword(req.header('x-admin-password'))) {
       res.status(401).json({ error: 'Invalid password' });
       return;
     }
 
+    const threshold = parseThresholdQuery(req.query);
+    if (!threshold) {
+      res.status(400).json({ error: 'maxWidth and maxHeight must be positive numbers' });
+      return;
+    }
+
     try {
       const media = getAllMedia();
-      const flagged = await scanLowResolutionImages(media, config.mediaDir, io, 'lowRes:deleteProgress');
+      const flagged = await scanLowResolutionImages(media, config.mediaDir, io, 'lowRes:deleteProgress', threshold);
       const idsToDelete = new Set(flagged.map((f) => f.item.id));
 
       if (idsToDelete.size === 0) {

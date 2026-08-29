@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Configurable resolution threshold for Low-Resolution Photos
+
+- The scan threshold was previously fixed at 160×120. Now a "Resolution threshold"
+  dropdown in the Low-Resolution Photos row offers named presets — Tiny thumbnails
+  (160×120), Old VGA (640×480), SD (854×480), HD-ready (1280×720) — plus a Custom
+  option with two width/height number inputs for any exact value, defaulting to
+  Custom at 320×280. Changing the threshold clears any results already on screen
+  (they were computed under the old threshold) rather than leaving a stale count
+  displayed next to a newly-selected value.
+- Worth calling out: 160×120 only catches literal thumbnail-sized accidents. A photo
+  that's merely SD-quality (e.g. 640×480 or 854×480) will still look visibly soft
+  blown up fullscreen on a modern TV or projector — which is presumably how this
+  slideshow actually gets displayed — but wouldn't trip a 160×120 check at all. The
+  HD-ready (1280×720) preset is a closer match to "looks bad on the big screen"
+  specifically, if that's the goal rather than just clearing out true thumbnails.
+- The delete-all endpoint takes the same threshold query params as the scan (rather
+  than a hardcoded default), so it always deletes against whatever was actually just
+  scanned. Verified against 10 real test images spanning every preset boundary (100×75
+  up to 1600×900): each preset flags exactly the expected set, including the
+  orientation-independent "either edge" rule correctly catching a wide-but-short image
+  (854×480) under the VGA preset even though its long edge exceeds 640 — its short
+  edge (480) still qualifies.
+
 ### Click a photo in /admin to open it full-size in a new tab
 
 - Originally just the main Photo Gallery grid, now also the Low-Resolution Photos

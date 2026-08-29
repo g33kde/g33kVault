@@ -1,16 +1,23 @@
 import sharp from 'sharp';
 
-// Checked against the shorter and longer edge independently, not raw width
-// vs height, so orientation doesn't matter — a normal 1080x1920 portrait
-// phone photo isn't mistaken for a "160x120" thumbnail just because its
-// width is under 160, and a genuine landscape thumbnail saved sideways
-// still gets caught.
-const MAX_LONG_EDGE = 160;
-const MAX_SHORT_EDGE = 120;
-
 export interface ImageDimensions {
   width: number;
   height: number;
+}
+
+// Two edges, not "width"/"height" — the admin picks two numbers (however
+// they think of them) and this always compares the photo's actual shorter
+// edge against the smaller of the two and its longer edge against the
+// larger, so orientation never matters: a normal 1080x1920 portrait phone
+// photo isn't mistaken for a small thumbnail just because one of its edges
+// is short, and a landscape thumbnail saved sideways still gets caught.
+export interface ResolutionThreshold {
+  maxLongEdge: number;
+  maxShortEdge: number;
+}
+
+export function makeThreshold(a: number, b: number): ResolutionThreshold {
+  return { maxLongEdge: Math.max(a, b), maxShortEdge: Math.min(a, b) };
 }
 
 // Reads just the image header (not a full pixel decode) via sharp, already a
@@ -27,8 +34,8 @@ export async function getImageDimensions(filePath: string): Promise<ImageDimensi
   }
 }
 
-export function isLowResolution({ width, height }: ImageDimensions): boolean {
+export function isLowResolution({ width, height }: ImageDimensions, threshold: ResolutionThreshold): boolean {
   const shortEdge = Math.min(width, height);
   const longEdge = Math.max(width, height);
-  return shortEdge <= MAX_SHORT_EDGE || longEdge <= MAX_LONG_EDGE;
+  return shortEdge <= threshold.maxShortEdge || longEdge <= threshold.maxLongEdge;
 }

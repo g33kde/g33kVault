@@ -131,6 +131,16 @@ const TRANSITION_LABELS: Record<TransitionStyle, string> = {
   random: 'Random',
 };
 
+// "Custom" isn't in this map — its width/height come from the free-text
+// inputs instead of a fixed value.
+const LOW_RES_PRESETS = {
+  tiny: { width: 160, height: 120, label: 'Tiny thumbnails (160×120)' },
+  vga: { width: 640, height: 480, label: 'Old VGA (640×480)' },
+  sd: { width: 854, height: 480, label: 'SD (854×480)' },
+  hd: { width: 1280, height: 720, label: 'HD-ready (1280×720)' },
+} as const;
+type LowResPreset = keyof typeof LOW_RES_PRESETS | 'custom';
+
 export default function Admin() {
   const [password, setPassword] = useState<string | null>(() => sessionStorage.getItem(STORAGE_KEY));
   const [passwordInput, setPasswordInput] = useState('');
@@ -166,6 +176,7 @@ export default function Admin() {
   const [photoDatesResult, setPhotoDatesResult] = useState<{ scanned: number; found: number } | null>(null);
 
   const [lowResItems, setLowResItems] = useState<MediaItem[] | null>(null);
+  const [lowResThreshold, setLowResThreshold] = useState<{ width: number; height: number } | null>(null);
   const [scanningLowRes, setScanningLowRes] = useState(false);
   const [lowResError, setLowResError] = useState('');
   const [lowResProgress, setLowResProgress] = useState<{ current: number; total: number } | null>(null);
@@ -174,6 +185,13 @@ export default function Admin() {
     null
   );
   const [deleteAllLowResError, setDeleteAllLowResError] = useState('');
+
+  // Defaults to Custom pre-filled at 320x280 rather than one of the named
+  // presets — picking a preset re-fills these two fields, and switching
+  // back to Custom keeps whatever was last typed.
+  const [lowResPreset, setLowResPreset] = useState<LowResPreset>('custom');
+  const [lowResCustomWidth, setLowResCustomWidth] = useState('320');
+  const [lowResCustomHeight, setLowResCustomHeight] = useState('280');
 
   // The occasional-use maintenance tools collapse into accordion rows (see
   // CHANGELOG) — collapsed by default so the page opens short; each stays
@@ -501,14 +519,32 @@ export default function Admin() {
     }
   }
 
+  // null means the custom fields don't hold a valid pair of positive
+  // numbers yet — callers treat that as "can't scan right now" rather than
+  // falling back to some default the admin didn't choose.
+  function getActiveLowResThreshold(): { width: number; height: number } | null {
+    if (lowResPreset !== 'custom') return LOW_RES_PRESETS[lowResPreset];
+    const width = Number(lowResCustomWidth);
+    const height = Number(lowResCustomHeight);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+    return { width, height };
+  }
+
   async function handleScanLowRes() {
     if (!password) return;
+    const threshold = getActiveLowResThreshold();
+    if (!threshold) {
+      setLowResError('Enter a valid width and height');
+      return;
+    }
 
     setScanningLowRes(true);
     setLowResError('');
     setLowResProgress(null);
     try {
-      const res = await fetch('/api/admin/low-resolution', { headers: { 'X-Admin-Password': password } });
+      const res = await fetch(`/api/admin/low-resolution?maxWidth=${threshold.width}&maxHeight=${threshold.height}`, {
+        headers: { 'X-Admin-Password': password },
+      });
 
       if (res.status === 401) {
         handleAuthFailure();
@@ -523,6 +559,7 @@ export default function Admin() {
 
       const data: { items: MediaItem[] } = await res.json();
       setLowResItems(data.items);
+      setLowResThreshold(threshold);
     } catch {
       setLowResError('Network error');
     } finally {
@@ -532,7 +569,7 @@ export default function Admin() {
   }
 
   async function handleDeleteAllLowRes() {
-    if (!password || !lowResItems || lowResItems.length === 0) return;
+    if (!password || !lowResItems || lowResItems.length === 0 || !lowResThreshold) return;
 
     if (
       !window.confirm(
@@ -546,10 +583,13 @@ export default function Admin() {
     setDeleteAllLowResError('');
     setDeleteAllLowResProgress(null);
     try {
-      const res = await fetch('/api/admin/low-resolution/delete-all', {
-        method: 'POST',
-        headers: { 'X-Admin-Password': password },
-      });
+      const res = await fetch(
+        `/api/admin/low-resolution/delete-all?maxWidth=${lowResThreshold.width}&maxHeight=${lowResThreshold.height}`,
+        {
+          method: 'POST',
+          headers: { 'X-Admin-Password': password },
+        }
+      );
 
       if (res.status === 401) {
         handleAuthFailure();
@@ -627,9 +667,11 @@ export default function Admin() {
   }
 
   function lowResSummary(): string {
-    if (!lowResItems) return 'Not scanned yet';
-    if (lowResItems.length === 0) return 'No low-resolution photos found';
-    return `${lowResItems.length} photo${lowResItems.length === 1 ? '' : 's'} at or below 160×120`;
+    if (!lowResItems || !lowResThreshold) return 'Not scanned yet';
+    if (lowResItems.length === 0) return `No photos at or below ${lowResThreshold.width}×${lowResThreshold.height}`;
+    return `${lowResItems.length} photo${lowResItems.length === 1 ? '' : 's'} at or below ${lowResThreshold.width}×${
+      lowResThreshold.height
+    }`;
   }
 
   function renderDuplicateGroups(groups: MediaItem[][]) {
@@ -916,6 +958,56 @@ export default function Admin() {
           {lowResToolOpen && (
             <div className="admin-tool-body">
               <div className="admin-duplicates">
+                <div className="admin-settings">
+                  <label htmlFor="lowres-preset-input">Resolution threshold</label>
+                  <select
+                    id="lowres-preset-input"
+                    value={lowResPreset}
+                    onChange={(e) => {
+                      setLowResPreset(e.target.value as LowResPreset);
+                      setLowResItems(null);
+                      setLowResThreshold(null);
+                      setLowResError('');
+                    }}
+                  >
+                    {(Object.keys(LOW_RES_PRESETS) as (keyof typeof LOW_RES_PRESETS)[]).map((key) => (
+                      <option key={key} value={key}>
+                        {LOW_RES_PRESETS[key].label}
+                      </option>
+                    ))}
+                    <option value="custom">Custom</option>
+                  </select>
+                  {lowResPreset === 'custom' && (
+                    <>
+                      <input
+                        type="number"
+                        min={1}
+                        value={lowResCustomWidth}
+                        onChange={(e) => {
+                          setLowResCustomWidth(e.target.value);
+                          setLowResItems(null);
+                          setLowResThreshold(null);
+                          setLowResError('');
+                        }}
+                        aria-label="Width"
+                      />
+                      <span>×</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={lowResCustomHeight}
+                        onChange={(e) => {
+                          setLowResCustomHeight(e.target.value);
+                          setLowResItems(null);
+                          setLowResThreshold(null);
+                          setLowResError('');
+                        }}
+                        aria-label="Height"
+                      />
+                    </>
+                  )}
+                </div>
+
                 <button className="btn btn-primary" onClick={handleScanLowRes} disabled={scanningLowRes}>
                   {scanningLowRes
                     ? lowResProgress && lowResProgress.total > 0
@@ -928,7 +1020,7 @@ export default function Admin() {
                 {lowResItems && (
                   <div className="duplicates-results">
                     {lowResItems.length === 0 ? (
-                      <p className="tagline">No low-resolution photos found.</p>
+                      <p className="tagline">{lowResSummary()}.</p>
                     ) : (
                       <>
                         <button
