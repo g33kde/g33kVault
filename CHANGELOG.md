@@ -4,13 +4,14 @@
 
 ### Click a photo in /admin to open it full-size in a new tab
 
-- Applies to the main Photo Gallery grid only (not the Duplicate Photos or
-  Low-Resolution Photos result thumbnails, by choice). Videos are unchanged — they keep
-  their native click-to-play/pause controls rather than being wrapped in a link, which
-  would have broken them. The existing rotate/delete overlay buttons still work exactly
-  as before; verified they don't trigger the new link (they're siblings of it, not
-  inside it) and that clicking the photo itself opens a real new tab at the image's
-  actual URL without navigating the admin page away.
+- Originally just the main Photo Gallery grid, now also the Low-Resolution Photos
+  results (by request) — Duplicate Photos results are still unaffected. Videos are
+  unchanged everywhere — they keep their native click-to-play/pause controls rather
+  than being wrapped in a link, which would have broken them. The existing
+  rotate/delete overlay buttons still work exactly as before in both places; verified
+  they don't trigger the new link (they're siblings of it, not inside it) and that
+  clicking a photo opens a real new tab at the image's actual URL without navigating
+  the admin page away.
 
 ### Low-resolution photo detection in /admin
 

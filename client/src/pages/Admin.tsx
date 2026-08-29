@@ -948,7 +948,9 @@ export default function Admin() {
                         <div className="admin-grid">
                           {lowResItems.map((item) => (
                             <div key={item.id} className="admin-thumb">
-                              <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+                              <a href={`/media/${item.filename}?v=${item.size}`} target="_blank" rel="noopener noreferrer">
+                                <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+                              </a>
                               {item.width && item.height && (
                                 <span className="admin-thumb-resolution">
                                   {item.width}×{item.height}
