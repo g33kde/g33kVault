@@ -9,6 +9,7 @@ interface MediaItem {
   created_at: number;
   size: number;
   uploader?: string | null;
+  photo_taken_at?: number | null;
 }
 
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
@@ -38,6 +39,10 @@ const CONCRETE_TRANSITIONS: Exclude<TransitionStyle, 'none' | 'random'>[] = [
   'arcade',
   'vhs',
 ];
+
+function formatPhotoDate(ms: number): string {
+  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 function shuffleArray<T>(arr: T[]): T[] {
   const copy = [...arr];
@@ -301,6 +306,9 @@ export default function Slideshow() {
         </button>
       )}
       {current.uploader && <div className="slide-uploader-tag">{current.uploader}</div>}
+      {current.kind === 'image' && current.photo_taken_at != null && (
+        <div className="slide-photo-date-tag">{formatPhotoDate(current.photo_taken_at)}</div>
+      )}
       {showNewUploadBadge && <div className="new-upload-badge">🆕 New Upload</div>}
     </div>
   );

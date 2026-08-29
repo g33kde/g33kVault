@@ -69,6 +69,33 @@ uploaded or imported. This was set as an explicit standing rule by the project o
     development except `.rar` (no RAR-creation tool was available to test against; the
     library itself was confirmed to load/run correctly — see README "Notes / ideas for
     later").
+  - EXIF photo-date extraction (`server/src/photoDate.ts`, admin "Scan Photo Dates" +
+    ingestion-time extraction) uses `exifr` — also not an exception: pure JS, no system
+    binary, deliberately chosen over shelling out to the real `exiftool` CLI (which
+    would need `libimage-exiftool-perl` installed in the Docker image) specifically to
+    avoid adding a system dependency. Verified to extract identical `DateTimeOriginal`/
+    `CreateDate`/`ModifyDate` values to real exiftool in testing.
+
+### Caveat: HEIC→JPEG conversion strips all EXIF data
+
+`heic-convert` (see above) fully re-encodes the image and carries no EXIF metadata
+forward — verified empirically, not assumed. Since HEIC is the default photo format for
+iPhone cameras, this matters for anything that depends on EXIF (currently: photo-taken
+date, `server/src/photoDate.ts`):
+
+- Both ingestion paths (`routes/upload.ts`, `importFolder.ts`) extract `photo_taken_at`
+  from the **original** file *before* HEIC conversion runs, so this doesn't affect new
+  uploads/imports going forward, HEIC or not.
+- It's an unrecoverable gap for anything imported *before* that extraction existed: the
+  original HEIC bytes are already gone (deleted right after conversion — normal, see the
+  hard constraint above), so the admin "Scan Photo Dates" backfill button can only find
+  a date for those if they happened to arrive as plain JPEG/PNG (EXIF untouched through
+  this app's pipeline) rather than HEIC. This is expected, not a bug — `photo_taken_at:
+  null` after a scan means exactly this.
+- If EXIF ever needs to survive HEIC conversion, `heic-convert` itself doesn't support
+  it — would need to extract tags with `exifr` from the source HEIC (as `photoDate.ts`
+  already does) and either store them separately or re-embed them into the converted
+  JPEG with a separate library, not something `heic-convert`'s API offers directly.
 
 ## Working in this repo
 

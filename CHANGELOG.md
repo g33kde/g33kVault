@@ -2,6 +2,68 @@
 
 ## [Unreleased]
 
+### Admin page reorganization
+
+- /admin had grown into a long, undifferentiated stack of controls as features
+  accumulated over time. Reorganized into: a "Playback Settings" card (unchanged
+  content, just newly grouped); a "Gallery Tools" section where the three occasional
+  maintenance actions (Backup & Restore, Duplicate Photos, Photo Dates) are now
+  collapsible rows — collapsed by default, each showing a one-line status summary
+  ("Last backup 2h ago · 340 MB · 118 items", "3 exact · 1 similar", "Found dates for
+  42/118 photos", or "Not scanned yet") and expanding independently to their full
+  existing controls/results when clicked; and a "Photo Gallery" card for the item grid.
+  No feature, button, or option was removed — purely a layout change. Proposed two
+  mockup directions for review before building (sectioned cards vs. collapsible tools);
+  the collapsible-tools direction was chosen. Verified end-to-end with a real running
+  instance: starts fully collapsed, each row toggles independently of the others, and
+  scanning for duplicates through the new collapsed/expanded row still works exactly as
+  before with real live results.
+
+### Photo-taken date overlay in the slideshow
+
+- New "📅 Scan Photo Dates" button in /admin, reading each image's EXIF `DateTimeOriginal`
+  and `CreateDate` (taking the earlier of the two when they disagree; falling back to
+  `ModifyDate` only if neither exists) via `exifr` — a pure-JS library, not a system
+  `exiftool` binary, to stay consistent with this project's no-native/no-system-binary
+  dependency policy. Shows live progress the same way the duplicate scan does.
+- Every photo where a date was found now shows it as a small overlay at the bottom
+  center of the slideshow (e.g. "Jul 15, 2024"). Photos with no usable EXIF (screenshots,
+  booth captures) simply show nothing.
+- Found and worked around a real data-loss gap during development: this app converts
+  every HEIC photo (the default iPhone camera format) to JPEG on ingest, and that
+  conversion strips 100% of EXIF metadata — verified by round-tripping a real HEIC file
+  with known EXIF dates through the app's actual conversion code. Fixed by extracting
+  the date from the *original* file before HEIC conversion runs, in both ingestion paths
+  (`/api/upload` and the watched import folder), so this works correctly for HEIC
+  uploads going forward. It's an unrecoverable gap for anything imported *before* this
+  fix, though: the original HEIC bytes are already gone by the time the scan button can
+  look, so the backfill can only find a date for photos that happened to arrive as plain
+  JPEG (EXIF untouched through this app's pipeline either way). Verified end-to-end: a
+  real HEIC file with known EXIF dates uploaded via each path, a plain JPEG upload, an
+  import-folder JPEG, a simulated legacy JPEG (backfilled correctly), and a simulated
+  legacy HEIC-sourced photo with already-stripped EXIF (correctly finds nothing, doesn't
+  error, and isn't re-scanned on a later run).
+- `photo_taken_at` needed no changes to the backup/restore path to be covered by it —
+  both the admin "Download Backup" button and `scripts/backup.sh` archive the entire
+  metadata JSON file as-is (not a curated field list), so any field it holds, this one
+  included, is backed up automatically. Verified for real: downloaded an actual backup
+  of a gallery with a mix of dated and undated photos, confirmed every `photo_taken_at`
+  value survived in the archived JSON untouched, then restored it into a fresh instance
+  and confirmed the running server served the same values back out.
+
+### Fix: photos imported via the watched folder appeared at the bottom of /admin instead of the top
+
+- Uploads (web and booth) stamp `created_at` as the moment they're added to the vault,
+  and the admin grid sorts newest-`created_at`-first — so a fresh upload always shows up
+  at the top. Import-folder photos instead stamped `created_at` as the source file's own
+  modification time, which for a real photo dump (SD card export, phone backup) is
+  usually the original capture date, sometimes months old — so an imported photo sorted
+  by that old date and could land anywhere in the grid, typically near the bottom, no
+  matter when it was actually imported. Now uses the same "added to vault" timestamp as
+  uploads. Verified with a real photo backdated to a 2025 file mtime dropped into the
+  import folder: it now sorts to the top of /admin right alongside a same-session web
+  upload, ahead of anything actually older.
+
 ### Duplicate-scan progress + one-click bulk cleanup
 
 - The "Scan for Duplicates" button now shows a live percentage (e.g. "Scanning… 52%")

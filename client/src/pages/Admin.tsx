@@ -8,6 +8,7 @@ interface MediaItem {
   original_name: string | null;
   size: number;
   uploader?: string | null;
+  photo_taken_at?: number | null;
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -98,6 +99,25 @@ function countDuplicatesToDelete(groups: DuplicateGroups): number {
   return total;
 }
 
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={open ? '#39ff88' : '#7f9c8a'}
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="admin-tool-chevron"
+      style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
 const TRANSITION_LABELS: Record<TransitionStyle, string> = {
   none: 'None (instant cut)',
   fade: 'Smooth fade',
@@ -137,6 +157,18 @@ export default function Admin() {
   const [deletingAllDuplicates, setDeletingAllDuplicates] = useState(false);
   const [deleteAllProgress, setDeleteAllProgress] = useState<{ current: number; total: number } | null>(null);
   const [deleteAllError, setDeleteAllError] = useState('');
+
+  const [scanningPhotoDates, setScanningPhotoDates] = useState(false);
+  const [photoDatesProgress, setPhotoDatesProgress] = useState<{ current: number; total: number } | null>(null);
+  const [photoDatesError, setPhotoDatesError] = useState('');
+  const [photoDatesResult, setPhotoDatesResult] = useState<{ scanned: number; found: number } | null>(null);
+
+  // The three occasional-use maintenance tools collapse into accordion rows
+  // (see CHANGELOG) — collapsed by default so the page opens short; each
+  // stays independently toggleable rather than closing the others.
+  const [backupOpen, setBackupOpen] = useState(false);
+  const [duplicatesToolOpen, setDuplicatesToolOpen] = useState(false);
+  const [photoDatesToolOpen, setPhotoDatesToolOpen] = useState(false);
 
   async function verifyPassword(candidate: string) {
     if (!candidate) return;
@@ -203,6 +235,7 @@ export default function Admin() {
     });
     socket.on('duplicates:progress', (data: { current: number; total: number }) => setScanProgress(data));
     socket.on('duplicates:deleteProgress', (data: { current: number; total: number }) => setDeleteAllProgress(data));
+    socket.on('photoDates:progress', (data: { current: number; total: number }) => setPhotoDatesProgress(data));
 
     return () => {
       socket.disconnect();
@@ -416,6 +449,41 @@ export default function Admin() {
     }
   }
 
+  async function handleScanPhotoDates() {
+    if (!password) return;
+
+    setScanningPhotoDates(true);
+    setPhotoDatesError('');
+    setPhotoDatesProgress(null);
+    setPhotoDatesResult(null);
+    try {
+      const res = await fetch('/api/admin/photo-dates/scan', {
+        method: 'POST',
+        headers: { 'X-Admin-Password': password },
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPhotoDatesError(data.error || 'Scan failed');
+        return;
+      }
+
+      // Individual results arrive live via 'media:updated' (already wired up
+      // above); this is just the summary for the button area.
+      setPhotoDatesResult(await res.json());
+    } catch {
+      setPhotoDatesError('Network error');
+    } finally {
+      setScanningPhotoDates(false);
+      setPhotoDatesProgress(null);
+    }
+  }
+
   async function handleRotate(id: string, direction: 'cw' | 'ccw') {
     if (!password) return;
 
@@ -446,6 +514,27 @@ export default function Admin() {
     } finally {
       setRotatingId(null);
     }
+  }
+
+  function backupSummary(): string {
+    if (!lastBackup) return 'No backup taken yet';
+    return `Last backup ${formatRelativeTime(lastBackup.lastBackupAt)} · ${formatBackupSize(
+      lastBackup.lastBackupSizeBytes
+    )} · ${lastBackup.lastBackupItemCount} item${lastBackup.lastBackupItemCount === 1 ? '' : 's'}`;
+  }
+
+  function duplicatesSummary(): string {
+    if (!duplicates) return 'Not scanned yet';
+    if (duplicates.exact.length === 0 && duplicates.similar.length === 0) return 'No duplicates found';
+    const parts: string[] = [];
+    if (duplicates.exact.length > 0) parts.push(`${duplicates.exact.length} exact`);
+    if (duplicates.similar.length > 0) parts.push(`${duplicates.similar.length} similar`);
+    return parts.join(' · ');
+  }
+
+  function photoDatesSummary(): string {
+    if (!photoDatesResult) return 'Not scanned yet';
+    return `Found dates for ${photoDatesResult.found}/${photoDatesResult.scanned} photos`;
   }
 
   function renderDuplicateGroups(groups: MediaItem[][]) {
@@ -513,200 +602,274 @@ export default function Admin() {
         </a>
       </h1>
 
-      <form
-        className="admin-settings"
-        onSubmit={(e) => {
-          handleSaveInterval(e);
-        }}
-      >
-        <label htmlFor="interval-input">Slideshow speed</label>
-        <input
-          id="interval-input"
-          type="number"
-          min={MIN_SECONDS}
-          max={MAX_SECONDS}
-          step="0.5"
-          value={intervalSeconds}
-          onChange={(e) => {
-            setIntervalSeconds(e.target.value);
-            setSaveStatus('idle');
-          }}
-        />
-        <span>seconds per photo</span>
-
-        <label htmlFor="shuffle-input" className="admin-checkbox-label">
-          <input
-            id="shuffle-input"
-            type="checkbox"
-            checked={shuffle}
-            onChange={(e) => {
-              setShuffle(e.target.checked);
-              setSaveStatus('idle');
-            }}
-          />
-          Randomize playback order
-        </label>
-
-        <label htmlFor="transition-input">Transition</label>
-        <select
-          id="transition-input"
-          value={transitionStyle}
-          disabled={partyMode}
-          onChange={(e) => {
-            setTransitionStyle(e.target.value as TransitionStyle);
-            setSaveStatus('idle');
+      <div className="admin-card">
+        <h2 className="admin-card-heading">Playback Settings</h2>
+        <form
+          className="admin-settings"
+          onSubmit={(e) => {
+            handleSaveInterval(e);
           }}
         >
-          {(Object.keys(TRANSITION_LABELS) as TransitionStyle[]).map((style) => (
-            <option key={style} value={style}>
-              {TRANSITION_LABELS[style]}
-            </option>
-          ))}
-        </select>
-
-        <label htmlFor="party-mode-input" className="admin-checkbox-label">
+          <label htmlFor="interval-input">Slideshow speed</label>
           <input
-            id="party-mode-input"
-            type="checkbox"
-            checked={partyMode}
+            id="interval-input"
+            type="number"
+            min={MIN_SECONDS}
+            max={MAX_SECONDS}
+            step="0.5"
+            value={intervalSeconds}
             onChange={(e) => {
-              setPartyMode(e.target.checked);
+              setIntervalSeconds(e.target.value);
               setSaveStatus('idle');
             }}
           />
-          🎉 Party Mode (random transition every slide)
-        </label>
+          <span>seconds per photo</span>
 
-        <button className="btn btn-primary" type="submit" disabled={saveStatus === 'saving'}>
-          {saveStatus === 'saving' ? 'Saving…' : 'Save'}
-        </button>
-        {saveStatus === 'saved' && <span className="save-ok">Saved</span>}
-      </form>
-      {saveStatus === 'error' && <p className="error-msg">{saveError}</p>}
+          <label htmlFor="shuffle-input" className="admin-checkbox-label">
+            <input
+              id="shuffle-input"
+              type="checkbox"
+              checked={shuffle}
+              onChange={(e) => {
+                setShuffle(e.target.checked);
+                setSaveStatus('idle');
+              }}
+            />
+            Randomize playback order
+          </label>
 
-      <div className="admin-backup">
-        <button className="btn btn-primary" onClick={handleBackup} disabled={backingUp}>
-          {backingUp ? 'Preparing backup…' : '⬇ Download Backup'}
-        </button>
-        {lastBackup ? (
-          <span className={`backup-status ${Date.now() - lastBackup.lastBackupAt > STALE_BACKUP_MS ? 'stale' : ''}`}>
-            Last backup: {formatRelativeTime(lastBackup.lastBackupAt)} · {formatBackupSize(lastBackup.lastBackupSizeBytes)}{' '}
-            · {lastBackup.lastBackupItemCount} item{lastBackup.lastBackupItemCount === 1 ? '' : 's'}
-          </span>
-        ) : (
-          <span className="backup-status stale">⚠ No backup taken yet</span>
-        )}
+          <label htmlFor="transition-input">Transition</label>
+          <select
+            id="transition-input"
+            value={transitionStyle}
+            disabled={partyMode}
+            onChange={(e) => {
+              setTransitionStyle(e.target.value as TransitionStyle);
+              setSaveStatus('idle');
+            }}
+          >
+            {(Object.keys(TRANSITION_LABELS) as TransitionStyle[]).map((style) => (
+              <option key={style} value={style}>
+                {TRANSITION_LABELS[style]}
+              </option>
+            ))}
+          </select>
+
+          <label htmlFor="party-mode-input" className="admin-checkbox-label">
+            <input
+              id="party-mode-input"
+              type="checkbox"
+              checked={partyMode}
+              onChange={(e) => {
+                setPartyMode(e.target.checked);
+                setSaveStatus('idle');
+              }}
+            />
+            🎉 Party Mode (random transition every slide)
+          </label>
+
+          <button className="btn btn-primary" type="submit" disabled={saveStatus === 'saving'}>
+            {saveStatus === 'saving' ? 'Saving…' : 'Save'}
+          </button>
+          {saveStatus === 'saved' && <span className="save-ok">Saved</span>}
+        </form>
+        {saveStatus === 'error' && <p className="error-msg">{saveError}</p>}
       </div>
-      {backupError && <p className="error-msg">{backupError}</p>}
 
-      <div className="admin-duplicates">
-        <button className="btn btn-primary" onClick={handleScanDuplicates} disabled={scanningDuplicates}>
-          {scanningDuplicates
-            ? scanProgress && scanProgress.total > 0
-              ? `Scanning… ${Math.round((scanProgress.current / scanProgress.total) * 100)}%`
-              : 'Scanning…'
-            : '🔍 Scan for Duplicates'}
-        </button>
-        {duplicatesError && <p className="error-msg">{duplicatesError}</p>}
+      <div className="admin-tools">
+        <h2 className="admin-tools-label">Gallery Tools</h2>
 
-        {duplicates && (
-          <div className="duplicates-results">
-            {duplicates.exact.length === 0 && duplicates.similar.length === 0 ? (
-              <p className="tagline">No duplicates found.</p>
-            ) : (
-              <>
-                <button
-                  className="btn btn-danger admin-delete-all-duplicates-btn"
-                  onClick={handleDeleteAllDuplicates}
-                  disabled={deletingAllDuplicates}
-                >
-                  {deletingAllDuplicates
-                    ? deleteAllProgress && deleteAllProgress.total > 0
-                      ? `Deleting… ${Math.round((deleteAllProgress.current / deleteAllProgress.total) * 100)}%`
-                      : 'Deleting…'
-                    : '🗑 Delete All Duplicates (keep one of each)'}
+        <div className={`admin-tool ${backupOpen ? 'open' : ''}`}>
+          <button type="button" className="admin-tool-header" onClick={() => setBackupOpen((o) => !o)}>
+            <span>⬇ Backup &amp; Restore</span>
+            <span className="admin-tool-header-right">
+              <span
+                className={`admin-tool-summary ${
+                  lastBackup && Date.now() - lastBackup.lastBackupAt > STALE_BACKUP_MS ? 'backup-status stale' : ''
+                }`}
+              >
+                {backupSummary()}
+              </span>
+              <Chevron open={backupOpen} />
+            </span>
+          </button>
+          {backupOpen && (
+            <div className="admin-tool-body">
+              <div className="admin-backup">
+                <button className="btn btn-primary" onClick={handleBackup} disabled={backingUp}>
+                  {backingUp ? 'Preparing backup…' : '⬇ Download Backup'}
                 </button>
-                {deleteAllError && <p className="error-msg">{deleteAllError}</p>}
-                {duplicates.exact.length > 0 && (
+              </div>
+              {backupError && <p className="error-msg">{backupError}</p>}
+            </div>
+          )}
+        </div>
+
+        <div className={`admin-tool ${duplicatesToolOpen ? 'open' : ''}`}>
+          <button
+            type="button"
+            className="admin-tool-header"
+            onClick={() => setDuplicatesToolOpen((o) => !o)}
+          >
+            <span>🔍 Duplicate Photos</span>
+            <span className="admin-tool-header-right">
+              <span className="admin-tool-summary">{duplicatesSummary()}</span>
+              <Chevron open={duplicatesToolOpen} />
+            </span>
+          </button>
+          {duplicatesToolOpen && (
+            <div className="admin-tool-body">
+              <div className="admin-duplicates">
+                <button className="btn btn-primary" onClick={handleScanDuplicates} disabled={scanningDuplicates}>
+                  {scanningDuplicates
+                    ? scanProgress && scanProgress.total > 0
+                      ? `Scanning… ${Math.round((scanProgress.current / scanProgress.total) * 100)}%`
+                      : 'Scanning…'
+                    : '🔍 Scan for Duplicates'}
+                </button>
+                {duplicatesError && <p className="error-msg">{duplicatesError}</p>}
+
+                {duplicates && (
+                  <div className="duplicates-results">
+                    {duplicates.exact.length === 0 && duplicates.similar.length === 0 ? (
+                      <p className="tagline">No duplicates found.</p>
+                    ) : (
+                      <>
+                        <button
+                          className="btn btn-danger admin-delete-all-duplicates-btn"
+                          onClick={handleDeleteAllDuplicates}
+                          disabled={deletingAllDuplicates}
+                        >
+                          {deletingAllDuplicates
+                            ? deleteAllProgress && deleteAllProgress.total > 0
+                              ? `Deleting… ${Math.round((deleteAllProgress.current / deleteAllProgress.total) * 100)}%`
+                              : 'Deleting…'
+                            : '🗑 Delete All Duplicates (keep one of each)'}
+                        </button>
+                        {deleteAllError && <p className="error-msg">{deleteAllError}</p>}
+                        {duplicates.exact.length > 0 && (
+                          <>
+                            <p className="tagline duplicates-heading">
+                              Exact duplicates — {duplicates.exact.length} group
+                              {duplicates.exact.length === 1 ? '' : 's'}
+                            </p>
+                            {renderDuplicateGroups(duplicates.exact)}
+                          </>
+                        )}
+                        {duplicates.similar.length > 0 && (
+                          <>
+                            <p className="tagline duplicates-heading">
+                              Similar photos — {duplicates.similar.length} group
+                              {duplicates.similar.length === 1 ? '' : 's'}
+                            </p>
+                            {renderDuplicateGroups(duplicates.similar)}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={`admin-tool ${photoDatesToolOpen ? 'open' : ''}`}>
+          <button
+            type="button"
+            className="admin-tool-header"
+            onClick={() => setPhotoDatesToolOpen((o) => !o)}
+          >
+            <span>📅 Photo Dates</span>
+            <span className="admin-tool-header-right">
+              <span className="admin-tool-summary">{photoDatesSummary()}</span>
+              <Chevron open={photoDatesToolOpen} />
+            </span>
+          </button>
+          {photoDatesToolOpen && (
+            <div className="admin-tool-body">
+              <div className="admin-photo-dates">
+                <button className="btn btn-primary" onClick={handleScanPhotoDates} disabled={scanningPhotoDates}>
+                  {scanningPhotoDates
+                    ? photoDatesProgress && photoDatesProgress.total > 0
+                      ? `Scanning… ${Math.round((photoDatesProgress.current / photoDatesProgress.total) * 100)}%`
+                      : 'Scanning…'
+                    : '📅 Scan Photo Dates'}
+                </button>
+                {photoDatesError && <p className="error-msg">{photoDatesError}</p>}
+                {photoDatesResult && (
+                  <p className="tagline">
+                    Found a date for {photoDatesResult.found} of {photoDatesResult.scanned} photo
+                    {photoDatesResult.scanned === 1 ? '' : 's'} — shown as an overlay during the slideshow. Photos
+                    with no EXIF date (screenshots, booth captures, or older HEIC imports that already lost their
+                    metadata) won't show one.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="admin-card">
+        <h2 className="admin-card-heading">Photo Gallery</h2>
+        <p className="tagline">
+          {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete, ↺/↻ to rotate
+        </p>
+        {rotateError && <p className="error-msg">{rotateError}</p>}
+
+        {items.length === 0 ? (
+          <p>No photos yet.</p>
+        ) : (
+          <div className="admin-grid">
+            {[...items].reverse().map((item) => (
+              <div key={item.id} className="admin-thumb">
+                {item.kind === 'video' ? (
+                  <video src={`/media/${item.filename}`} controls muted playsInline />
+                ) : (
+                  <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+                )}
+                {item.uploader && (
+                  <span className="admin-thumb-uploader" title={item.uploader}>
+                    {item.uploader}
+                  </span>
+                )}
+                {item.kind === 'image' && (
                   <>
-                    <p className="tagline duplicates-heading">
-                      Exact duplicates — {duplicates.exact.length} group
-                      {duplicates.exact.length === 1 ? '' : 's'}
-                    </p>
-                    {renderDuplicateGroups(duplicates.exact)}
+                    <button
+                      className="admin-rotate-btn admin-rotate-ccw-btn"
+                      onClick={() => handleRotate(item.id, 'ccw')}
+                      disabled={rotatingId === item.id}
+                      aria-label="Rotate counter-clockwise"
+                      title="Rotate counter-clockwise"
+                    >
+                      {rotatingId === item.id ? '…' : '↺'}
+                    </button>
+                    <button
+                      className="admin-rotate-btn admin-rotate-cw-btn"
+                      onClick={() => handleRotate(item.id, 'cw')}
+                      disabled={rotatingId === item.id}
+                      aria-label="Rotate clockwise"
+                      title="Rotate clockwise"
+                    >
+                      {rotatingId === item.id ? '…' : '↻'}
+                    </button>
                   </>
                 )}
-                {duplicates.similar.length > 0 && (
-                  <>
-                    <p className="tagline duplicates-heading">
-                      Similar photos — {duplicates.similar.length} group
-                      {duplicates.similar.length === 1 ? '' : 's'}
-                    </p>
-                    {renderDuplicateGroups(duplicates.similar)}
-                  </>
-                )}
-              </>
-            )}
+                <button
+                  className="admin-delete-btn"
+                  onClick={() => handleDelete(item.id)}
+                  disabled={deletingId === item.id}
+                  aria-label="Delete"
+                  title="Delete"
+                >
+                  {deletingId === item.id ? '…' : '✕'}
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>
-
-      <p className="tagline">
-        {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete, ↺/↻ to rotate
-      </p>
-      {rotateError && <p className="error-msg">{rotateError}</p>}
-
-      {items.length === 0 ? (
-        <p>No photos yet.</p>
-      ) : (
-        <div className="admin-grid">
-          {[...items].reverse().map((item) => (
-            <div key={item.id} className="admin-thumb">
-              {item.kind === 'video' ? (
-                <video src={`/media/${item.filename}`} controls muted playsInline />
-              ) : (
-                <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
-              )}
-              {item.uploader && (
-                <span className="admin-thumb-uploader" title={item.uploader}>
-                  {item.uploader}
-                </span>
-              )}
-              {item.kind === 'image' && (
-                <>
-                  <button
-                    className="admin-rotate-btn admin-rotate-ccw-btn"
-                    onClick={() => handleRotate(item.id, 'ccw')}
-                    disabled={rotatingId === item.id}
-                    aria-label="Rotate counter-clockwise"
-                    title="Rotate counter-clockwise"
-                  >
-                    {rotatingId === item.id ? '…' : '↺'}
-                  </button>
-                  <button
-                    className="admin-rotate-btn admin-rotate-cw-btn"
-                    onClick={() => handleRotate(item.id, 'cw')}
-                    disabled={rotatingId === item.id}
-                    aria-label="Rotate clockwise"
-                    title="Rotate clockwise"
-                  >
-                    {rotatingId === item.id ? '…' : '↻'}
-                  </button>
-                </>
-              )}
-              <button
-                className="admin-delete-btn"
-                onClick={() => handleDelete(item.id)}
-                disabled={deletingId === item.id}
-                aria-label="Delete"
-                title="Delete"
-              >
-                {deletingId === item.id ? '…' : '✕'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

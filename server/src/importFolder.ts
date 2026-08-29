@@ -9,6 +9,7 @@ import { kindForExt, mimeForExt, isHeic } from './mediaTypes';
 import { convertHeicToJpeg } from './heicConvert';
 import { archiveKindFor, extractArchive, findArchiveVolumeParts, isJunkArchiveEntry } from './archiveExtract';
 import { computeContentHash, computePerceptualHash } from './duplicateDetect';
+import { extractPhotoTakenAt } from './photoDate';
 
 // Skip files newer than this so a still-in-progress copy (e.g. from a USB
 // stick or network share) isn't imported half-written.
@@ -53,7 +54,7 @@ export async function scanImportFolder(io: SocketIOServer): Promise<number> {
 // file) if its extension isn't a recognized media type — used for both
 // files dropped directly into the import folder and files pulled out of an
 // extracted archive.
-async function importSingleFile(srcPath: string, stat: fs.Stats, io: SocketIOServer): Promise<boolean> {
+async function importSingleFile(srcPath: string, io: SocketIOServer): Promise<boolean> {
   const ext = path.extname(srcPath).toLowerCase();
   const kind = kindForExt(ext);
   if (!kind) return false;
@@ -72,6 +73,10 @@ async function importSingleFile(srcPath: string, stat: fs.Stats, io: SocketIOSer
 
   let mimeType = mimeForExt(ext) ?? 'application/octet-stream';
 
+  // Read before any HEIC conversion below, which re-encodes the file and
+  // carries no EXIF forward at all — see photoDate.ts.
+  const photoTakenAt = kind === 'image' ? await extractPhotoTakenAt(destPath) : null;
+
   if (isHeic(ext)) {
     const jpegFilename = destFilename.replace(/\.[^.]+$/, '.jpg');
     const jpegPath = path.join(config.mediaDir, jpegFilename);
@@ -88,7 +93,13 @@ async function importSingleFile(srcPath: string, stat: fs.Stats, io: SocketIOSer
     mime_type: mimeType,
     kind,
     size: fs.statSync(destPath).size,
-    created_at: stat.mtimeMs,
+    // When this was added to the vault, not the original file's mtime (which
+    // for an imported photo is usually its capture date, sometimes months
+    // old) — otherwise imported photos would sort by that old date instead
+    // of appearing alongside other recently-added photos in the admin grid,
+    // same as an upload does.
+    created_at: Date.now(),
+    photo_taken_at: photoTakenAt,
     content_hash: computeContentHash(destPath),
     phash: kind === 'image' ? await computePerceptualHash(destPath) : null,
   };
@@ -118,8 +129,7 @@ async function importArchive(archivePath: string, io: SocketIOServer): Promise<n
     for (const extractedPath of collectFiles(tempDir)) {
       if (isJunkArchiveEntry(extractedPath)) continue;
       try {
-        const stat = fs.statSync(extractedPath);
-        if (await importSingleFile(extractedPath, stat, io)) imported++;
+        if (await importSingleFile(extractedPath, io)) imported++;
       } catch (err) {
         console.error(`Failed to import ${extractedPath} from archive ${archivePath}:`, err);
       }
@@ -172,7 +182,7 @@ async function runScan(io: SocketIOServer): Promise<number> {
 
       const stat = fs.statSync(srcPath);
       if (Date.now() - stat.mtimeMs < SETTLE_MS) continue;
-      if (await importSingleFile(srcPath, stat, io)) imported++;
+      if (await importSingleFile(srcPath, io)) imported++;
     } catch (err) {
       console.error(`Failed to import ${srcPath}:`, err);
     }

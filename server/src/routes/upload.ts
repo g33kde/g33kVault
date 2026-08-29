@@ -10,6 +10,7 @@ import { insertMedia } from '../db';
 import { kindForExt, mimeForExt, isHeic } from '../mediaTypes';
 import { convertHeicToJpeg } from '../heicConvert';
 import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
+import { extractPhotoTakenAt } from '../photoDate';
 
 fs.mkdirSync(config.mediaDir, { recursive: true });
 
@@ -71,6 +72,10 @@ export function uploadRouter(io: SocketIOServer) {
     let filename = req.file.filename;
     let mimeType = mimeForExt(ext) ?? req.file.mimetype;
 
+    // Read before any HEIC conversion below, which re-encodes the file and
+    // carries no EXIF forward at all — see photoDate.ts.
+    const photoTakenAt = kind === 'image' ? await extractPhotoTakenAt(req.file.path) : null;
+
     if (isHeic(ext)) {
       const jpegFilename = filename.replace(/\.[^.]+$/, '.jpg');
       const jpegPath = path.join(config.mediaDir, jpegFilename);
@@ -96,6 +101,7 @@ export function uploadRouter(io: SocketIOServer) {
       size: fs.statSync(finalPath).size,
       created_at: Date.now(),
       uploader: sanitizeUploader(req.body?.uploader),
+      photo_taken_at: photoTakenAt,
       content_hash: computeContentHash(finalPath),
       phash: kind === 'image' ? await computePerceptualHash(finalPath) : null,
     };

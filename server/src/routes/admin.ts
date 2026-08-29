@@ -8,6 +8,7 @@ import { checkAdminPassword } from '../adminAuth';
 import { config } from '../config';
 import { getAllMedia, updateMedia, deleteManyMedia } from '../db';
 import { computeContentHash, computePerceptualHash, findDuplicateGroups, planDuplicateDeletions } from '../duplicateDetect';
+import { extractPhotoTakenAt } from '../photoDate';
 import {
   getSlideshowIntervalMs,
   setSlideshowIntervalMs,
@@ -251,6 +252,55 @@ export function adminRouter(io: SocketIOServer) {
     } catch (err) {
       console.error('Delete-all-duplicates failed:', err);
       res.status(500).json({ error: err instanceof Error ? err.message : 'Delete failed' });
+    }
+  });
+
+  // Backfills photo_taken_at for any image that predates this feature (or
+  // slipped through some other path without it) by reading EXIF from the
+  // file as it exists right now. For a photo that arrived as HEIC, that file
+  // was already converted to JPEG (and the original deleted) before this
+  // feature existed, and JPEG re-encoded by heic-convert carries no EXIF at
+  // all — so this will correctly find nothing for those, same as it would
+  // for a screenshot or a booth capture. New uploads/imports no longer hit
+  // this gap: they extract the date at ingestion time, before conversion.
+  router.post('/photo-dates/scan', async (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    try {
+      const media = getAllMedia();
+      let found = 0;
+
+      for (let i = 0; i < media.length; i++) {
+        const item = media[i];
+
+        if (item.photo_taken_at === undefined) {
+          let photoTakenAt: number | null = null;
+          if (item.kind === 'image') {
+            try {
+              photoTakenAt = await extractPhotoTakenAt(path.join(config.mediaDir, item.filename));
+            } catch (err) {
+              console.error(`Could not extract photo date for ${item.filename}:`, err);
+            }
+          }
+
+          const updated = updateMedia(item.id, { photo_taken_at: photoTakenAt });
+          if (updated) {
+            Object.assign(item, updated);
+            io.emit('media:updated', updated);
+          }
+          if (photoTakenAt !== null) found++;
+        }
+
+        io.emit('photoDates:progress', { current: i + 1, total: media.length });
+      }
+
+      res.json({ scanned: media.length, found });
+    } catch (err) {
+      console.error('Photo-date scan failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Scan failed' });
     }
   });
 

@@ -16,6 +16,13 @@ export interface MediaRow {
   // apply to (video, or an image sharp couldn't decode).
   content_hash?: string;
   phash?: string | null;
+  // When the photo was actually taken, from EXIF (see photoDate.ts).
+  // undefined = not yet scanned (backfilled lazily by the admin photo-date
+  // scan); null = scanned but no usable EXIF date found (a screenshot, a
+  // booth capture, or a photo that already lost its metadata before
+  // reaching this app — most commonly a HEIC photo imported before this
+  // field's ingestion-time extraction existed).
+  photo_taken_at?: number | null;
 }
 
 fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
