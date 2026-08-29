@@ -8,15 +8,20 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "7z-wasm": "^1.2.0",
+    "adm-zip": "^0.6.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "heic-convert": "^2.1.0",
     "multer": "^2.2.0",
+    "node-unrar-js": "^2.0.2",
     "qrcode": "^1.5.4",
     "sharp": "^0.35.4",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "tar": "^7.5.22"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/heic-convert": "^2.1.1",

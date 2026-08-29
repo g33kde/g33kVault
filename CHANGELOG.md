@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Archive support in the watched import folder
+
+- `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.7z`, and `.rar` files dropped into the import
+  folder are now extracted automatically (after the usual 5s settle wait), and every
+  recognized photo/video inside — including in nested subfolders — is imported the same
+  way a plain dropped file is. The archive is deleted once its contents are
+  successfully imported (same "moved, not copied" semantics as before); a corrupt
+  archive is left in place and retried on the next scan instead of being silently
+  discarded.
+- Filters out common archive junk automatically — macOS's `._`-prefixed AppleDouble
+  sidecar files, `.DS_Store`, `__MACOSX/` — discovered because a real macOS-created
+  `.tar.gz` test fixture actually contained it during development; without this filter
+  those would have been misimported as bogus duplicate photos (they share the real
+  file's extension).
+- New dependencies, all pure JS/WASM (no native compilation, no system binaries):
+  `adm-zip`, `tar`, `7z-wasm`, `node-unrar-js`. Each format was verified against a real
+  archive built with a real archiver during development, except `.rar` — no RAR-creation
+  tool was available to build a test fixture; the library was confirmed to load and run
+  correctly, but a genuine end-to-end `.rar` import hasn't been (see README).
+
 ### Browser tab favicon
 
 - Added a favicon — a bold green "V" monogram on the app's near-black background,

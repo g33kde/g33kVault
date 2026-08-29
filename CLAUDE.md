@@ -61,6 +61,14 @@ uploaded or imported. This was set as an explicit standing rule by the project o
     sharp does not ship prebuilt binaries for 32-bit Linux ARM (`armv7`) — this requires
     a 64-bit Raspberry Pi OS (`arm64`) if deploying to a Pi. If you ever need to drop
     back to zero native deps, `jimp` (pure JS) was the alternative considered.
+  - Archive import (`server/src/archiveExtract.ts`, watched-folder `.zip`/`.tar`/`.7z`/
+    `.rar` support) added four dependencies — `adm-zip`, `tar`, `7z-wasm`,
+    `node-unrar-js` — but none of them are an exception to this rule: all four are pure
+    JavaScript/WASM, no native compilation or system binaries (e.g. no `unzip`/`7z` in
+    the Dockerfile), each verified working against a real archive of that format during
+    development except `.rar` (no RAR-creation tool was available to test against; the
+    library itself was confirmed to load/run correctly — see README "Notes / ideas for
+    later").
 
 ## Working in this repo
 

@@ -119,6 +119,20 @@ USB stick, etc. — created automatically on first `docker compose up`).
   (mp4/mov/webm). HEIC/HEIF (iPhone's default photo format) is converted to JPEG on
   import — see below.
 
+**Archives** — `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.7z`, and `.rar` — dropped into the
+import folder are extracted automatically (after the same 5-second settle wait as any
+other file), and every recognized photo/video found inside is imported exactly like the
+files above, including nested subfolders inside the archive. Non-media files inside an
+archive are ignored, as is common junk like macOS's `._`-prefixed AppleDouble sidecar
+files, `.DS_Store`, and `__MACOSX/` — confirmed by testing against a real macOS-created
+archive, which includes exactly this junk by default. The archive itself is deleted once
+its contents are successfully imported, same "moved, not copied" behavior as a plain
+file — if extraction fails (a corrupt archive), it's left in place and logged, retried
+on the next scan, rather than silently discarded. Extraction uses `adm-zip`, `tar`,
+`7z-wasm`, and `node-unrar-js` — all pure JavaScript/WebAssembly, no native compilation
+or system binaries needed, keeping this project's zero-native-dependency policy intact
+for everything except `sharp` (see [CLAUDE.md](CLAUDE.md)).
+
 ## Running on a Raspberry Pi
 
 Runs natively on a Pi — `node:20-alpine` (the base image) is multi-arch, so Docker pulls
@@ -452,3 +466,9 @@ all. Good enough as an approximation; not meant to be exact.
   jpg/jpeg/png/webp. Rotating a GIF returns an error rather than corrupting it.
 - Only images can be rotated, not videos — rotating a video would need re-encoding it
   (e.g. via ffmpeg), a much heavier dependency than this project otherwise carries.
+- `.rar` archive import was implemented and reviewed against `node-unrar-js`'s
+  documented API, but — unlike `.zip`/`.tar`/`.tar.gz`/`.7z`, each verified against a
+  real archive during development — it couldn't be tested against a genuine `.rar` file
+  (no RAR-creation tool was available in that environment). The extraction library
+  itself was confirmed to load and run correctly; only a real end-to-end `.rar` drop
+  hasn't been. Worth an explicit test with a real `.rar` file before relying on it.
