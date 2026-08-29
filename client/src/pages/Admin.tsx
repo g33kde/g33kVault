@@ -50,6 +50,54 @@ function formatRelativeTime(ms: number): string {
   return `${Math.floor(diffHours / 24)}d ago`;
 }
 
+// Mirrors the server's planDuplicateDeletions clustering (duplicateDetect.ts)
+// closely enough to show an accurate count in the confirm dialog: a photo
+// can appear in more than one group (an exact-duplicate trio is also a
+// similar-photos cluster), so counting group sizes directly would double-
+// count it. Union-find merges overlapping groups into clusters first, then
+// each cluster of size N contributes N-1 deletions (one survivor kept).
+function countDuplicatesToDelete(groups: DuplicateGroups): number {
+  const parent = new Map<string, string>();
+  function find(id: string): string {
+    let root = id;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    let cur = id;
+    while (parent.get(cur) !== root) {
+      const next = parent.get(cur)!;
+      parent.set(cur, root);
+      cur = next;
+    }
+    return root;
+  }
+  function union(a: string, b: string) {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  }
+
+  const allGroups = [...groups.exact, ...groups.similar];
+  for (const group of allGroups) {
+    for (const item of group) {
+      if (!parent.has(item.id)) parent.set(item.id, item.id);
+    }
+    for (let i = 1; i < group.length; i++) {
+      union(group[0].id, group[i].id);
+    }
+  }
+
+  const clusterSizes = new Map<string, number>();
+  for (const id of parent.keys()) {
+    const root = find(id);
+    clusterSizes.set(root, (clusterSizes.get(root) ?? 0) + 1);
+  }
+
+  let total = 0;
+  for (const size of clusterSizes.values()) {
+    if (size > 1) total += size - 1;
+  }
+  return total;
+}
+
 const TRANSITION_LABELS: Record<TransitionStyle, string> = {
   none: 'None (instant cut)',
   fade: 'Smooth fade',
@@ -87,6 +135,8 @@ export default function Admin() {
   const [duplicatesError, setDuplicatesError] = useState('');
   const [scanProgress, setScanProgress] = useState<{ current: number; total: number } | null>(null);
   const [deletingAllDuplicates, setDeletingAllDuplicates] = useState(false);
+  const [deleteAllProgress, setDeleteAllProgress] = useState<{ current: number; total: number } | null>(null);
+  const [deleteAllError, setDeleteAllError] = useState('');
 
   async function verifyPassword(candidate: string) {
     if (!candidate) return;
@@ -152,6 +202,7 @@ export default function Admin() {
       setLastBackupState(data.lastBackup);
     });
     socket.on('duplicates:progress', (data: { current: number; total: number }) => setScanProgress(data));
+    socket.on('duplicates:deleteProgress', (data: { current: number; total: number }) => setDeleteAllProgress(data));
 
     return () => {
       socket.disconnect();
@@ -286,38 +337,53 @@ export default function Admin() {
     }
   }
 
-  // Keeps the first item of every exact/similar group (the same ordering
-  // already shown on screen) and deletes the rest. Groups can share members
-  // between the exact and similar sections (an exact-duplicate pair's phash
-  // necessarily matches too, see duplicateDetect.ts), so collect the ids to
-  // delete into a Set first rather than deleting the same id twice.
   async function handleDeleteAllDuplicates() {
     if (!password || !duplicates) return;
 
-    const allGroups = [...duplicates.exact, ...duplicates.similar];
-    const idsToDelete = new Set<string>();
-    for (const group of allGroups) {
-      for (const item of group.slice(1)) {
-        idsToDelete.add(item.id);
-      }
-    }
-    if (idsToDelete.size === 0) return;
+    // Just for the confirmation prompt — mirrors the server's own
+    // clustering (planDuplicateDeletions) so the count shown here matches
+    // what actually gets deleted; the server recomputes the authoritative
+    // plan itself rather than trusting anything from this estimate.
+    const count = countDuplicatesToDelete(duplicates);
+    if (count === 0) return;
 
     if (
       !window.confirm(
-        `Delete ${idsToDelete.size} duplicate photo${idsToDelete.size === 1 ? '' : 's'}? One copy of each will be kept. This cannot be undone.`
+        `Delete ${count} duplicate photo${count === 1 ? '' : 's'}? One copy of each will be kept. This cannot be undone.`
       )
     ) {
       return;
     }
 
     setDeletingAllDuplicates(true);
+    setDeleteAllError('');
+    setDeleteAllProgress(null);
     try {
-      for (const id of idsToDelete) {
-        await deleteMediaItem(id);
+      const res = await fetch('/api/admin/duplicates/delete-all', {
+        method: 'POST',
+        headers: { 'X-Admin-Password': password },
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
       }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setDeleteAllError(data.error || 'Delete failed');
+        return;
+      }
+
+      // The batch fully cleaned things up server-side; individual removals
+      // arrive via the existing 'media:deleted' broadcast (already wired up
+      // above) to update the gallery grid live.
+      setDuplicates({ exact: [], similar: [] });
+    } catch {
+      setDeleteAllError('Network error');
     } finally {
       setDeletingAllDuplicates(false);
+      setDeleteAllProgress(null);
     }
   }
 
@@ -554,8 +620,13 @@ export default function Admin() {
                   onClick={handleDeleteAllDuplicates}
                   disabled={deletingAllDuplicates}
                 >
-                  {deletingAllDuplicates ? 'Deleting…' : '🗑 Delete All Duplicates (keep one of each)'}
+                  {deletingAllDuplicates
+                    ? deleteAllProgress && deleteAllProgress.total > 0
+                      ? `Deleting… ${Math.round((deleteAllProgress.current / deleteAllProgress.total) * 100)}%`
+                      : 'Deleting…'
+                    : '🗑 Delete All Duplicates (keep one of each)'}
                 </button>
+                {deleteAllError && <p className="error-msg">{deleteAllError}</p>}
                 {duplicates.exact.length > 0 && (
                   <>
                     <p className="tagline duplicates-heading">

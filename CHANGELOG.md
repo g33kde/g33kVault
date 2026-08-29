@@ -13,12 +13,29 @@
   there's no meaningful backfill work left to report progress on.
 - New "🗑 Delete All Duplicates (keep one of each)" button on the results, for when a
   scan turns up a lot of duplicates and clicking ✕ on each one individually isn't worth
-  it. Keeps the first photo shown in every exact/similar group and deletes the rest,
-  after a single confirmation naming exactly how many photos will be deleted. A photo
-  that appears in both an exact-duplicate group and a similar-photos group (expected —
-  see below) is only deleted once. Verified against a real dataset of exact and
-  near-duplicate groups: the right single copy survived in each group and nothing
-  outside the groups was touched.
+  it. New `POST /api/admin/duplicates/delete-all` endpoint recomputes the duplicate
+  groups server-side, merges every group into connected clusters (a photo can be a
+  member of more than one group — an exact-duplicate trio is also a similar-photos
+  cluster, and a photo can independently be "similar" to two unrelated others), keeps
+  exactly one survivor per cluster (the earliest-uploaded copy), and deletes the rest —
+  file and metadata record both — in a single batched DB write, broadcasting live
+  progress the same way the scan does.
+  - First version of this did the deletions one HTTP request at a time from the
+    browser, deciding a survivor per *group* rather than per merged cluster. Both
+    choices turned out to be real problems, not just style: every single-item delete on
+    the server does a full read-modify-write of the entire JSON metadata file, so a
+    gallery with hundreds of duplicates meant hundreds of full-file rewrites in a
+    client-side loop with no per-item error handling — one failed request killed the
+    whole batch silently, partway through, which is exactly what a real user hit
+    ("some photos exist 3 times, there should be only one kept" after clicking the
+    button). And deciding survivors per-group rather than per-cluster meant a photo
+    picked as the "keeper" in one group could simultaneously be a "delete this" member
+    of a different, overlapping group — a real correctness bug, not just a performance
+    one. Rewritten as the single batched endpoint above; verified against a 120-item
+    gallery (40 duplicated photos + overlapping near-duplicate/exact clusters, 88
+    correct deletions) and a 500-item single giant cluster (499 deletions, exactly one
+    correct survivor, live progress events confirmed 1-499/499), including the specific
+    overlapping-group scenario that broke the old per-group logic.
 
 ### Fix: "Scan failed" with no detail on the duplicate-detection scan
 

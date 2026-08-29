@@ -1,12 +1,13 @@
 import { Router } from 'express';
+import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import { PassThrough } from 'stream';
 import type { Server as SocketIOServer } from 'socket.io';
 import { checkAdminPassword } from '../adminAuth';
 import { config } from '../config';
-import { getAllMedia, updateMedia } from '../db';
-import { computeContentHash, computePerceptualHash, findDuplicateGroups } from '../duplicateDetect';
+import { getAllMedia, updateMedia, deleteManyMedia } from '../db';
+import { computeContentHash, computePerceptualHash, findDuplicateGroups, planDuplicateDeletions } from '../duplicateDetect';
 import {
   getSlideshowIntervalMs,
   setSlideshowIntervalMs,
@@ -209,6 +210,47 @@ export function adminRouter(io: SocketIOServer) {
     } catch (err) {
       console.error('Duplicate scan failed:', err);
       res.status(500).json({ error: err instanceof Error ? err.message : 'Duplicate scan failed' });
+    }
+  });
+
+  // Deletes every duplicate in one batch, keeping exactly one (the
+  // earliest-uploaded) copy per duplicate cluster. Recomputes the grouping
+  // and deletion plan itself rather than trusting ids the client sends —
+  // the client's own copy of the groups can be stale by the time this runs,
+  // and a client-supplied id list would let a stale request delete a photo
+  // that's no longer actually a duplicate. One DB rewrite for the whole
+  // batch (see deleteManyMedia) instead of one per item, which is what made
+  // the previous client-side one-at-a-time approach slow enough to be
+  // fragile at real gallery sizes.
+  router.post('/duplicates/delete-all', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    try {
+      const media = getAllMedia();
+      const groups = findDuplicateGroups(media);
+      const idsToDelete = planDuplicateDeletions(groups);
+
+      if (idsToDelete.size === 0) {
+        res.json({ deleted: 0 });
+        return;
+      }
+
+      const removed = deleteManyMedia(idsToDelete);
+
+      for (let i = 0; i < removed.length; i++) {
+        const row = removed[i];
+        fs.unlink(path.join(config.mediaDir, row.filename), () => {});
+        io.emit('media:deleted', { id: row.id });
+        io.emit('duplicates:deleteProgress', { current: i + 1, total: removed.length });
+      }
+
+      res.json({ deleted: removed.length });
+    } catch (err) {
+      console.error('Delete-all-duplicates failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Delete failed' });
     }
   });
 

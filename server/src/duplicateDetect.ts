@@ -132,3 +132,63 @@ function groupKey(group: MediaRow[]): string {
     .sort()
     .join(',');
 }
+
+// A single photo can end up in more than one group — an exact-duplicate
+// trio is also a similar-photos cluster (see findDuplicateGroups above),
+// and a photo can independently be "similar" to two unrelated others. If a
+// bulk delete decided a survivor per group in isolation, an item kept by
+// one group could simultaneously be slated for deletion by a different,
+// overlapping group — so this merges every group into connected clusters
+// with union-find first, then picks exactly one survivor per cluster (the
+// earliest-uploaded copy) and returns every other id in it.
+export function planDuplicateDeletions(groups: DuplicateGroups): Set<string> {
+  const parent = new Map<string, string>();
+  const byId = new Map<string, MediaRow>();
+
+  function find(id: string): string {
+    let root = id;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    let cur = id;
+    while (parent.get(cur) !== root) {
+      const next = parent.get(cur)!;
+      parent.set(cur, root);
+      cur = next;
+    }
+    return root;
+  }
+
+  function union(a: string, b: string) {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  }
+
+  const allGroups = [...groups.exact, ...groups.similar];
+  for (const group of allGroups) {
+    for (const item of group) {
+      if (!parent.has(item.id)) parent.set(item.id, item.id);
+      byId.set(item.id, item);
+    }
+    for (let i = 1; i < group.length; i++) {
+      union(group[0].id, group[i].id);
+    }
+  }
+
+  const clusters = new Map<string, MediaRow[]>();
+  for (const id of parent.keys()) {
+    const root = find(id);
+    const cluster = clusters.get(root) ?? [];
+    cluster.push(byId.get(id)!);
+    clusters.set(root, cluster);
+  }
+
+  const toDelete = new Set<string>();
+  for (const cluster of clusters.values()) {
+    if (cluster.length < 2) continue;
+    const sorted = [...cluster].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+    for (const item of sorted.slice(1)) {
+      toDelete.add(item.id);
+    }
+  }
+  return toDelete;
+}

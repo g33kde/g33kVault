@@ -52,6 +52,24 @@ export function deleteMedia(id: string): MediaRow | null {
   return removed;
 }
 
+// One read + one write for the whole batch, rather than callers looping
+// deleteMedia() — a bulk cleanup (e.g. duplicate removal) can touch hundreds
+// or thousands of rows, and rewriting the entire JSON store per item made
+// that both slow and fragile (any single failed request in a client-side
+// loop would abort everything after it, silently leaving the rest
+// undeleted).
+export function deleteManyMedia(ids: Set<string>): MediaRow[] {
+  const rows = readAll();
+  const removed: MediaRow[] = [];
+  const kept: MediaRow[] = [];
+  for (const row of rows) {
+    if (ids.has(row.id)) removed.push(row);
+    else kept.push(row);
+  }
+  writeAll(kept);
+  return removed;
+}
+
 export function getMediaById(id: string): MediaRow | null {
   return readAll().find((r) => r.id === id) ?? null;
 }
