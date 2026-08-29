@@ -6,9 +6,10 @@ import { PassThrough } from 'stream';
 import type { Server as SocketIOServer } from 'socket.io';
 import { checkAdminPassword } from '../adminAuth';
 import { config } from '../config';
-import { getAllMedia, updateMedia, deleteManyMedia } from '../db';
+import { getAllMedia, updateMedia, deleteManyMedia, MediaRow } from '../db';
 import { computeContentHash, computePerceptualHash, findDuplicateGroups, planDuplicateDeletions } from '../duplicateDetect';
 import { extractPhotoTakenAt } from '../photoDate';
+import { getImageDimensions, isLowResolution } from '../lowResolution';
 import {
   getSlideshowIntervalMs,
   setSlideshowIntervalMs,
@@ -35,6 +36,38 @@ function currentSettings() {
     partyMode: getPartyMode(),
     lastBackup: getLastBackup(),
   };
+}
+
+interface LowResResult {
+  item: MediaRow;
+  width: number;
+  height: number;
+}
+
+// Shared by the scan route and the delete-all route below, so both agree on
+// exactly which images count as low-resolution — recomputed fresh each call
+// rather than cached on the row, since dimensions are cheap to read (just
+// the image header, not a full decode) and a rotation swaps width/height,
+// which could otherwise make a stale cached flag wrong.
+async function scanLowResolutionImages(
+  media: MediaRow[],
+  mediaDir: string,
+  io: SocketIOServer,
+  progressEvent: string
+): Promise<LowResResult[]> {
+  const images = media.filter((m) => m.kind === 'image');
+  const flagged: LowResResult[] = [];
+
+  for (let i = 0; i < images.length; i++) {
+    const item = images[i];
+    const dims = await getImageDimensions(path.join(mediaDir, item.filename));
+    if (dims && isLowResolution(dims)) {
+      flagged.push({ item, width: dims.width, height: dims.height });
+    }
+    io.emit(progressEvent, { current: i + 1, total: images.length });
+  }
+
+  return flagged;
 }
 
 export function adminRouter(io: SocketIOServer) {
@@ -301,6 +334,59 @@ export function adminRouter(io: SocketIOServer) {
     } catch (err) {
       console.error('Photo-date scan failed:', err);
       res.status(500).json({ error: err instanceof Error ? err.message : 'Scan failed' });
+    }
+  });
+
+  // Lists images below 640x480 (checked orientation-independently — see
+  // lowResolution.ts) — usually a thumbnail, a resized re-upload, or a
+  // screenshot rather than the original camera photo. Nothing is cached on
+  // the row; every call re-reads dimensions fresh.
+  router.get('/low-resolution', async (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    try {
+      const media = getAllMedia();
+      const flagged = await scanLowResolutionImages(media, config.mediaDir, io, 'lowRes:progress');
+      res.json({ items: flagged.map(({ item, width, height }) => ({ ...item, width, height })) });
+    } catch (err) {
+      console.error('Low-resolution scan failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Scan failed' });
+    }
+  });
+
+  // Recomputes the low-resolution set itself rather than trusting ids the
+  // client sends (same reasoning as duplicates/delete-all — a stale client
+  // list could delete a photo that's no longer actually low-res, e.g. after
+  // a rotation), then deletes all of them in one batch.
+  router.post('/low-resolution/delete-all', async (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    try {
+      const media = getAllMedia();
+      const flagged = await scanLowResolutionImages(media, config.mediaDir, io, 'lowRes:deleteProgress');
+      const idsToDelete = new Set(flagged.map((f) => f.item.id));
+
+      if (idsToDelete.size === 0) {
+        res.json({ deleted: 0 });
+        return;
+      }
+
+      const removed = deleteManyMedia(idsToDelete);
+      for (const row of removed) {
+        fs.unlink(path.join(config.mediaDir, row.filename), () => {});
+        io.emit('media:deleted', { id: row.id });
+      }
+
+      res.json({ deleted: removed.length });
+    } catch (err) {
+      console.error('Delete-all-low-resolution failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Delete failed' });
     }
   });
 

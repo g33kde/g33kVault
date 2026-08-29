@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+### Click a photo in /admin to open it full-size in a new tab
+
+- Applies to the main Photo Gallery grid only (not the Duplicate Photos or
+  Low-Resolution Photos result thumbnails, by choice). Videos are unchanged — they keep
+  their native click-to-play/pause controls rather than being wrapped in a link, which
+  would have broken them. The existing rotate/delete overlay buttons still work exactly
+  as before; verified they don't trigger the new link (they're siblings of it, not
+  inside it) and that clicking the photo itself opens a real new tab at the image's
+  actual URL without navigating the admin page away.
+
+### Low-resolution photo detection in /admin
+
+- New "Low-Resolution Photos" row in Gallery Tools, alongside Duplicate Photos and
+  Photo Dates: scans every image's actual pixel dimensions (via `sharp`, already a
+  project dependency) and lists anything below 640×480 — usually a thumbnail, a
+  resized re-upload, or a screenshot rather than the original camera photo. Each
+  flagged photo shows its real resolution; a "Delete All Low-Resolution Photos (N)"
+  button removes all of them in one batch after a confirmation naming the count,
+  mirroring the Duplicate Photos delete-all (same reasoning: the server recomputes the
+  flagged set itself rather than trusting a client-supplied list, so a stale request
+  can't delete a photo that's no longer actually low-res).
+- The threshold check is orientation-independent by design: a photo's shorter edge is
+  checked against 480px and its longer edge against 640px, regardless of portrait vs.
+  landscape — a naive width<640/height<480 check on raw stored dimensions would
+  incorrectly flag a perfectly good 480×640 portrait photo (same pixel count as an
+  ordinary 640×480 landscape one, just rotated). Confirmed with deliberately
+  constructed test images: a 640×480 image sits exactly on the line and is correctly
+  NOT flagged ("below", not "at or below"), while 639×479 is; a 240×320 portrait
+  thumbnail is flagged the same as an equivalent 320×240 landscape one; a normal
+  1080×1920 portrait phone photo is correctly left alone.
+- Dimensions aren't cached — re-read fresh on every scan (cheap, header-only, no full
+  decode) rather than stored on the row, so a later rotation (which swaps width/height)
+  can't leave a stale flag behind.
+
 ### Admin page reorganization
 
 - /admin had grown into a long, undifferentiated stack of controls as features

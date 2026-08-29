@@ -731,6 +731,12 @@ a.upload-url:focus-visible {
   border-radius: 8px;
   background: var(--panel);
 }
+.admin-thumb a {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
 .admin-thumb img,
 .admin-thumb video {
   width: 100%;
@@ -750,6 +756,18 @@ a.upload-url:focus-visible {
   background: rgba(0, 0, 0, 0.65);
   color: var(--accent);
   font-size: 0.7rem;
+}
+.admin-thumb-resolution {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #ffb454;
+  font-size: 0.7rem;
+  pointer-events: none;
 }
 .admin-delete-btn {
   position: absolute;

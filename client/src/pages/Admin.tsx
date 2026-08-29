@@ -9,6 +9,8 @@ interface MediaItem {
   size: number;
   uploader?: string | null;
   photo_taken_at?: number | null;
+  width?: number;
+  height?: number;
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -163,12 +165,23 @@ export default function Admin() {
   const [photoDatesError, setPhotoDatesError] = useState('');
   const [photoDatesResult, setPhotoDatesResult] = useState<{ scanned: number; found: number } | null>(null);
 
-  // The three occasional-use maintenance tools collapse into accordion rows
-  // (see CHANGELOG) — collapsed by default so the page opens short; each
-  // stays independently toggleable rather than closing the others.
+  const [lowResItems, setLowResItems] = useState<MediaItem[] | null>(null);
+  const [scanningLowRes, setScanningLowRes] = useState(false);
+  const [lowResError, setLowResError] = useState('');
+  const [lowResProgress, setLowResProgress] = useState<{ current: number; total: number } | null>(null);
+  const [deletingAllLowRes, setDeletingAllLowRes] = useState(false);
+  const [deleteAllLowResProgress, setDeleteAllLowResProgress] = useState<{ current: number; total: number } | null>(
+    null
+  );
+  const [deleteAllLowResError, setDeleteAllLowResError] = useState('');
+
+  // The occasional-use maintenance tools collapse into accordion rows (see
+  // CHANGELOG) — collapsed by default so the page opens short; each stays
+  // independently toggleable rather than closing the others.
   const [backupOpen, setBackupOpen] = useState(false);
   const [duplicatesToolOpen, setDuplicatesToolOpen] = useState(false);
   const [photoDatesToolOpen, setPhotoDatesToolOpen] = useState(false);
+  const [lowResToolOpen, setLowResToolOpen] = useState(false);
 
   async function verifyPassword(candidate: string) {
     if (!candidate) return;
@@ -236,6 +249,8 @@ export default function Admin() {
     socket.on('duplicates:progress', (data: { current: number; total: number }) => setScanProgress(data));
     socket.on('duplicates:deleteProgress', (data: { current: number; total: number }) => setDeleteAllProgress(data));
     socket.on('photoDates:progress', (data: { current: number; total: number }) => setPhotoDatesProgress(data));
+    socket.on('lowRes:progress', (data: { current: number; total: number }) => setLowResProgress(data));
+    socket.on('lowRes:deleteProgress', (data: { current: number; total: number }) => setDeleteAllLowResProgress(data));
 
     return () => {
       socket.disconnect();
@@ -353,6 +368,8 @@ export default function Admin() {
           groups.map((g) => g.filter((i) => i.id !== id)).filter((g) => g.length > 1);
         return { exact: strip(prev.exact), similar: strip(prev.similar) };
       });
+      // Same idea for the low-resolution list already on screen.
+      setLowResItems((prev) => (prev ? prev.filter((i) => i.id !== id) : prev));
       return true;
     }
     return false;
@@ -484,6 +501,78 @@ export default function Admin() {
     }
   }
 
+  async function handleScanLowRes() {
+    if (!password) return;
+
+    setScanningLowRes(true);
+    setLowResError('');
+    setLowResProgress(null);
+    try {
+      const res = await fetch('/api/admin/low-resolution', { headers: { 'X-Admin-Password': password } });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setLowResError(data.error || 'Scan failed');
+        return;
+      }
+
+      const data: { items: MediaItem[] } = await res.json();
+      setLowResItems(data.items);
+    } catch {
+      setLowResError('Network error');
+    } finally {
+      setScanningLowRes(false);
+      setLowResProgress(null);
+    }
+  }
+
+  async function handleDeleteAllLowRes() {
+    if (!password || !lowResItems || lowResItems.length === 0) return;
+
+    if (
+      !window.confirm(
+        `Delete ${lowResItems.length} low-resolution photo${lowResItems.length === 1 ? '' : 's'}? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    setDeletingAllLowRes(true);
+    setDeleteAllLowResError('');
+    setDeleteAllLowResProgress(null);
+    try {
+      const res = await fetch('/api/admin/low-resolution/delete-all', {
+        method: 'POST',
+        headers: { 'X-Admin-Password': password },
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setDeleteAllLowResError(data.error || 'Delete failed');
+        return;
+      }
+
+      // Individual removals arrive via the existing 'media:deleted'
+      // broadcast (already wired up above) to update the gallery grid live.
+      setLowResItems([]);
+    } catch {
+      setDeleteAllLowResError('Network error');
+    } finally {
+      setDeletingAllLowRes(false);
+      setDeleteAllLowResProgress(null);
+    }
+  }
+
   async function handleRotate(id: string, direction: 'cw' | 'ccw') {
     if (!password) return;
 
@@ -535,6 +624,12 @@ export default function Admin() {
   function photoDatesSummary(): string {
     if (!photoDatesResult) return 'Not scanned yet';
     return `Found dates for ${photoDatesResult.found}/${photoDatesResult.scanned} photos`;
+  }
+
+  function lowResSummary(): string {
+    if (!lowResItems) return 'Not scanned yet';
+    if (lowResItems.length === 0) return 'No low-resolution photos found';
+    return `${lowResItems.length} photo${lowResItems.length === 1 ? '' : 's'} below 640×480`;
   }
 
   function renderDuplicateGroups(groups: MediaItem[][]) {
@@ -809,6 +904,76 @@ export default function Admin() {
             </div>
           )}
         </div>
+
+        <div className={`admin-tool ${lowResToolOpen ? 'open' : ''}`}>
+          <button type="button" className="admin-tool-header" onClick={() => setLowResToolOpen((o) => !o)}>
+            <span>🖼 Low-Resolution Photos</span>
+            <span className="admin-tool-header-right">
+              <span className="admin-tool-summary">{lowResSummary()}</span>
+              <Chevron open={lowResToolOpen} />
+            </span>
+          </button>
+          {lowResToolOpen && (
+            <div className="admin-tool-body">
+              <div className="admin-duplicates">
+                <button className="btn btn-primary" onClick={handleScanLowRes} disabled={scanningLowRes}>
+                  {scanningLowRes
+                    ? lowResProgress && lowResProgress.total > 0
+                      ? `Scanning… ${Math.round((lowResProgress.current / lowResProgress.total) * 100)}%`
+                      : 'Scanning…'
+                    : '🖼 Scan for Low-Resolution Photos'}
+                </button>
+                {lowResError && <p className="error-msg">{lowResError}</p>}
+
+                {lowResItems && (
+                  <div className="duplicates-results">
+                    {lowResItems.length === 0 ? (
+                      <p className="tagline">No low-resolution photos found.</p>
+                    ) : (
+                      <>
+                        <button
+                          className="btn btn-danger admin-delete-all-duplicates-btn"
+                          onClick={handleDeleteAllLowRes}
+                          disabled={deletingAllLowRes}
+                        >
+                          {deletingAllLowRes
+                            ? deleteAllLowResProgress && deleteAllLowResProgress.total > 0
+                              ? `Deleting… ${Math.round(
+                                  (deleteAllLowResProgress.current / deleteAllLowResProgress.total) * 100
+                                )}%`
+                              : 'Deleting…'
+                            : `🗑 Delete All Low-Resolution Photos (${lowResItems.length})`}
+                        </button>
+                        {deleteAllLowResError && <p className="error-msg">{deleteAllLowResError}</p>}
+                        <div className="admin-grid">
+                          {lowResItems.map((item) => (
+                            <div key={item.id} className="admin-thumb">
+                              <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+                              {item.width && item.height && (
+                                <span className="admin-thumb-resolution">
+                                  {item.width}×{item.height}
+                                </span>
+                              )}
+                              <button
+                                className="admin-delete-btn"
+                                onClick={() => handleDelete(item.id)}
+                                disabled={deletingId === item.id}
+                                aria-label="Delete"
+                                title="Delete"
+                              >
+                                {deletingId === item.id ? '…' : '✕'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="admin-card">
@@ -827,7 +992,9 @@ export default function Admin() {
                 {item.kind === 'video' ? (
                   <video src={`/media/${item.filename}`} controls muted playsInline />
                 ) : (
-                  <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+                  <a href={`/media/${item.filename}?v=${item.size}`} target="_blank" rel="noopener noreferrer">
+                    <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+                  </a>
                 )}
                 {item.uploader && (
                   <span className="admin-thumb-uploader" title={item.uploader}>
