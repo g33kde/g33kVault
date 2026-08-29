@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Fix: "Scan failed" with no detail on the duplicate-detection scan
+
+- The `/api/admin/duplicates` handler had no top-level error handling — since this
+  project runs Express 4 (not 5), an exception thrown inside an `async` route handler
+  isn't automatically turned into an HTTP response, so anything unexpected there just
+  hung the request instead of failing cleanly, surfacing to the browser as a generic
+  "Scan failed" with no way to tell what actually went wrong. Now wrapped in try/catch,
+  returning the real error message; verified by feeding it a corrupted metadata file and
+  confirming it now responds immediately with a specific, actionable error instead of
+  hanging.
+- Also hardened the comparison itself: a single malformed perceptual-hash value (however
+  it got there) is now logged and skipped rather than aborting the whole scan — verified
+  by directly corrupting one entry's hash and confirming the scan still completes and
+  correctly ignores just that one.
+
+### Fix: multi-volume .7z archives in the import folder weren't recognized
+
+- A split 7z archive (`name.7z.001`, `name.7z.002`, ...) was silently ignored entirely —
+  the extension check only recognized a plain `.7z`. Now recognizes the first volume,
+  locates every sibling part, waits for all of them to individually settle (not just
+  the first) before extracting, and deletes every volume — not just the first — once
+  its contents are imported. Verified against a real multi-volume archive, including
+  that a still-copying later volume correctly holds off extraction of the whole set.
+
 ### Duplicate photo detection in /admin
 
 - New "🔍 Scan for Duplicates" button, finding both exact duplicates (SHA-256 content

@@ -164,31 +164,45 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
-    const media = getAllMedia();
+    // Express 4 doesn't automatically turn an exception thrown inside an
+    // async route handler into an HTTP response — without this try/catch,
+    // anything unexpected here (a corrupted metadata entry, a file that's
+    // gone missing from disk, whatever) would just hang the request instead
+    // of failing cleanly.
+    try {
+      const media = getAllMedia();
 
-    for (const item of media) {
-      const filePath = path.join(config.mediaDir, item.filename);
-      const patch: { content_hash?: string; phash?: string | null } = {};
+      for (const item of media) {
+        const filePath = path.join(config.mediaDir, item.filename);
+        const patch: { content_hash?: string; phash?: string | null } = {};
 
-      if (item.content_hash === undefined) {
-        try {
-          patch.content_hash = computeContentHash(filePath);
-        } catch (err) {
-          console.error(`Could not hash ${item.filename}:`, err);
+        if (item.content_hash === undefined) {
+          try {
+            patch.content_hash = computeContentHash(filePath);
+          } catch (err) {
+            console.error(`Could not hash ${item.filename}:`, err);
+          }
+        }
+
+        if (item.phash === undefined) {
+          try {
+            patch.phash = item.kind === 'image' ? await computePerceptualHash(filePath) : null;
+          } catch (err) {
+            console.error(`Could not compute perceptual hash for ${item.filename}:`, err);
+          }
+        }
+
+        if (Object.keys(patch).length > 0) {
+          updateMedia(item.id, patch);
+          Object.assign(item, patch);
         }
       }
 
-      if (item.phash === undefined) {
-        patch.phash = item.kind === 'image' ? await computePerceptualHash(filePath) : null;
-      }
-
-      if (Object.keys(patch).length > 0) {
-        updateMedia(item.id, patch);
-        Object.assign(item, patch);
-      }
+      res.json(findDuplicateGroups(media));
+    } catch (err) {
+      console.error('Duplicate scan failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Duplicate scan failed' });
     }
-
-    res.json(findDuplicateGroups(media));
   });
 
   return router;

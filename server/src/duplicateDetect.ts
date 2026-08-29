@@ -88,7 +88,18 @@ export function findDuplicateGroups(media: MediaRow[]): DuplicateGroups {
   const exact = [...byContentHash.values()].filter((group) => group.length > 1);
   const exactGroupKeys = new Set(exact.map((group) => groupKey(group)));
 
-  const withPhash = media.filter((item) => item.phash);
+  // Guard against a malformed stored value (shouldn't happen — every phash
+  // this project writes is 16 lowercase hex chars — but a single bad entry
+  // failing BigInt parsing shouldn't be able to take down the whole scan)
+  // rather than letting hammingDistance() throw on it later.
+  const withPhash = media.filter((item) => {
+    if (!item.phash) return false;
+    if (!/^[0-9a-f]{16}$/.test(item.phash)) {
+      console.error(`Ignoring malformed phash on ${item.filename}: ${item.phash}`);
+      return false;
+    }
+    return true;
+  });
   const used = new Set<string>();
   const similar: MediaRow[][] = [];
 

@@ -7,7 +7,7 @@ import { config } from './config';
 import { insertMedia, MediaRow } from './db';
 import { kindForExt, mimeForExt, isHeic } from './mediaTypes';
 import { convertHeicToJpeg } from './heicConvert';
-import { archiveKindFor, extractArchive, isJunkArchiveEntry } from './archiveExtract';
+import { archiveKindFor, extractArchive, findArchiveVolumeParts, isJunkArchiveEntry } from './archiveExtract';
 import { computeContentHash, computePerceptualHash } from './duplicateDetect';
 
 // Skip files newer than this so a still-in-progress copy (e.g. from a USB
@@ -98,14 +98,16 @@ async function importSingleFile(srcPath: string, stat: fs.Stats, io: SocketIOSer
   return true;
 }
 
-// Extracts an archive to a scratch directory, imports every recognized
-// media file found inside (skipping junk like macOS AppleDouble sidecar
-// files), then removes the scratch directory and, on success, the archive
-// itself — so re-scanning the import folder doesn't re-extract and
-// duplicate everything on the next pass. If extraction itself fails (a
-// corrupt archive), the archive is left in place and retried on the next
-// scan; a failure importing one file inside an otherwise-good archive is
-// logged and skipped without blocking the rest.
+// Extracts an archive (or, for a split 7z, every one of its sibling
+// volumes) to a scratch directory, imports every recognized media file
+// found inside (skipping junk like macOS AppleDouble sidecar files), then
+// removes the scratch directory and, on success, the archive itself — every
+// volume of it, for a split 7z — so re-scanning the import folder doesn't
+// re-extract and duplicate everything on the next pass. If extraction
+// itself fails (a corrupt archive, or a split one still missing a volume),
+// all of it is left in place and retried on the next scan; a failure
+// importing one file inside an otherwise-good archive is logged and
+// skipped without blocking the rest.
 async function importArchive(archivePath: string, io: SocketIOServer): Promise<number> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'g33kvault-import-'));
   let imported = 0;
@@ -123,7 +125,9 @@ async function importArchive(archivePath: string, io: SocketIOServer): Promise<n
       }
     }
 
-    fs.unlinkSync(archivePath);
+    for (const part of findArchiveVolumeParts(archivePath)) {
+      fs.unlinkSync(part);
+    }
   } catch (err) {
     console.error(`Failed to extract archive ${archivePath}:`, err);
   } finally {
@@ -141,18 +145,34 @@ async function runScan(io: SocketIOServer): Promise<number> {
 
   for (const srcPath of collectFiles(config.importDir)) {
     try {
+      // A split archive's later volumes get deleted as a side effect of
+      // processing its first volume (.001), earlier in this same loop —
+      // collectFiles() already returned them by then, so skip silently
+      // rather than logging a spurious "failed to import" for a file
+      // that's already been handled.
+      if (!fs.existsSync(srcPath)) continue;
+
       const archiveKind = archiveKindFor(srcPath);
       const ext = path.extname(srcPath).toLowerCase();
       if (!archiveKind && !kindForExt(ext)) continue;
 
+      if (archiveKind) {
+        // For a split 7z, every volume needs to exist and have individually
+        // settled — not just the first one — before extraction starts.
+        const volumeParts = findArchiveVolumeParts(srcPath);
+        const allSettled = volumeParts.every((part) => {
+          if (!fs.existsSync(part)) return false;
+          return Date.now() - fs.statSync(part).mtimeMs >= SETTLE_MS;
+        });
+        if (!allSettled) continue;
+
+        imported += await importArchive(srcPath, io);
+        continue;
+      }
+
       const stat = fs.statSync(srcPath);
       if (Date.now() - stat.mtimeMs < SETTLE_MS) continue;
-
-      if (archiveKind) {
-        imported += await importArchive(srcPath, io);
-      } else if (await importSingleFile(srcPath, stat, io)) {
-        imported++;
-      }
+      if (await importSingleFile(srcPath, stat, io)) imported++;
     } catch (err) {
       console.error(`Failed to import ${srcPath}:`, err);
     }

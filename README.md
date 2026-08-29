@@ -159,6 +159,15 @@ on the next scan, rather than silently discarded. Extraction uses `adm-zip`, `ta
 or system binaries needed, keeping this project's zero-native-dependency policy intact
 for everything except `sharp` (see [CLAUDE.md](CLAUDE.md)).
 
+**Multi-volume `.7z` archives** — 7-Zip's own split-archive format for an archive too
+big for one file (`Qonf2019.7z.001`, `Qonf2019.7z.002`, ... `Qonf2019.7z.NNN`) — are also
+supported. Dropping just the first part isn't enough on its own: every volume needs to
+be present and individually settled (past the same 5-second stability wait) before
+extraction starts, since the parts commonly finish copying at different times. Once
+extracted, every volume is deleted, not just the first one. Confirmed against a real
+multi-volume archive during development, including that a still-copying later volume
+correctly holds off extraction of the whole set until it's caught up.
+
 ## Running on a Raspberry Pi
 
 Runs natively on a Pi — `node:20-alpine` (the base image) is multi-arch, so Docker pulls
