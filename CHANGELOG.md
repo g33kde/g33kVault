@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Browser tab favicon
+
+- Added a favicon — a bold green "V" monogram on the app's near-black background,
+  matching the brand palette. SVG primary (`client/public/favicon.svg`) with a PNG
+  fallback (`favicon-32x32.png`) for browsers that don't support SVG icons. Went
+  through a "g" monogram first (matching a mockup direction picked earlier) but
+  dropped it after confirming — via an actual rendered screenshot at real favicon
+  size — that a single-story "g" reduced to a simple shape is very hard to
+  distinguish from "9" at 16px; a plain letterform also risked depending on
+  Courier New/Consolas being installed, which isn't guaranteed on every OS. "V"
+  avoids both problems.
+
 ### Fix: backup/restore archive-folder mismatch
 
 - `scripts/restore.sh` failed with `tar: db: not found in archive` on any
