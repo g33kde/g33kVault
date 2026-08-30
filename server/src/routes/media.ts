@@ -4,7 +4,7 @@ import path from 'path';
 import sharp from 'sharp';
 import type { Server as SocketIOServer } from 'socket.io';
 import { config } from '../config';
-import { getAllMedia, getMediaById, deleteMedia, updateMedia } from '../db';
+import { getApprovedMedia, getMediaById, deleteMedia, updateMedia } from '../db';
 import { checkAdminPassword } from '../adminAuth';
 import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
 
@@ -17,8 +17,12 @@ const ROTATABLE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 export function mediaRouter(io: SocketIOServer) {
   const router = Router();
 
+  // Excludes anything still awaiting review from an uploaded archive — this
+  // feeds the public slideshow/host stats pages as well as the admin
+  // gallery grid, none of which should show a pending photo before an
+  // admin approves its batch (routes/admin.ts pending-batches endpoints).
   router.get('/', (_req, res) => {
-    res.json(getAllMedia());
+    res.json(getApprovedMedia());
   });
 
   router.post('/:id/rotate', async (req, res) => {
@@ -74,7 +78,7 @@ export function mediaRouter(io: SocketIOServer) {
       // orientation.
       const updated = updateMedia(media.id, {
         size: output.length,
-        content_hash: computeContentHash(filePath),
+        content_hash: await computeContentHash(filePath),
         phash: await computePerceptualHash(filePath),
       });
       io.emit('media:updated', updated);

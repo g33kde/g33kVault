@@ -6,7 +6,7 @@ import { PassThrough } from 'stream';
 import type { Server as SocketIOServer } from 'socket.io';
 import { checkAdminPassword } from '../adminAuth';
 import { config } from '../config';
-import { getAllMedia, updateMedia, deleteManyMedia, MediaRow } from '../db';
+import { getAllMedia, getApprovedMedia, updateMedia, updateManyMedia, deleteManyMedia, MediaRow } from '../db';
 import { computeContentHash, computePerceptualHash, findDuplicateGroups, planDuplicateDeletions } from '../duplicateDetect';
 import { extractPhotoTakenAt } from '../photoDate';
 import { getImageDimensions, isLowResolution, makeThreshold, ResolutionThreshold } from '../lowResolution';
@@ -19,6 +19,8 @@ import {
   setTransitionStyle,
   getPartyMode,
   setPartyMode,
+  getSlideshowEnabled,
+  setSlideshowEnabled,
   getLastBackup,
   setLastBackup,
   TRANSITION_STYLES,
@@ -34,6 +36,7 @@ function currentSettings() {
     shuffle: getShuffle(),
     transitionStyle: getTransitionStyle(),
     partyMode: getPartyMode(),
+    slideshowEnabled: getSlideshowEnabled(),
     lastBackup: getLastBackup(),
   };
 }
@@ -107,7 +110,7 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
-    const { slideshowIntervalMs, shuffle, transitionStyle, partyMode } = req.body ?? {};
+    const { slideshowIntervalMs, shuffle, transitionStyle, partyMode, slideshowEnabled } = req.body ?? {};
 
     if (
       typeof slideshowIntervalMs !== 'number' ||
@@ -136,10 +139,16 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
+    if (typeof slideshowEnabled !== 'boolean') {
+      res.status(400).json({ error: 'slideshowEnabled must be a boolean' });
+      return;
+    }
+
     setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
     setShuffle(shuffle);
     setTransitionStyle(transitionStyle as TransitionStyle);
     setPartyMode(partyMode);
+    setSlideshowEnabled(slideshowEnabled);
 
     const updated = currentSettings();
     io.emit('config:updated', updated);
@@ -217,7 +226,7 @@ export function adminRouter(io: SocketIOServer) {
     // gone missing from disk, whatever) would just hang the request instead
     // of failing cleanly.
     try {
-      const media = getAllMedia();
+      const media = getApprovedMedia();
 
       for (let i = 0; i < media.length; i++) {
         const item = media[i];
@@ -226,7 +235,7 @@ export function adminRouter(io: SocketIOServer) {
 
         if (item.content_hash === undefined) {
           try {
-            patch.content_hash = computeContentHash(filePath);
+            patch.content_hash = await computeContentHash(filePath);
           } catch (err) {
             console.error(`Could not hash ${item.filename}:`, err);
           }
@@ -275,7 +284,7 @@ export function adminRouter(io: SocketIOServer) {
     }
 
     try {
-      const media = getAllMedia();
+      const media = getApprovedMedia();
       const groups = findDuplicateGroups(media);
       const idsToDelete = planDuplicateDeletions(groups);
 
@@ -315,7 +324,7 @@ export function adminRouter(io: SocketIOServer) {
     }
 
     try {
-      const media = getAllMedia();
+      const media = getApprovedMedia();
       let found = 0;
 
       for (let i = 0; i < media.length; i++) {
@@ -367,7 +376,7 @@ export function adminRouter(io: SocketIOServer) {
     }
 
     try {
-      const media = getAllMedia();
+      const media = getApprovedMedia();
       const flagged = await scanLowResolutionImages(media, config.mediaDir, io, 'lowRes:progress', threshold);
       res.json({ items: flagged.map(({ item, width, height }) => ({ ...item, width, height })) });
     } catch (err) {
@@ -396,7 +405,7 @@ export function adminRouter(io: SocketIOServer) {
     }
 
     try {
-      const media = getAllMedia();
+      const media = getApprovedMedia();
       const flagged = await scanLowResolutionImages(media, config.mediaDir, io, 'lowRes:deleteProgress', threshold);
       const idsToDelete = new Set(flagged.map((f) => f.item.id));
 
@@ -415,6 +424,114 @@ export function adminRouter(io: SocketIOServer) {
     } catch (err) {
       console.error('Delete-all-low-resolution failed:', err);
       res.status(500).json({ error: err instanceof Error ? err.message : 'Delete failed' });
+    }
+  });
+
+  // Lists every batch of photos extracted from a guest-uploaded archive
+  // that's still awaiting review, grouped by batchId — one entry per
+  // archive upload, not per photo.
+  router.get('/pending-batches', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    try {
+      const pending = getAllMedia().filter((m) => m.status === 'pending');
+      const batches = new Map<string, { batchId: string; batchLabel: string; uploader: string | null; createdAt: number; items: MediaRow[] }>();
+
+      for (const item of pending) {
+        const batchId = item.batchId ?? item.id;
+        const existing = batches.get(batchId);
+        if (existing) {
+          existing.items.push(item);
+          existing.createdAt = Math.min(existing.createdAt, item.created_at);
+        } else {
+          batches.set(batchId, {
+            batchId,
+            batchLabel: item.batchLabel ?? 'Uploaded archive',
+            uploader: item.uploader ?? null,
+            createdAt: item.created_at,
+            items: [item],
+          });
+        }
+      }
+
+      res.json([...batches.values()].sort((a, b) => a.createdAt - b.createdAt));
+    } catch (err) {
+      console.error('Listing pending batches failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Could not list pending uploads' });
+    }
+  });
+
+  // Flips every photo in the batch to approved in one write, so it starts
+  // showing up in the public gallery/slideshow and the admin gallery grid.
+  // Deliberately emits a quieter 'media:approved' per item rather than
+  // 'media:new' — the latter triggers the slideshow's "New Upload"
+  // highlight, which would mean dozens of disruptive highlights back to
+  // back for one approved batch.
+  router.post('/pending-batches/:batchId/approve', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    try {
+      const { batchId } = req.params;
+      const ids = new Set(
+        getAllMedia()
+          .filter((m) => m.status === 'pending' && m.batchId === batchId)
+          .map((m) => m.id)
+      );
+
+      if (ids.size === 0) {
+        res.status(404).json({ error: 'Batch not found (already reviewed?)' });
+        return;
+      }
+
+      const updated = updateManyMedia(ids, { status: 'approved' });
+      for (const row of updated) {
+        io.emit('media:approved', row);
+      }
+
+      res.json({ approved: updated.length });
+    } catch (err) {
+      console.error('Approving pending batch failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Approve failed' });
+    }
+  });
+
+  // Permanently deletes every photo in the batch — files and metadata rows
+  // both — same as any other delete in this app: immediate, no separate
+  // trash/quarantine step.
+  router.post('/pending-batches/:batchId/reject', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    try {
+      const { batchId } = req.params;
+      const ids = new Set(
+        getAllMedia()
+          .filter((m) => m.status === 'pending' && m.batchId === batchId)
+          .map((m) => m.id)
+      );
+
+      if (ids.size === 0) {
+        res.status(404).json({ error: 'Batch not found (already reviewed?)' });
+        return;
+      }
+
+      const removed = deleteManyMedia(ids);
+      for (const row of removed) {
+        fs.unlink(path.join(config.mediaDir, row.filename), () => {});
+      }
+
+      res.json({ rejected: removed.length });
+    } catch (err) {
+      console.error('Rejecting pending batch failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Reject failed' });
     }
   });
 

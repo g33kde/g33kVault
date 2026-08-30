@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { getAllMedia } from '../db';
+import { getApprovedMedia } from '../db';
 
 export const statsRouter = Router();
 
 statsRouter.get('/', (_req, res) => {
-  const media = getAllMedia();
+  const media = getApprovedMedia();
   const photos = media.filter((m) => m.kind === 'image').length;
   const videos = media.filter((m) => m.kind === 'video').length;
   const storageBytes = media.reduce((sum, m) => sum + m.size, 0);

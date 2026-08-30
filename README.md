@@ -366,7 +366,8 @@ suit and these commands need adjusting to match.
 | `SETTINGS_PATH`            | `./data/settings.json`   | JSON file storing admin-adjustable settings (e.g. slideshow speed) |
 | `IMPORT_DIR`               | `./import`               | Folder watched for bulk-import files           |
 | `IMPORT_SCAN_INTERVAL_MS`  | `60000`                  | How often to rescan the import folder (`0` disables periodic rescans, keeping only the startup scan) |
-| `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per file                       |
+| `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per photo/video                |
+| `MAX_ARCHIVE_SIZE_MB`      | `500`                    | Max upload size for a `.zip`/`.tar.gz`/`.rar` (see "Guest-uploaded archives" below) |
 | `SLIDESHOW_INTERVAL_MS`    | `6000`                   | Initial slideshow image duration — see below   |
 | `ADMIN_PASSWORD`           | *(unset)*                | Password for `/admin`; unset disables it entirely |
 
@@ -430,6 +431,34 @@ This only applies to photos. A newly uploaded **video** keeps the older, non-int
 behavior — inserted to play in its normal turn soon, without cutting away from whatever's
 currently on screen — since a video's own length doesn't fit a fixed "shown for 10
 seconds" rule the way a photo does.
+
+## Guest-uploaded archives
+
+`/upload` also accepts a `.zip`, `.tar.gz`, or `.rar` file — handy for a guest with a
+whole folder of photos from a real camera or an SD card, rather than picking them one at
+a time. Unlike a regular photo/video upload, an archive **doesn't** go straight to the
+live slideshow:
+
+- The guest gets an immediate confirmation that it's been received and is being
+  processed — extraction happens in the background afterward, not while they wait, so a
+  large archive over a flaky mobile connection doesn't risk a timeout.
+- Every photo/video extracted from it lands in a review queue instead of the gallery,
+  grouped with everything else from that same archive as one batch.
+- An admin reviews it from the "📦 Pending Uploads" section in `/admin` — thumbnails for
+  the whole batch, then either **Approve All** (the batch goes live, quietly entering
+  the normal slideshow rotation — no "New Upload" badge, since that's meant for a single
+  fresh photo, not dozens landing at once) or **Reject All** (permanently deleted,
+  immediately, same as any other delete in this app).
+- Until approved, a pending photo doesn't count toward anything public — not the
+  slideshow, not the Event Statistics panel, not the admin's other review tools
+  (duplicate/photo-date/low-resolution scans all work on approved photos only).
+
+Extraction reuses the exact same code as the [watched import
+folder](#bulk-import-via-a-watched-folder) — `.7z` isn't offered here, though, staying
+exclusive to that admin-only path. Archives get a separate, larger size limit
+(`MAX_ARCHIVE_SIZE_MB`, default 500 MB) than a single photo/video upload
+(`MAX_FILE_SIZE_MB`), since a compressed multi-photo dump is reasonably much bigger than
+any one file.
 
 ## Photo booth
 

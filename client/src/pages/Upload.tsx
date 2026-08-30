@@ -7,6 +7,10 @@ interface UploadResult {
   name: string;
   ok: boolean;
   error?: string;
+  // True for an uploaded archive: it's been received and is being
+  // extracted, but won't appear in the slideshow until an admin reviews
+  // and approves it — a different outcome than a normal instant upload.
+  pending?: boolean;
 }
 
 interface Stats {
@@ -20,6 +24,11 @@ interface Stats {
 const THUMB_LIMIT = 12;
 const STATS_TICK_MS = 30_000;
 const UPLOADER_STORAGE_KEY = 'g33kvault-uploader-name';
+
+function isArchiveFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return name.endsWith('.zip') || name.endsWith('.tar.gz') || name.endsWith('.tgz') || name.endsWith('.rar');
+}
 
 function formatStorage(bytes: number): string {
   return `${(bytes / 1e9).toFixed(1)} GB`;
@@ -110,7 +119,7 @@ export default function Upload() {
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: formData });
         if (res.ok) {
-          outcomes.push({ name: file.name, ok: true });
+          outcomes.push({ name: file.name, ok: true, pending: res.status === 202 });
         } else {
           const data = await res.json().catch(() => ({}));
           outcomes.push({ name: file.name, ok: false, error: data.error || 'Upload failed' });
@@ -134,7 +143,8 @@ export default function Upload() {
   }
 
   const failed = results.filter((r) => !r.ok);
-  const succeeded = results.filter((r) => r.ok);
+  const succeeded = results.filter((r) => r.ok && !r.pending);
+  const pendingArchives = results.filter((r) => r.ok && r.pending);
 
   return (
     <div className="page upload-page">
@@ -157,9 +167,20 @@ export default function Upload() {
 
       {status === 'done' ? (
         <div className="success-panel">
-          <p>
-            {succeeded.length} uploaded{failed.length > 0 ? `, ${failed.length} failed` : ''}.
-          </p>
+          {succeeded.length > 0 && (
+            <p>
+              {succeeded.length} uploaded{failed.length > 0 ? `, ${failed.length} failed` : ''}.
+            </p>
+          )}
+          {pendingArchives.length > 0 && (
+            <p>
+              📦 {pendingArchives.length} archive{pendingArchives.length === 1 ? '' : 's'} received and being
+              processed — your photos will appear once the event host approves them.
+            </p>
+          )}
+          {succeeded.length === 0 && pendingArchives.length === 0 && failed.length > 0 && (
+            <p>{failed.length} failed.</p>
+          )}
           {failed.length > 0 && (
             <ul className="fail-list">
               {failed.map((f) => (
@@ -176,15 +197,30 @@ export default function Upload() {
       ) : (
         <>
           {files.length === 0 && (
-            <label className="file-picker">
-              Choose photos or videos
-              <input type="file" accept="image/*,video/*" multiple onChange={handleFileChange} hidden />
-            </label>
+            <>
+              <label className="file-picker">
+                Choose photos or videos
+                <input
+                  type="file"
+                  accept="image/*,video/*,.zip,.tar.gz,.rar"
+                  multiple
+                  onChange={handleFileChange}
+                  hidden
+                />
+              </label>
+              <p className="upload-archive-note">
+                📦 Got a whole folder of photos? You can also upload a <strong>.zip</strong>, <strong>.tar.gz</strong>
+                , or <strong>.rar</strong> file — they'll be reviewed by the event host before appearing in the
+                slideshow.
+              </p>
+            </>
           )}
 
           {files.length === 1 &&
             status === 'idle' &&
-            (files[0].type.startsWith('video') ? (
+            (isArchiveFile(files[0]) ? (
+              <div className="preview archive-preview">📦 {files[0].name}</div>
+            ) : files[0].type.startsWith('video') ? (
               <video src={previewUrls[0]} className="preview" controls />
             ) : (
               <img src={previewUrls[0]} className="preview" alt="preview" />
@@ -194,7 +230,9 @@ export default function Upload() {
             <div className="thumb-grid">
               {previewUrls.map((url, i) => (
                 <div key={i} className="thumb">
-                  {files[i].type.startsWith('video') ? (
+                  {isArchiveFile(files[i]) ? (
+                    <div className="archive-thumb">📦</div>
+                  ) : files[i].type.startsWith('video') ? (
                     <video src={url} muted />
                   ) : (
                     <img src={url} alt="" />

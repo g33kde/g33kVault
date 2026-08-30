@@ -1,16 +1,31 @@
 import { useEffect, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
 
 type Dest = 'upload' | 'booth';
 
 export default function Host() {
   const [dest, setDest] = useState<Dest>('upload');
   const [url, setUrl] = useState('');
+  const [slideshowEnabled, setSlideshowEnabled] = useState(true);
 
   useEffect(() => {
     fetch(`/api/upload-url?dest=${dest}`)
       .then((r) => r.json())
       .then((data) => setUrl(data.url));
   }, [dest]);
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then((data: { slideshowEnabled: boolean }) => setSlideshowEnabled(data.slideshowEnabled));
+
+    const socket: Socket = io({ path: '/socket.io' });
+    socket.on('config:updated', (data: { slideshowEnabled: boolean }) => setSlideshowEnabled(data.slideshowEnabled));
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   return (
     <div className="page host-page">
@@ -56,9 +71,13 @@ export default function Host() {
         </a>
       )}
 
-      <a href="/slideshow" className="btn btn-primary" target="_blank" rel="noreferrer">
-        Launch Slideshow
-      </a>
+      {slideshowEnabled ? (
+        <a href="/slideshow" className="btn btn-primary" target="_blank" rel="noreferrer">
+          Launch Slideshow
+        </a>
+      ) : (
+        <span className="btn btn-secondary btn-disabled-text">Slideshow currently disabled</span>
+      )}
 
       <a href="/admin" className="admin-link">
         Admin

@@ -25,6 +25,7 @@ interface Settings {
   shuffle?: boolean;
   transitionStyle?: TransitionStyle;
   partyMode?: boolean;
+  slideshowEnabled?: boolean;
   lastBackup?: BackupInfo;
 }
 
@@ -85,6 +86,17 @@ export function getPartyMode(): boolean {
 export function setPartyMode(value: boolean): boolean {
   const settings = readSettings();
   settings.partyMode = value;
+  writeSettings(settings);
+  return value;
+}
+
+export function getSlideshowEnabled(): boolean {
+  return readSettings().slideshowEnabled ?? true;
+}
+
+export function setSlideshowEnabled(value: boolean): boolean {
+  const settings = readSettings();
+  settings.slideshowEnabled = value;
   writeSettings(settings);
   return value;
 }

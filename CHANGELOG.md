@@ -2,6 +2,112 @@
 
 ## [Unreleased]
 
+### "Enable Slideshow" toggle
+
+- New checkbox in /admin's Playback Settings. Turning it off does two things live,
+  pushed over the existing WebSocket with no reload needed: `/slideshow` shows "Slideshow
+  is currently disabled" instead of the normal rotation (matching the visual style of
+  the existing "Waiting for the first upload…" empty state), and the "Launch Slideshow"
+  button on the main page (`/`) turns into plain non-clickable text reading "Slideshow
+  currently disabled" in the same spot. Defaults to enabled, so existing deployments are
+  unaffected. Verified with three real browser tabs open at once (Host, Slideshow, and
+  Admin) — toggling the checkbox in Admin updated both of the other already-open tabs
+  immediately, and toggling back on correctly resumed the slideshow showing real content
+  again, not just an empty non-error state.
+
+### Guest-uploaded archives with admin review
+
+- `/upload` now accepts `.zip`, `.tar.gz`, and `.rar` (not `.7z` — that stays exclusive
+  to the admin-only watched import folder, by choice), for a guest with a whole folder
+  of photos rather than picking them one at a time. Concept and every open design
+  question (per-photo vs. whole-batch approval, what happens on rejection, where the
+  review UI lives, synchronous vs. background extraction, archive size limit) were
+  discussed and decided before any code was written.
+- Unlike a normal upload, an archive doesn't go straight to the live slideshow: the
+  guest gets an immediate "received, being processed" response (extraction happens in
+  the background after, reusing the exact same code the watched import folder already
+  uses — not while their connection is held open, which matters on a large archive over
+  mobile data), and every photo/video extracted from it lands in a review queue instead
+  of the gallery, grouped with the rest of that archive as one batch.
+- New "📦 Pending Uploads" row in /admin's Gallery Tools — unlike the other rows, this
+  one loads automatically (rather than waiting for a scan click) and stays live via a
+  new `media:pending` broadcast, since an unreviewed batch is time-sensitive during a
+  live event in a way "run a duplicate scan when convenient" isn't. Each batch shows its
+  original archive filename, uploader name if given, and a thumbnail grid, with
+  **Approve All** (goes live, quietly entering normal rotation — deliberately *not* the
+  "New Upload" highlight badge, since approving dozens of photos at once would otherwise
+  mean dozens of disruptive highlights back to back) and **Reject All** (permanently
+  deleted immediately, same as every other delete in this app, with a confirmation
+  dialog naming the count).
+- New `MediaRow.status` (`'pending'` | `'approved'`, undefined treated as approved so
+  every existing row is unaffected) and `batchId`/`batchLabel` fields. A new
+  `getApprovedMedia()` is the single filter point every public/live-facing read goes
+  through — `GET /api/media` (slideshow, host stats, admin's own gallery grid) and the
+  other admin scan tools (duplicates, photo dates, low-resolution) all now operate on
+  approved media only, so a pending photo can't leak into the public gallery or get
+  flagged by another tool before it's reviewed.
+- Archives get their own size limit, `MAX_ARCHIVE_SIZE_MB` (default 500 MB), separate
+  from `MAX_FILE_SIZE_MB` for a single photo/video, since a compressed multi-photo dump
+  is reasonably much bigger than any one file.
+- A real bug found during testing: approving a batch initially only reached the public
+  slideshow — the admin's own Photo Gallery grid kept showing the old count until a
+  manual reload, because it only listened for `media:new`, not the new quieter
+  `media:approved`. Fixed by adding the same live-insert handler there.
+- Verified end-to-end with real archives built and uploaded through the actual public
+  endpoint (not just unit-level calls): a real `.zip` and a real `.tar.gz`, each
+  extracted, hashed, and correctly hidden from `/api/media` and the Event Statistics
+  panel while pending; a byte-identical duplicate of an already-approved photo
+  confirmed absent from the duplicate scan while pending and correctly detected the
+  moment it's approved (proving the approved-only filtering is real, not just always
+  finding nothing); approve and reject both exercised through the real admin UI in a
+  browser, including the Photo Gallery grid updating live; oversized-archive rejection;
+  and `.7z` correctly refused by this endpoint. `.rar` creation tooling wasn't available
+  to build a genuine test fixture (same pre-existing gap as the watched import folder),
+  but the accept path and graceful-failure-on-a-corrupt-file path were both confirmed.
+
+### Photo viewer popup with prev/next in /admin
+
+- Clicking a photo in the main Photo Gallery grid now opens a dedicated popup window
+  (via `window.open()` with explicit size/chrome flags — the standard way to request a
+  separate window rather than a tab, though browsers ultimately treat this as a
+  preference, not a guarantee) instead of a plain new tab. Clicking the photo inside
+  that window closes it. Left/right arrows step to the previous/next photo, in the same
+  newest-first order the admin grid shows, without closing the window; they're hidden
+  at the first/last photo rather than wrapping around, by choice. New standalone
+  `/photo-viewer` route/page, reusing the already-public `/api/media` endpoint (no new
+  auth surface — the same photo list is already exposed via the public slideshow page).
+  Scoped to the main Photo Gallery only, by choice — Duplicate Photos stays as-is
+  (no click-through), Low-Resolution Photos keeps its existing plain new-tab click.
+- Verified end-to-end with a real running instance: the popup opens showing the
+  clicked photo, has no left arrow on the newest (first) photo, steps correctly through
+  all photos via the right arrow, correctly loses the right arrow on the oldest (last)
+  photo rather than wrapping, and clicking the photo closes the popup while leaving the
+  admin tab untouched.
+
+### Fix: duplicate/photo-date scans could freeze the entire server on a large uncached file
+
+- Root cause of a real report ("shows 1%, never changes until it's finished" on a
+  repeat scan that should have been mostly cached): `computeContentHash` read the
+  whole file into memory and hashed it with `fs.readFileSync` — fully synchronous, zero
+  `await`. For one large uncached video or photo (e.g. an older file that predates
+  content-hash backfilling), this blocks Node's entire event loop for however long that
+  single read+hash takes — not just this feature's own progress display, but *every*
+  other request and socket the server is handling, for the same duration.
+- Now streams the file through a `crypto.createHash` update loop instead, so the
+  read+hash no longer monopolizes the event loop. Verified two ways: correctness (the
+  streamed hash matches real `shasum -a 256` byte-for-byte, and duplicate detection
+  still correctly groups identical files) and the actual fix (hashing a ~2GB file while
+  firing 8 separate concurrent requests throughout — previously all 8 would have queued
+  behind the ~3-second synchronous block and landed together at the end; now every one
+  responded promptly, 6-351ms, throughout the whole operation).
+- Worth being upfront about the remaining limitation: this stops one huge file from
+  freezing the whole app, but the duplicate scan's own percentage will still hold at
+  that file's position while it's specifically being hashed — an accurate reflection of
+  "working on this one item," not a bug, just not more granular than per-item. If a scan
+  is still dominated by one or two big files after this fix, sub-item progress (e.g.
+  bytes hashed so far) would be the next thing to add, but wasn't built here since it's
+  a separate, larger change.
+
 ### Fix: scan progress bars showing a literal "0%" for a long stretch on large galleries
 
 - All five progress percentages in /admin (Duplicate Photos scan and delete-all, Photo

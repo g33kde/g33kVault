@@ -23,6 +23,17 @@ export interface MediaRow {
   // reaching this app — most commonly a HEIC photo imported before this
   // field's ingestion-time extraction existed).
   photo_taken_at?: number | null;
+  // undefined/'approved' = live, shown in the public gallery/slideshow like
+  // always. 'pending' = extracted from a guest-uploaded archive
+  // (routes/upload.ts, pendingUploads.ts) and awaiting admin review — never
+  // returned by the public /api/media, never triggers a live-slideshow
+  // highlight, until an admin approves the whole batch it belongs to.
+  status?: 'pending' | 'approved';
+  // Only set on rows created from one uploaded archive, so admin review can
+  // group and act on them together. batchLabel is the archive's original
+  // filename, for a human-readable review list.
+  batchId?: string;
+  batchLabel?: string;
 }
 
 fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
@@ -50,6 +61,16 @@ export function getAllMedia(): MediaRow[] {
   return readAll().sort((a, b) => a.created_at - b.created_at);
 }
 
+// Excludes anything still awaiting admin review (see the 'pending' status
+// doc comment above) — used everywhere media is shown or scanned outside
+// the dedicated pending-batches review flow itself, so an unreviewed photo
+// can't leak into the public gallery, the slideshow, or any of the other
+// admin tools (duplicates, photo dates, low-resolution) before it's
+// approved.
+export function getApprovedMedia(): MediaRow[] {
+  return getAllMedia().filter((m) => m.status !== 'pending');
+}
+
 export function deleteMedia(id: string): MediaRow | null {
   const rows = readAll();
   const idx = rows.findIndex((r) => r.id === id);
@@ -75,6 +96,22 @@ export function deleteManyMedia(ids: Set<string>): MediaRow[] {
   }
   writeAll(kept);
   return removed;
+}
+
+// One read + one write for the whole batch, same reasoning as
+// deleteManyMedia — approving a large pending batch shouldn't mean one
+// rewrite of the entire JSON store per photo.
+export function updateManyMedia(ids: Set<string>, patch: Partial<Omit<MediaRow, 'id'>>): MediaRow[] {
+  const rows = readAll();
+  const updated: MediaRow[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (ids.has(rows[i].id)) {
+      rows[i] = { ...rows[i], ...patch };
+      updated.push(rows[i]);
+    }
+  }
+  writeAll(rows);
+  return updated;
 }
 
 export function getMediaById(id: string): MediaRow | null {

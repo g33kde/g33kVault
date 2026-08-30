@@ -19,6 +19,7 @@ interface ConfigPayload {
   shuffle: boolean;
   transitionStyle: TransitionStyle;
   partyMode: boolean;
+  slideshowEnabled: boolean;
 }
 
 const DEFAULT_IMAGE_DURATION_MS = 6000;
@@ -66,6 +67,7 @@ export default function Slideshow() {
   const [index, setIndex] = useState(0);
   const [imageDuration, setImageDuration] = useState(DEFAULT_IMAGE_DURATION_MS);
   const [shuffle, setShuffle] = useState(false);
+  const [slideshowEnabled, setSlideshowEnabled] = useState(true);
   const [muted, setMuted] = useState(true);
   const [transitionClass, setTransitionClass] = useState('');
   const [showNewUploadBadge, setShowNewUploadBadge] = useState(false);
@@ -113,6 +115,7 @@ export default function Slideshow() {
       shuffleRef.current = configData.shuffle;
       transitionStyleRef.current = configData.transitionStyle;
       partyModeRef.current = configData.partyMode;
+      setSlideshowEnabled(configData.slideshowEnabled);
       setItems(configData.shuffle ? shuffleArray(mediaData) : mediaData);
     });
 
@@ -160,10 +163,27 @@ export default function Slideshow() {
       }
     });
 
+    // A whole reviewed archive-upload batch going live at once — quietly
+    // queued in like a video, never highlighted like a fresh single upload
+    // (approving dozens of photos together would otherwise mean dozens of
+    // disruptive "New Upload" badges back to back).
+    socket.on('media:approved', (item: MediaItem) => {
+      setItems((prev) => {
+        const next = [...prev];
+        const lower = Math.min(indexRef.current + 1, next.length);
+        const insertAt = shuffleRef.current
+          ? lower + Math.floor(Math.random() * (next.length - lower + 1))
+          : lower;
+        next.splice(insertAt, 0, item);
+        return next;
+      });
+    });
+
     socket.on('config:updated', (data: ConfigPayload) => {
       setImageDuration(data.slideshowIntervalMs);
       transitionStyleRef.current = data.transitionStyle;
       partyModeRef.current = data.partyMode;
+      setSlideshowEnabled(data.slideshowEnabled);
 
       if (data.shuffle !== shuffleRef.current) {
         shuffleRef.current = data.shuffle;
@@ -275,6 +295,19 @@ export default function Slideshow() {
     // what's actually being displayed right now) must NOT reset this timer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id, imageDuration]);
+
+  if (!slideshowEnabled) {
+    return (
+      <div className="page slideshow-page slideshow-empty">
+        <h1 className="brand">
+          <a href="/" className="brand-link">
+            g33k<span>Vault</span>
+          </a>
+        </h1>
+        <p>Slideshow is currently disabled.</p>
+      </div>
+    );
+  }
 
   if (!current) {
     return (

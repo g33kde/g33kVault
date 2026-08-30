@@ -11,29 +11,52 @@ import { kindForExt, mimeForExt, isHeic } from '../mediaTypes';
 import { convertHeicToJpeg } from '../heicConvert';
 import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
 import { extractPhotoTakenAt } from '../photoDate';
+import { archiveKindFor } from '../archiveExtract';
+import { importArchive } from '../importFolder';
 
 fs.mkdirSync(config.mediaDir, { recursive: true });
+
+// path.extname() only ever returns the last dot-segment, so "foo.tar.gz"
+// would otherwise get saved as "<uuid>.gz" — losing the part archiveKindFor
+// needs to recognize it as a tar archive later during background
+// processing. Matches the same compound-suffix handling archiveExtract.ts
+// already does internally.
+function realExtname(filename: string): string {
+  return filename.toLowerCase().endsWith('.tar.gz') ? '.tar.gz' : path.extname(filename);
+}
+
+// Guests can upload a .zip/.tar.gz/.rar of multiple photos, extracted and
+// held for admin review (routes/admin.ts pending-batches endpoints) rather
+// than going straight to the live slideshow — see CHANGELOG. Not .7z here:
+// that stays exclusive to the admin-only watched import folder, by choice.
+function isAllowedArchiveUpload(originalname: string): boolean {
+  const kind = archiveKindFor(originalname);
+  return kind !== null && kind !== '7z';
+}
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, config.mediaDir),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${randomUUID()}${ext}`);
+    cb(null, `${randomUUID()}${realExtname(file.originalname)}`);
   },
 });
 
 function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
-  const ext = path.extname(file.originalname).toLowerCase();
-  if (kindForExt(ext)) {
+  const ext = realExtname(file.originalname);
+  if (kindForExt(ext) || isAllowedArchiveUpload(file.originalname)) {
     cb(null, true);
   } else {
     cb(new Error('Unsupported file type'));
   }
 }
 
+// The multer-level limit has to cover the larger of the two — archives are
+// allowed to be substantially bigger than a single photo/video. Whichever
+// specific limit actually applies (maxFileSizeMb vs. maxArchiveSizeMb) is
+// enforced per-upload once the file's real kind is known, below.
 const upload = multer({
   storage,
-  limits: { fileSize: config.maxFileSizeMb * 1024 * 1024 },
+  limits: { fileSize: Math.max(config.maxFileSizeMb, config.maxArchiveSizeMb) * 1024 * 1024 },
   fileFilter,
 });
 
@@ -57,6 +80,30 @@ export function uploadRouter(io: SocketIOServer) {
       return;
     }
 
+    if (isAllowedArchiveUpload(req.file.originalname)) {
+      if (req.file.size > config.maxArchiveSizeMb * 1024 * 1024) {
+        fs.unlink(req.file.path, () => {});
+        res.status(400).json({ error: `Archive must be smaller than ${config.maxArchiveSizeMb} MB` });
+        return;
+      }
+
+      const batchId = randomUUID();
+      const batchLabel = req.file.originalname;
+      const uploader = sanitizeUploader(req.body?.uploader);
+      const archivePath = req.file.path;
+
+      // The guest gets an immediate response — extraction/hashing every
+      // photo inside can take a while, and holding a mobile connection open
+      // for that risks a timeout or a dropped upload. Processing continues
+      // after the response is sent; any failure is logged, not surfaced to
+      // the guest (they've already been told it's received).
+      res.status(202).json({ pending: true, batchId });
+      importArchive(archivePath, io, { status: 'pending', batchId, batchLabel, uploader }).catch((err) => {
+        console.error(`Failed to process uploaded archive "${batchLabel}":`, err);
+      });
+      return;
+    }
+
     const ext = path.extname(req.file.originalname).toLowerCase();
     const kind = kindForExt(ext);
 
@@ -66,6 +113,12 @@ export function uploadRouter(io: SocketIOServer) {
     if (!kind) {
       fs.unlink(req.file.path, () => {});
       res.status(400).json({ error: 'Unsupported file type' });
+      return;
+    }
+
+    if (req.file.size > config.maxFileSizeMb * 1024 * 1024) {
+      fs.unlink(req.file.path, () => {});
+      res.status(400).json({ error: `File must be smaller than ${config.maxFileSizeMb} MB` });
       return;
     }
 
@@ -102,7 +155,7 @@ export function uploadRouter(io: SocketIOServer) {
       created_at: Date.now(),
       uploader: sanitizeUploader(req.body?.uploader),
       photo_taken_at: photoTakenAt,
-      content_hash: computeContentHash(finalPath),
+      content_hash: await computeContentHash(finalPath),
       phash: kind === 'image' ? await computePerceptualHash(finalPath) : null,
     };
 

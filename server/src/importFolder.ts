@@ -15,7 +15,18 @@ import { extractPhotoTakenAt } from './photoDate';
 // stick or network share) isn't imported half-written.
 const SETTLE_MS = 5000;
 
-function collectFiles(dir: string): string[] {
+// Extra fields to stamp onto every MediaRow created by one call — used to
+// tag rows pulled from a guest-uploaded archive as pending review, grouped
+// under one batch (see pendingUploads.ts). Left empty for the watched
+// import folder, which still imports straight to the live gallery.
+export interface ImportOptions {
+  status?: 'pending';
+  batchId?: string;
+  batchLabel?: string;
+  uploader?: string | null;
+}
+
+export function collectFiles(dir: string): string[] {
   const results: string[] = [];
   let entries: fs.Dirent[];
   try {
@@ -54,7 +65,11 @@ export async function scanImportFolder(io: SocketIOServer): Promise<number> {
 // file) if its extension isn't a recognized media type — used for both
 // files dropped directly into the import folder and files pulled out of an
 // extracted archive.
-async function importSingleFile(srcPath: string, io: SocketIOServer): Promise<boolean> {
+export async function importSingleFile(
+  srcPath: string,
+  io: SocketIOServer,
+  opts: ImportOptions = {}
+): Promise<boolean> {
   const ext = path.extname(srcPath).toLowerCase();
   const kind = kindForExt(ext);
   if (!kind) return false;
@@ -100,12 +115,20 @@ async function importSingleFile(srcPath: string, io: SocketIOServer): Promise<bo
     // same as an upload does.
     created_at: Date.now(),
     photo_taken_at: photoTakenAt,
-    content_hash: computeContentHash(destPath),
+    content_hash: await computeContentHash(destPath),
     phash: kind === 'image' ? await computePerceptualHash(destPath) : null,
+    uploader: opts.uploader,
+    status: opts.status,
+    batchId: opts.batchId,
+    batchLabel: opts.batchLabel,
   };
 
   insertMedia(media);
-  io.emit('media:new', media);
+  // Pending rows (from a guest-uploaded archive awaiting review) never hit
+  // the live gallery/slideshow — media:new is exactly the event that would
+  // do that, so they get a quieter one instead, just enough for the admin
+  // page's Pending Uploads row to update its live count.
+  io.emit(opts.status === 'pending' ? 'media:pending' : 'media:new', media);
   return true;
 }
 
@@ -119,7 +142,11 @@ async function importSingleFile(srcPath: string, io: SocketIOServer): Promise<bo
 // all of it is left in place and retried on the next scan; a failure
 // importing one file inside an otherwise-good archive is logged and
 // skipped without blocking the rest.
-async function importArchive(archivePath: string, io: SocketIOServer): Promise<number> {
+export async function importArchive(
+  archivePath: string,
+  io: SocketIOServer,
+  opts: ImportOptions = {}
+): Promise<number> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'g33kvault-import-'));
   let imported = 0;
 
@@ -129,7 +156,7 @@ async function importArchive(archivePath: string, io: SocketIOServer): Promise<n
     for (const extractedPath of collectFiles(tempDir)) {
       if (isJunkArchiveEntry(extractedPath)) continue;
       try {
-        if (await importSingleFile(extractedPath, io)) imported++;
+        if (await importSingleFile(extractedPath, io, opts)) imported++;
       } catch (err) {
         console.error(`Failed to import ${extractedPath} from archive ${archivePath}:`, err);
       }

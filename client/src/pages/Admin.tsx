@@ -27,11 +27,20 @@ interface DuplicateGroups {
   similar: MediaItem[][];
 }
 
+interface PendingBatch {
+  batchId: string;
+  batchLabel: string;
+  uploader: string | null;
+  createdAt: number;
+  items: MediaItem[];
+}
+
 interface SettingsPayload {
   slideshowIntervalMs: number;
   shuffle: boolean;
   transitionStyle: TransitionStyle;
   partyMode: boolean;
+  slideshowEnabled: boolean;
   lastBackup: LastBackup | null;
 }
 
@@ -164,6 +173,7 @@ export default function Admin() {
   const [shuffle, setShuffle] = useState(false);
   const [transitionStyle, setTransitionStyle] = useState<TransitionStyle>('none');
   const [partyMode, setPartyMode] = useState(false);
+  const [slideshowEnabled, setSlideshowEnabled] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState('');
 
@@ -202,6 +212,17 @@ export default function Admin() {
   const [lowResCustomWidth, setLowResCustomWidth] = useState('320');
   const [lowResCustomHeight, setLowResCustomHeight] = useState('280');
 
+  // Unlike the other tools, pending review isn't "occasional maintenance" —
+  // a batch sitting unreviewed means it's not in the slideshow yet, which
+  // matters during a live event — so this loads automatically rather than
+  // waiting for an explicit scan click, and stays live via the
+  // 'media:pending' broadcast.
+  const [pendingBatches, setPendingBatches] = useState<PendingBatch[] | null>(null);
+  const [pendingBatchesError, setPendingBatchesError] = useState('');
+  const [approvingBatchId, setApprovingBatchId] = useState<string | null>(null);
+  const [rejectingBatchId, setRejectingBatchId] = useState<string | null>(null);
+  const [batchActionError, setBatchActionError] = useState('');
+
   // The occasional-use maintenance tools collapse into accordion rows (see
   // CHANGELOG) — collapsed by default so the page opens short; each stays
   // independently toggleable rather than closing the others.
@@ -209,6 +230,7 @@ export default function Admin() {
   const [duplicatesToolOpen, setDuplicatesToolOpen] = useState(false);
   const [photoDatesToolOpen, setPhotoDatesToolOpen] = useState(false);
   const [lowResToolOpen, setLowResToolOpen] = useState(false);
+  const [pendingUploadsOpen, setPendingUploadsOpen] = useState(false);
 
   async function verifyPassword(candidate: string) {
     if (!candidate) return;
@@ -252,14 +274,21 @@ export default function Admin() {
         setShuffle(data.shuffle);
         setTransitionStyle(data.transitionStyle);
         setPartyMode(data.partyMode);
+        setSlideshowEnabled(data.slideshowEnabled);
         setLastBackupState(data.lastBackup);
       })
       .catch((status) => {
         if (status === 401) handleAuthFailure();
       });
 
+    fetchPendingBatches();
+
     const socket: Socket = io({ path: '/socket.io' });
     socket.on('media:new', (item: MediaItem) => setItems((prev) => [...prev, item]));
+    // A batch just got approved — reflect it in the Photo Gallery grid the
+    // same way a fresh upload would, since /api/media (fetched once above)
+    // won't otherwise pick it up until the page is reloaded.
+    socket.on('media:approved', (item: MediaItem) => setItems((prev) => [...prev, item]));
     socket.on('media:deleted', ({ id }: { id: string }) =>
       setItems((prev) => prev.filter((i) => i.id !== id))
     );
@@ -271,6 +300,7 @@ export default function Admin() {
       setShuffle(data.shuffle);
       setTransitionStyle(data.transitionStyle);
       setPartyMode(data.partyMode);
+      setSlideshowEnabled(data.slideshowEnabled);
       setLastBackupState(data.lastBackup);
     });
     socket.on('duplicates:progress', (data: { current: number; total: number }) => setScanProgress(data));
@@ -278,6 +308,10 @@ export default function Admin() {
     socket.on('photoDates:progress', (data: { current: number; total: number }) => setPhotoDatesProgress(data));
     socket.on('lowRes:progress', (data: { current: number; total: number }) => setLowResProgress(data));
     socket.on('lowRes:deleteProgress', (data: { current: number; total: number }) => setDeleteAllLowResProgress(data));
+    // A guest's archive upload finished background-processing — refresh the
+    // pending list so a new batch (or new items in one already loading)
+    // shows up without the admin needing to do anything.
+    socket.on('media:pending', () => fetchPendingBatches());
 
     return () => {
       socket.disconnect();
@@ -306,6 +340,7 @@ export default function Admin() {
           shuffle,
           transitionStyle,
           partyMode,
+          slideshowEnabled,
         }),
       });
 
@@ -622,6 +657,104 @@ export default function Admin() {
     }
   }
 
+  async function fetchPendingBatches() {
+    if (!password) return;
+    try {
+      const res = await fetch('/api/admin/pending-batches', { headers: { 'X-Admin-Password': password } });
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPendingBatchesError(data.error || 'Could not load pending uploads');
+        return;
+      }
+      setPendingBatches(await res.json());
+      setPendingBatchesError('');
+    } catch {
+      setPendingBatchesError('Network error');
+    }
+  }
+
+  async function handleApproveBatch(batch: PendingBatch) {
+    if (!password) return;
+    if (
+      !window.confirm(
+        `Approve ${batch.items.length} photo${batch.items.length === 1 ? '' : 's'} from "${
+          batch.batchLabel
+        }"? They'll start appearing in the slideshow.`
+      )
+    ) {
+      return;
+    }
+
+    setApprovingBatchId(batch.batchId);
+    setBatchActionError('');
+    try {
+      const res = await fetch(`/api/admin/pending-batches/${batch.batchId}/approve`, {
+        method: 'POST',
+        headers: { 'X-Admin-Password': password },
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setBatchActionError(data.error || 'Approve failed');
+        return;
+      }
+
+      setPendingBatches((prev) => (prev ? prev.filter((b) => b.batchId !== batch.batchId) : prev));
+    } catch {
+      setBatchActionError('Network error');
+    } finally {
+      setApprovingBatchId(null);
+    }
+  }
+
+  async function handleRejectBatch(batch: PendingBatch) {
+    if (!password) return;
+    if (
+      !window.confirm(
+        `Reject and permanently delete ${batch.items.length} photo${
+          batch.items.length === 1 ? '' : 's'
+        } from "${batch.batchLabel}"? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    setRejectingBatchId(batch.batchId);
+    setBatchActionError('');
+    try {
+      const res = await fetch(`/api/admin/pending-batches/${batch.batchId}/reject`, {
+        method: 'POST',
+        headers: { 'X-Admin-Password': password },
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setBatchActionError(data.error || 'Reject failed');
+        return;
+      }
+
+      setPendingBatches((prev) => (prev ? prev.filter((b) => b.batchId !== batch.batchId) : prev));
+    } catch {
+      setBatchActionError('Network error');
+    } finally {
+      setRejectingBatchId(null);
+    }
+  }
+
   async function handleRotate(id: string, direction: 'cw' | 'ccw') {
     if (!password) return;
 
@@ -681,6 +814,28 @@ export default function Admin() {
     return `${lowResItems.length} photo${lowResItems.length === 1 ? '' : 's'} at or below ${lowResThreshold.width}×${
       lowResThreshold.height
     }`;
+  }
+
+  function pendingSummary(): string {
+    if (!pendingBatches) return 'Loading…';
+    if (pendingBatches.length === 0) return 'Nothing pending';
+    const totalPhotos = pendingBatches.reduce((sum, b) => sum + b.items.length, 0);
+    return `${pendingBatches.length} batch${pendingBatches.length === 1 ? '' : 'es'}, ${totalPhotos} photo${
+      totalPhotos === 1 ? '' : 's'
+    } awaiting review`;
+  }
+
+  // A fixed window name (rather than a new one per click) means clicking a
+  // different photo while a viewer window is already open navigates that
+  // same window instead of spawning another one. Explicit size/chrome flags
+  // are the standard way to ask for a separate window rather than a tab —
+  // browsers treat this as a preference, not a guarantee.
+  function openPhotoViewer(id: string) {
+    window.open(
+      `/photo-viewer?id=${encodeURIComponent(id)}`,
+      'g33kvault-photo-viewer',
+      'width=1100,height=850,menubar=no,toolbar=no,location=no,status=no,scrollbars=no,resizable=yes,popup=1'
+    );
   }
 
   function renderDuplicateGroups(groups: MediaItem[][]) {
@@ -771,6 +926,19 @@ export default function Admin() {
           />
           <span>seconds per photo</span>
 
+          <label htmlFor="slideshow-enabled-input" className="admin-checkbox-label">
+            <input
+              id="slideshow-enabled-input"
+              type="checkbox"
+              checked={slideshowEnabled}
+              onChange={(e) => {
+                setSlideshowEnabled(e.target.checked);
+                setSaveStatus('idle');
+              }}
+            />
+            Enable Slideshow
+          </label>
+
           <label htmlFor="shuffle-input" className="admin-checkbox-label">
             <input
               id="shuffle-input"
@@ -824,6 +992,78 @@ export default function Admin() {
 
       <div className="admin-tools">
         <h2 className="admin-tools-label">Gallery Tools</h2>
+
+        <div className={`admin-tool ${pendingUploadsOpen ? 'open' : ''}`}>
+          <button
+            type="button"
+            className="admin-tool-header"
+            onClick={() => setPendingUploadsOpen((o) => !o)}
+          >
+            <span>📦 Pending Uploads</span>
+            <span className="admin-tool-header-right">
+              <span className="admin-tool-summary">{pendingSummary()}</span>
+              <Chevron open={pendingUploadsOpen} />
+            </span>
+          </button>
+          {pendingUploadsOpen && (
+            <div className="admin-tool-body">
+              {pendingBatchesError && <p className="error-msg">{pendingBatchesError}</p>}
+              {batchActionError && <p className="error-msg">{batchActionError}</p>}
+              {pendingBatches && pendingBatches.length === 0 && (
+                <p className="tagline">No archive uploads awaiting review.</p>
+              )}
+              {pendingBatches && pendingBatches.length > 0 && (
+                <div className="pending-batches">
+                  {pendingBatches.map((batch) => (
+                    <div key={batch.batchId} className="pending-batch">
+                      <div className="pending-batch-header">
+                        <div className="pending-batch-info">
+                          <span className="pending-batch-label">{batch.batchLabel}</span>
+                          <span className="tagline">
+                            {batch.items.length} photo{batch.items.length === 1 ? '' : 's'}
+                            {batch.uploader ? ` · from ${batch.uploader}` : ''} ·{' '}
+                            {formatRelativeTime(batch.createdAt)}
+                          </span>
+                        </div>
+                        <div className="pending-batch-actions">
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => handleApproveBatch(batch)}
+                            disabled={approvingBatchId === batch.batchId || rejectingBatchId === batch.batchId}
+                          >
+                            {approvingBatchId === batch.batchId
+                              ? 'Approving…'
+                              : `✅ Approve All (${batch.items.length})`}
+                          </button>
+                          <button
+                            className="btn btn-danger"
+                            onClick={() => handleRejectBatch(batch)}
+                            disabled={approvingBatchId === batch.batchId || rejectingBatchId === batch.batchId}
+                          >
+                            {rejectingBatchId === batch.batchId
+                              ? 'Rejecting…'
+                              : `🗑 Reject All (${batch.items.length})`}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="admin-grid">
+                        {batch.items.map((item) => (
+                          <div key={item.id} className="admin-thumb">
+                            {item.kind === 'video' ? (
+                              <video src={`/media/${item.filename}`} controls muted playsInline />
+                            ) : (
+                              <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className={`admin-tool ${backupOpen ? 'open' : ''}`}>
           <button type="button" className="admin-tool-header" onClick={() => setBackupOpen((o) => !o)}>
@@ -1096,9 +1336,9 @@ export default function Admin() {
                 {item.kind === 'video' ? (
                   <video src={`/media/${item.filename}`} controls muted playsInline />
                 ) : (
-                  <a href={`/media/${item.filename}?v=${item.size}`} target="_blank" rel="noopener noreferrer">
+                  <button type="button" className="admin-thumb-open-btn" onClick={() => openPhotoViewer(item.id)}>
                     <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
-                  </a>
+                  </button>
                 )}
                 {item.uploader && (
                   <span className="admin-thumb-uploader" title={item.uploader}>

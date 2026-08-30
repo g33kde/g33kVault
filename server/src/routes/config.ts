@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getSlideshowIntervalMs, getShuffle, getTransitionStyle, getPartyMode } from '../settings';
+import { getSlideshowIntervalMs, getShuffle, getTransitionStyle, getPartyMode, getSlideshowEnabled } from '../settings';
 
 export const configRouter = Router();
 
@@ -9,5 +9,6 @@ configRouter.get('/', (_req, res) => {
     shuffle: getShuffle(),
     transitionStyle: getTransitionStyle(),
     partyMode: getPartyMode(),
+    slideshowEnabled: getSlideshowEnabled(),
   });
 });
