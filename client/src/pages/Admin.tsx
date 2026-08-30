@@ -15,6 +15,19 @@ interface MediaItem {
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
+type CollageMode = 'off' | 'always' | 'mixed';
+type CollageLayout =
+  | 'split-2v'
+  | 'split-2h'
+  | 'diagonal-2'
+  | 'big-plus-2'
+  | 'columns-3'
+  | 'grid-4'
+  | 'feature-4'
+  | 'big-plus-4'
+  | 'grid-6'
+  | 'scatter-6'
+  | 'random';
 
 interface LastBackup {
   lastBackupAt: number;
@@ -41,6 +54,8 @@ interface SettingsPayload {
   transitionStyle: TransitionStyle;
   partyMode: boolean;
   slideshowEnabled: boolean;
+  collageMode: CollageMode;
+  collageLayout: CollageLayout;
   lastBackup: LastBackup | null;
 }
 
@@ -149,6 +164,26 @@ const TRANSITION_LABELS: Record<TransitionStyle, string> = {
   random: 'Random',
 };
 
+const COLLAGE_MODE_LABELS: Record<CollageMode, string> = {
+  off: 'Off (single photo)',
+  always: 'Always (every slide is a collage)',
+  mixed: 'Mix (collage every 4th slide)',
+};
+
+const COLLAGE_LAYOUT_LABELS: Record<CollageLayout, string> = {
+  'split-2v': '2-Split Vertical',
+  'split-2h': '2-Split Horizontal',
+  'diagonal-2': 'Diagonal Stack',
+  'big-plus-2': '1 Big + 2 Stacked',
+  'columns-3': '3 Even Columns',
+  'grid-4': '4-Grid Even',
+  'feature-4': 'Feature + 3 Thumbs',
+  'big-plus-4': '1 Big + 4 Small',
+  'grid-6': '6-Grid Even',
+  'scatter-6': 'Scattered Polaroid Wall',
+  random: 'Random layout each time',
+};
+
 // "Custom" isn't in this map — its width/height come from the free-text
 // inputs instead of a fixed value.
 const LOW_RES_PRESETS = {
@@ -174,6 +209,8 @@ export default function Admin() {
   const [transitionStyle, setTransitionStyle] = useState<TransitionStyle>('none');
   const [partyMode, setPartyMode] = useState(false);
   const [slideshowEnabled, setSlideshowEnabled] = useState(true);
+  const [collageMode, setCollageMode] = useState<CollageMode>('off');
+  const [collageLayout, setCollageLayout] = useState<CollageLayout>('random');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState('');
 
@@ -275,6 +312,8 @@ export default function Admin() {
         setTransitionStyle(data.transitionStyle);
         setPartyMode(data.partyMode);
         setSlideshowEnabled(data.slideshowEnabled);
+        setCollageMode(data.collageMode);
+        setCollageLayout(data.collageLayout);
         setLastBackupState(data.lastBackup);
       })
       .catch((status) => {
@@ -301,6 +340,8 @@ export default function Admin() {
       setTransitionStyle(data.transitionStyle);
       setPartyMode(data.partyMode);
       setSlideshowEnabled(data.slideshowEnabled);
+      setCollageMode(data.collageMode);
+      setCollageLayout(data.collageLayout);
       setLastBackupState(data.lastBackup);
     });
     socket.on('duplicates:progress', (data: { current: number; total: number }) => setScanProgress(data));
@@ -341,6 +382,8 @@ export default function Admin() {
           transitionStyle,
           partyMode,
           slideshowEnabled,
+          collageMode,
+          collageLayout,
         }),
       });
 
@@ -981,6 +1024,39 @@ export default function Admin() {
             />
             🎉 Party Mode (random transition every slide)
           </label>
+
+          <label htmlFor="collage-mode-input">🖼 Photo Collage</label>
+          <select
+            id="collage-mode-input"
+            value={collageMode}
+            onChange={(e) => {
+              setCollageMode(e.target.value as CollageMode);
+              setSaveStatus('idle');
+            }}
+          >
+            {(Object.keys(COLLAGE_MODE_LABELS) as CollageMode[]).map((mode) => (
+              <option key={mode} value={mode}>
+                {COLLAGE_MODE_LABELS[mode]}
+              </option>
+            ))}
+          </select>
+
+          <label htmlFor="collage-layout-input">Collage layout</label>
+          <select
+            id="collage-layout-input"
+            value={collageLayout}
+            disabled={collageMode === 'off'}
+            onChange={(e) => {
+              setCollageLayout(e.target.value as CollageLayout);
+              setSaveStatus('idle');
+            }}
+          >
+            {(Object.keys(COLLAGE_LAYOUT_LABELS) as CollageLayout[]).map((layout) => (
+              <option key={layout} value={layout}>
+                {COLLAGE_LAYOUT_LABELS[layout]}
+              </option>
+            ))}
+          </select>
 
           <button className="btn btn-primary" type="submit" disabled={saveStatus === 'saving'}>
             {saveStatus === 'saving' ? 'Saving…' : 'Save'}

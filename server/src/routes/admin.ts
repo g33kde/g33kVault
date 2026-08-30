@@ -21,10 +21,18 @@ import {
   setPartyMode,
   getSlideshowEnabled,
   setSlideshowEnabled,
+  getCollageMode,
+  setCollageMode,
+  getCollageLayout,
+  setCollageLayout,
   getLastBackup,
   setLastBackup,
   TRANSITION_STYLES,
   TransitionStyle,
+  COLLAGE_MODES,
+  CollageMode,
+  COLLAGE_LAYOUTS,
+  CollageLayout,
 } from '../settings';
 
 const MIN_INTERVAL_MS = 1000;
@@ -37,6 +45,8 @@ function currentSettings() {
     transitionStyle: getTransitionStyle(),
     partyMode: getPartyMode(),
     slideshowEnabled: getSlideshowEnabled(),
+    collageMode: getCollageMode(),
+    collageLayout: getCollageLayout(),
     lastBackup: getLastBackup(),
   };
 }
@@ -110,7 +120,8 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
-    const { slideshowIntervalMs, shuffle, transitionStyle, partyMode, slideshowEnabled } = req.body ?? {};
+    const { slideshowIntervalMs, shuffle, transitionStyle, partyMode, slideshowEnabled, collageMode, collageLayout } =
+      req.body ?? {};
 
     if (
       typeof slideshowIntervalMs !== 'number' ||
@@ -144,11 +155,23 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
+    if (typeof collageMode !== 'string' || !COLLAGE_MODES.includes(collageMode as CollageMode)) {
+      res.status(400).json({ error: `collageMode must be one of: ${COLLAGE_MODES.join(', ')}` });
+      return;
+    }
+
+    if (typeof collageLayout !== 'string' || !COLLAGE_LAYOUTS.includes(collageLayout as CollageLayout)) {
+      res.status(400).json({ error: `collageLayout must be one of: ${COLLAGE_LAYOUTS.join(', ')}` });
+      return;
+    }
+
     setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
     setShuffle(shuffle);
     setTransitionStyle(transitionStyle as TransitionStyle);
     setPartyMode(partyMode);
     setSlideshowEnabled(slideshowEnabled);
+    setCollageMode(collageMode as CollageMode);
+    setCollageLayout(collageLayout as CollageLayout);
 
     const updated = currentSettings();
     io.emit('config:updated', updated);

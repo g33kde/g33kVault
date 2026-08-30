@@ -1263,3 +1263,178 @@ a.upload-url:focus-visible {
 .photo-viewer-arrow-right {
   right: 1.5rem;
 }
+
+/* --- Photo Collage --- */
+/* Every tile is a flat sibling <div class="collage-tile collage-tile-N">
+   (N = 1-based position) directly inside .collage-<layout>; layouts that
+   need arbitrary spanning/overlap place tiles with CSS Grid or absolute
+   positioning rather than nested wrapper elements, since the React side
+   only ever renders one flat list per collage. */
+
+.collage-frame {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+}
+
+.collage-tile {
+  background: #f5f5f0;
+  padding: 10px;
+  box-sizing: border-box;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.collage-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Grid-based layouts share the same frame padding/gap; each defines its own
+   track sizes and, where needed, explicit tile placement. */
+.collage-split-2v,
+.collage-split-2h,
+.collage-big-plus-2,
+.collage-columns-3,
+.collage-grid-4,
+.collage-feature-4,
+.collage-big-plus-4,
+.collage-grid-6 {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.collage-split-2v {
+  grid-template-columns: 1fr 1fr;
+}
+
+.collage-split-2h {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.collage-big-plus-2 {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.collage-big-plus-2 .collage-tile-1 {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.collage-columns-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.collage-grid-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.collage-feature-4 {
+  grid-template-columns: 3fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+}
+.collage-feature-4 .collage-tile-1 {
+  grid-column: 1;
+  grid-row: 1 / 4;
+}
+
+.collage-big-plus-4 {
+  grid-template-columns: 3fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.collage-big-plus-4 .collage-tile-1 {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.collage-grid-6 {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+/* Diagonal Stack and Scattered Polaroid Wall place each tile individually
+   with absolute positioning (vw/vh so the composition scales with the
+   screen) rather than a grid — these two keep the thicker-bottom "real
+   Polaroid" look instead of the even white border the grid layouts use. */
+.collage-diagonal-2,
+.collage-scatter-6 {
+  position: relative;
+}
+.collage-diagonal-2 .collage-tile,
+.collage-scatter-6 .collage-tile {
+  position: absolute;
+  padding: 10px 10px 40px;
+}
+
+.collage-diagonal-2 .collage-tile-1 {
+  left: 26.5625vw;
+  top: 13.888vh;
+  width: 46.875vw;
+  height: 63.888vh;
+  transform: rotate(-5deg);
+  z-index: 1;
+}
+.collage-diagonal-2 .collage-tile-2 {
+  left: 43.75vw;
+  top: 30.555vh;
+  width: 35.9375vw;
+  height: 50vh;
+  transform: rotate(6deg);
+  z-index: 2;
+}
+
+.collage-scatter-6 .collage-tile-1 {
+  left: 4.6875vw;
+  top: 13.888vh;
+  width: 25vw;
+  height: 36.111vh;
+  transform: rotate(-8deg);
+  z-index: 1;
+}
+.collage-scatter-6 .collage-tile-2 {
+  left: 25.78125vw;
+  top: 31.944vh;
+  width: 26.5625vw;
+  height: 37.5vh;
+  transform: rotate(5deg);
+  z-index: 2;
+}
+.collage-scatter-6 .collage-tile-3 {
+  left: 51.5625vw;
+  top: 9.722vh;
+  width: 23.4375vw;
+  height: 33.333vh;
+  transform: rotate(-4deg);
+  z-index: 3;
+}
+.collage-scatter-6 .collage-tile-4 {
+  left: 8.59375vw;
+  top: 55.555vh;
+  width: 25.78125vw;
+  height: 36.111vh;
+  transform: rotate(7deg);
+  z-index: 4;
+}
+.collage-scatter-6 .collage-tile-5 {
+  left: 33.59375vw;
+  top: 59.722vh;
+  width: 25vw;
+  height: 34.722vh;
+  transform: rotate(-6deg);
+  z-index: 5;
+}
+.collage-scatter-6 .collage-tile-6 {
+  left: 58.59375vw;
+  top: 47.222vh;
+  width: 25.78125vw;
+  height: 36.111vh;
+  transform: rotate(4deg);
+  z-index: 6;
+}

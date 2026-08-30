@@ -13,6 +13,20 @@ interface MediaItem {
 }
 
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
+type CollageMode = 'off' | 'always' | 'mixed';
+type CollageLayout =
+  | 'split-2v'
+  | 'split-2h'
+  | 'diagonal-2'
+  | 'big-plus-2'
+  | 'columns-3'
+  | 'grid-4'
+  | 'feature-4'
+  | 'big-plus-4'
+  | 'grid-6'
+  | 'scatter-6'
+  | 'random';
+type ConcreteCollageLayout = Exclude<CollageLayout, 'random'>;
 
 interface ConfigPayload {
   slideshowIntervalMs: number;
@@ -20,6 +34,8 @@ interface ConfigPayload {
   transitionStyle: TransitionStyle;
   partyMode: boolean;
   slideshowEnabled: boolean;
+  collageMode: CollageMode;
+  collageLayout: CollageLayout;
 }
 
 const DEFAULT_IMAGE_DURATION_MS = 6000;
@@ -40,6 +56,71 @@ const CONCRETE_TRANSITIONS: Exclude<TransitionStyle, 'none' | 'random'>[] = [
   'arcade',
   'vhs',
 ];
+
+// How many photos each layout needs — fixed by its geometry (see the CSS
+// classes .collage-* in global.css, and the mockup this was designed from).
+const COLLAGE_LAYOUT_PHOTO_COUNTS: Record<ConcreteCollageLayout, number> = {
+  'split-2v': 2,
+  'split-2h': 2,
+  'diagonal-2': 2,
+  'big-plus-2': 3,
+  'columns-3': 3,
+  'grid-4': 4,
+  'feature-4': 4,
+  'big-plus-4': 5,
+  'grid-6': 6,
+  'scatter-6': 6,
+};
+const CONCRETE_COLLAGE_LAYOUTS = Object.keys(COLLAGE_LAYOUT_PHOTO_COUNTS) as ConcreteCollageLayout[];
+
+// "Mixed" mode: every Nth non-highlight turn is a collage, the rest stay
+// single-photo. Not admin-configurable yet — a fixed default for this first
+// version.
+const MIXED_MODE_COLLAGE_EVERY = 4;
+
+interface CollagePick {
+  layout: ConcreteCollageLayout;
+  photos: MediaItem[];
+  // How many array slots (starting at the collage's start index) this pick
+  // actually used, including any videos skipped along the way — advance()
+  // moves the index forward by exactly this much, not just 1.
+  consumed: number;
+}
+
+// Scans forward from startIndex collecting up to 6 images (the most any
+// layout needs), skipping videos — collages never include a video (multiple
+// autoplaying videos with audio at once would be chaotic, and a tile-sized
+// video loses most of its point). Picks whichever layout the admin chose
+// (or a random one), falling back to a smaller layout — or no collage at
+// all, if fewer than 2 images are available right now — rather than
+// showing a layout with empty gaps on a small gallery.
+function pickCollageSet(allItems: MediaItem[], startIndex: number, layoutSetting: CollageLayout): CollagePick | null {
+  const total = allItems.length;
+  if (total === 0) return null;
+
+  const collectedOffsets: number[] = [];
+  for (let offset = 0; offset < total && collectedOffsets.length < 6; offset++) {
+    const item = allItems[(startIndex + offset) % total];
+    if (item.kind === 'image') collectedOffsets.push(offset);
+  }
+  if (collectedOffsets.length < 2) return null;
+
+  let layout: ConcreteCollageLayout;
+  if (layoutSetting === 'random') {
+    const candidates = CONCRETE_COLLAGE_LAYOUTS.filter(
+      (l) => COLLAGE_LAYOUT_PHOTO_COUNTS[l] <= collectedOffsets.length
+    );
+    layout = candidates[Math.floor(Math.random() * candidates.length)];
+  } else {
+    layout = COLLAGE_LAYOUT_PHOTO_COUNTS[layoutSetting] <= collectedOffsets.length ? layoutSetting : 'split-2v';
+  }
+
+  const needed = COLLAGE_LAYOUT_PHOTO_COUNTS[layout];
+  const usedOffsets = collectedOffsets.slice(0, needed);
+  const photos = usedOffsets.map((o) => allItems[(startIndex + o) % total]);
+  const consumed = usedOffsets[usedOffsets.length - 1] + 1;
+  return { layout, photos, consumed };
+}
 
 function formatPhotoDate(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -71,11 +152,21 @@ export default function Slideshow() {
   const [muted, setMuted] = useState(true);
   const [transitionClass, setTransitionClass] = useState('');
   const [showNewUploadBadge, setShowNewUploadBadge] = useState(false);
+  const [collagePick, setCollagePick] = useState<CollagePick | null>(null);
   const indexRef = useRef(0);
   const itemsRef = useRef<MediaItem[]>([]);
   const shuffleRef = useRef(false);
   const transitionStyleRef = useRef<TransitionStyle>('none');
   const partyModeRef = useRef(false);
+  const collageModeRef = useRef<CollageMode>('off');
+  const collageLayoutRef = useRef<CollageLayout>('random');
+  // How many array slots the slide currently on screen occupies — 1 for a
+  // single photo/video/highlight, or a collage's full consumed count.
+  // advance() steps the index forward by this, not always by 1.
+  const slideStepRef = useRef(1);
+  // Cadence counter for "mixed" mode — incremented once per non-highlight
+  // turn, a collage happens every MIXED_MODE_COLLAGE_EVERY-th one.
+  const mixedModeCounterRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const badgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // id of the item currently being shown as a "New Upload" — cleared once we
@@ -115,6 +206,8 @@ export default function Slideshow() {
       shuffleRef.current = configData.shuffle;
       transitionStyleRef.current = configData.transitionStyle;
       partyModeRef.current = configData.partyMode;
+      collageModeRef.current = configData.collageMode;
+      collageLayoutRef.current = configData.collageLayout;
       setSlideshowEnabled(configData.slideshowEnabled);
       setItems(configData.shuffle ? shuffleArray(mediaData) : mediaData);
     });
@@ -183,6 +276,8 @@ export default function Slideshow() {
       setImageDuration(data.slideshowIntervalMs);
       transitionStyleRef.current = data.transitionStyle;
       partyModeRef.current = data.partyMode;
+      collageModeRef.current = data.collageMode;
+      collageLayoutRef.current = data.collageLayout;
       setSlideshowEnabled(data.slideshowEnabled);
 
       if (data.shuffle !== shuffleRef.current) {
@@ -228,11 +323,15 @@ export default function Slideshow() {
   function advance() {
     setIndex((i) => {
       if (items.length === 0) return 0;
-      const next = (i + 1) % items.length;
-      // Looping back to the start is a natural point to re-shuffle, so a
-      // full pass through the gallery doesn't always replay in the same
-      // random order.
-      if (next === 0 && shuffleRef.current) {
+      // A collage just shown steps forward by however many array slots it
+      // actually used (see slideStepRef), not always 1.
+      const step = slideStepRef.current || 1;
+      const next = (i + step) % items.length;
+      // Wrapping past the start is a natural point to re-shuffle, so a full
+      // pass through the gallery doesn't always replay in the same random
+      // order. A multi-step collage advance can jump past 0 without landing
+      // on it exactly, so this checks for that instead of `next === 0`.
+      if (i + step >= items.length && shuffleRef.current) {
         setItems((prev) => shuffleArray(prev));
       }
       return next;
@@ -276,15 +375,36 @@ export default function Slideshow() {
     if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
 
     if (isNewUpload) {
+      // A fresh upload always gets the existing full-screen single-photo
+      // treatment, even if collage mode is on — collage rotation resumes
+      // right after.
+      setCollagePick(null);
+      slideStepRef.current = 1;
       timerRef.current = setTimeout(() => {
         highlightItemIdRef.current = null;
         playNextHighlightOrAdvance();
       }, NEW_UPLOAD_DISPLAY_MS);
       badgeTimerRef.current = setTimeout(() => setShowNewUploadBadge(false), NEW_UPLOAD_BADGE_MS);
-    } else if (current.kind === 'image') {
-      timerRef.current = setTimeout(advance, imageDuration);
+    } else {
+      let collage: CollagePick | null = null;
+      const mode = collageModeRef.current;
+      if (mode === 'always') {
+        collage = pickCollageSet(itemsRef.current, indexRef.current, collageLayoutRef.current);
+      } else if (mode === 'mixed') {
+        mixedModeCounterRef.current += 1;
+        if (mixedModeCounterRef.current % MIXED_MODE_COLLAGE_EVERY === 0) {
+          collage = pickCollageSet(itemsRef.current, indexRef.current, collageLayoutRef.current);
+        }
+      }
+
+      setCollagePick(collage);
+      slideStepRef.current = collage ? collage.consumed : 1;
+
+      if (collage || current.kind === 'image') {
+        timerRef.current = setTimeout(advance, imageDuration);
+      }
+      // a solo video (no collage) advances via onEnded, no timer.
     }
-    // videos (not a highlighted new upload) advance via onEnded, no timer.
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -318,6 +438,23 @@ export default function Slideshow() {
           </a>
         </h1>
         <p>Waiting for the first upload…</p>
+      </div>
+    );
+  }
+
+  if (collagePick) {
+    return (
+      <div className="page slideshow-page">
+        <div
+          key={collagePick.photos.map((p) => p.id).join('-')}
+          className={`collage-frame collage-${collagePick.layout} ${transitionClass}`}
+        >
+          {collagePick.photos.map((photo, i) => (
+            <div key={photo.id} className={`collage-tile collage-tile-${i + 1}`}>
+              <img src={`/media/${photo.filename}?v=${photo.size}`} alt="" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

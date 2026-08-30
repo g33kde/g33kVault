@@ -2,6 +2,49 @@
 
 ## [Unreleased]
 
+### Photo Collage mode
+
+- New "🖼 Photo Collage" control in /admin's Playback Settings, next to Transition and
+  Party Mode: a mode dropdown (Off / Always / Mix — collage every 4th slide) and a
+  layout dropdown (10 named layouts plus "Random layout each time"), the layout select
+  disabled while mode is Off. Roadmap and all 10 layouts were designed and approved as a
+  visual mockup before any code was written, including a follow-up round adding a white
+  border around every tile (even on all sides, except the two layouts — Diagonal Stack
+  and Scattered Polaroid Wall — that were already polaroid-style with a thick bottom
+  border, which kept their existing look unchanged).
+- The 10 layouts: 2-Split Vertical, 2-Split Horizontal, Diagonal Stack, 1 Big + 2
+  Stacked, 3 Even Columns, 4-Grid Even, Feature + 3 Thumbs, 1 Big + 4 Small, 6-Grid Even,
+  and Scattered Polaroid Wall — built with CSS Grid explicit placement for the 8
+  rectangular ones (a flat list of sibling tiles, letting Grid auto-placement fill the
+  rest in reading order around one explicitly-placed "feature" tile) and `vw`/`vh`
+  absolute positioning (converted proportionally from the approved 1280×720 mockup) for
+  the two overlapping/rotated ones, so both scale correctly to any real screen
+  resolution rather than just the mockup's fixed size.
+- A handful of scoped calls made to keep this a buildable first version, each easy to
+  revisit later: collage tiles reuse the existing slideshow-speed setting rather than
+  getting a separate duration control; "Mix" mode fires a collage on exactly every 4th
+  slide (a simple turn counter, not tied to how many photos a previous collage
+  consumed); videos never appear inside a collage tile and always keep their normal solo
+  turn instead (a collage set is filled by skipping past any video in the upcoming
+  items); and a fresh upload's existing full-screen "New Upload" highlight still takes
+  priority over collage mode exactly as before, with collage rotation resuming right
+  after the highlight (and any highlights queued behind it) finishes.
+- New `collageMode`/`collageLayout` settings (server `settings.ts`, validated in
+  `PUT /api/admin/settings`, exposed on the public `GET /api/config`), pushed live to
+  `/slideshow` over the existing `config:updated` socket event with no reload needed.
+- Verified against a real running server: all 10 layouts render the correct tile count
+  and CSS class and were visually compared against the approved mockup (pixel-correct
+  match, including the Scattered Polaroid Wall's overlap/rotation and drop shadows);
+  Mix mode's cadence confirmed exactly every 4th turn by reading the counter logic
+  (wall-clock polling alone wasn't precise enough to rule out sampling drift); a
+  real (dummy-content) video upload confirmed to never appear inside a collage tile
+  across multiple collage turns; Off mode confirmed to show zero collages (pure
+  regression check); a real fresh upload while collage mode was active confirmed the
+  New Upload highlight still takes over first, with collage rotation resuming
+  afterward; and the new Admin.tsx dropdowns exercised through the real browser UI,
+  including the layout select correctly disabling under Off and the Save round-trip
+  persisting both fields.
+
 ### "Enable Slideshow" toggle
 
 - New checkbox in /admin's Playback Settings. Turning it off does two things live,

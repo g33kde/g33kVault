@@ -14,6 +14,27 @@ export const TRANSITION_STYLES = [
 ] as const;
 export type TransitionStyle = (typeof TRANSITION_STYLES)[number];
 
+export const COLLAGE_MODES = ['off', 'always', 'mixed'] as const;
+export type CollageMode = (typeof COLLAGE_MODES)[number];
+
+// Each id's required photo count is fixed by its geometry — the slideshow
+// client owns the actual layout/CSS; this list is just what admin settings
+// validate against. See CHANGELOG for the mockup these came from.
+export const COLLAGE_LAYOUTS = [
+  'split-2v',
+  'split-2h',
+  'diagonal-2',
+  'big-plus-2',
+  'columns-3',
+  'grid-4',
+  'feature-4',
+  'big-plus-4',
+  'grid-6',
+  'scatter-6',
+  'random',
+] as const;
+export type CollageLayout = (typeof COLLAGE_LAYOUTS)[number];
+
 interface BackupInfo {
   lastBackupAt: number;
   lastBackupSizeBytes: number;
@@ -26,6 +47,8 @@ interface Settings {
   transitionStyle?: TransitionStyle;
   partyMode?: boolean;
   slideshowEnabled?: boolean;
+  collageMode?: CollageMode;
+  collageLayout?: CollageLayout;
   lastBackup?: BackupInfo;
 }
 
@@ -97,6 +120,28 @@ export function getSlideshowEnabled(): boolean {
 export function setSlideshowEnabled(value: boolean): boolean {
   const settings = readSettings();
   settings.slideshowEnabled = value;
+  writeSettings(settings);
+  return value;
+}
+
+export function getCollageMode(): CollageMode {
+  return readSettings().collageMode ?? 'off';
+}
+
+export function setCollageMode(value: CollageMode): CollageMode {
+  const settings = readSettings();
+  settings.collageMode = value;
+  writeSettings(settings);
+  return value;
+}
+
+export function getCollageLayout(): CollageLayout {
+  return readSettings().collageLayout ?? 'random';
+}
+
+export function setCollageLayout(value: CollageLayout): CollageLayout {
+  const settings = readSettings();
+  settings.collageLayout = value;
   writeSettings(settings);
   return value;
 }
