@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Fix: scan progress bars showing a literal "0%" for a long stretch on large galleries
+
+- All five progress percentages in /admin (Duplicate Photos scan and delete-all, Photo
+  Dates scan, Low-Resolution Photos scan and delete-all) used plain `Math.round`, which
+  rounds down to a literal "0%" until enough items have been processed to cross the
+  0.5% mark — on a 1000-photo gallery, that's the first 4 items. Technically accurate,
+  but reads as "stuck" rather than "just started", which is exactly what got reported.
+  Now floors the display at 1% as soon as any real progress exists (item 1 of 1000
+  shows "1%", not "0%"). Verified on a real 300-item scan with no cached hashes yet
+  (forcing genuine per-item work): the first percentage shown is now 1%, climbing
+  through 11%, 37%, 61%, 85% before completing — previously the first several items
+  would have all displayed "0%".
+
 ### Configurable resolution threshold for Low-Resolution Photos
 
 - The scan threshold was previously fixed at 160×120. Now a "Resolution threshold"

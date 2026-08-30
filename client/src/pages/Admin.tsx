@@ -53,6 +53,15 @@ function formatRelativeTime(ms: number): string {
   return `${Math.floor(diffHours / 24)}d ago`;
 }
 
+// Plain Math.round rounds down to a literal "0%" for a while on any gallery
+// bigger than ~200 items (item 1 of 1000 is 0.1%) — accurate, but reads as
+// "stuck" rather than "just started". Once real progress exists (current >
+// 0), floor the display at 1% so it never looks frozen.
+function formatScanPercent(current: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.max(1, Math.round((current / total) * 100));
+}
+
 // Mirrors the server's planDuplicateDeletions clustering (duplicateDetect.ts)
 // closely enough to show an accurate count in the confirm dialog: a photo
 // can appear in more than one group (an exact-duplicate trio is also a
@@ -860,7 +869,7 @@ export default function Admin() {
                 <button className="btn btn-primary" onClick={handleScanDuplicates} disabled={scanningDuplicates}>
                   {scanningDuplicates
                     ? scanProgress && scanProgress.total > 0
-                      ? `Scanning… ${Math.round((scanProgress.current / scanProgress.total) * 100)}%`
+                      ? `Scanning… ${formatScanPercent(scanProgress.current, scanProgress.total)}%`
                       : 'Scanning…'
                     : '🔍 Scan for Duplicates'}
                 </button>
@@ -879,7 +888,7 @@ export default function Admin() {
                         >
                           {deletingAllDuplicates
                             ? deleteAllProgress && deleteAllProgress.total > 0
-                              ? `Deleting… ${Math.round((deleteAllProgress.current / deleteAllProgress.total) * 100)}%`
+                              ? `Deleting… ${formatScanPercent(deleteAllProgress.current, deleteAllProgress.total)}%`
                               : 'Deleting…'
                             : '🗑 Delete All Duplicates (keep one of each)'}
                         </button>
@@ -929,7 +938,7 @@ export default function Admin() {
                 <button className="btn btn-primary" onClick={handleScanPhotoDates} disabled={scanningPhotoDates}>
                   {scanningPhotoDates
                     ? photoDatesProgress && photoDatesProgress.total > 0
-                      ? `Scanning… ${Math.round((photoDatesProgress.current / photoDatesProgress.total) * 100)}%`
+                      ? `Scanning… ${formatScanPercent(photoDatesProgress.current, photoDatesProgress.total)}%`
                       : 'Scanning…'
                     : '📅 Scan Photo Dates'}
                 </button>
@@ -1011,7 +1020,7 @@ export default function Admin() {
                 <button className="btn btn-primary" onClick={handleScanLowRes} disabled={scanningLowRes}>
                   {scanningLowRes
                     ? lowResProgress && lowResProgress.total > 0
-                      ? `Scanning… ${Math.round((lowResProgress.current / lowResProgress.total) * 100)}%`
+                      ? `Scanning… ${formatScanPercent(lowResProgress.current, lowResProgress.total)}%`
                       : 'Scanning…'
                     : '🖼 Scan for Low-Resolution Photos'}
                 </button>
@@ -1030,8 +1039,9 @@ export default function Admin() {
                         >
                           {deletingAllLowRes
                             ? deleteAllLowResProgress && deleteAllLowResProgress.total > 0
-                              ? `Deleting… ${Math.round(
-                                  (deleteAllLowResProgress.current / deleteAllLowResProgress.total) * 100
+                              ? `Deleting… ${formatScanPercent(
+                                  deleteAllLowResProgress.current,
+                                  deleteAllLowResProgress.total
                                 )}%`
                               : 'Deleting…'
                             : `🗑 Delete All Low-Resolution Photos (${lowResItems.length})`}
