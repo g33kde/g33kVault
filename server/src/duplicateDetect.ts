@@ -13,9 +13,20 @@ const DHASH_HEIGHT = 8;
 // the same subject) to collide. A conventional dHash threshold.
 const SIMILAR_THRESHOLD = 5;
 
-export function computeContentHash(filePath: string): string {
-  const buffer = fs.readFileSync(filePath);
-  return crypto.createHash('sha256').update(buffer).digest('hex');
+// Streamed rather than a single fs.readFileSync + sync digest: a large
+// video read fully into memory and hashed synchronously blocks Node's
+// entire event loop for however long that takes — not just this feature's
+// own progress display, but every other request/socket the server is
+// handling, for the same duration. Streaming keeps the read+hash off the
+// main thread's critical path between chunks.
+export function computeContentHash(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
 }
 
 // A difference hash (dHash): shrink to a tiny grayscale grid, then encode
