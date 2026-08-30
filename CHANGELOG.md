@@ -6,20 +6,26 @@
 
 - New "🖼 Photo Collage" control in /admin's Playback Settings, next to Transition and
   Party Mode: a mode dropdown (Off / Always / Mix — collage every 4th slide) and a
-  layout dropdown (10 named layouts plus "Random layout each time"), the layout select
-  disabled while mode is Off. Roadmap and all 10 layouts were designed and approved as a
-  visual mockup before any code was written, including a follow-up round adding a white
-  border around every tile (even on all sides, except the two layouts — Diagonal Stack
-  and Scattered Polaroid Wall — that were already polaroid-style with a thick bottom
-  border, which kept their existing look unchanged).
-- The 10 layouts: 2-Split Vertical, 2-Split Horizontal, Diagonal Stack, 1 Big + 2
-  Stacked, 3 Even Columns, 4-Grid Even, Feature + 3 Thumbs, 1 Big + 4 Small, 6-Grid Even,
-  and Scattered Polaroid Wall — built with CSS Grid explicit placement for the 8
-  rectangular ones (a flat list of sibling tiles, letting Grid auto-placement fill the
-  rest in reading order around one explicitly-placed "feature" tile) and `vw`/`vh`
-  absolute positioning (converted proportionally from the approved 1280×720 mockup) for
-  the two overlapping/rotated ones, so both scale correctly to any real screen
-  resolution rather than just the mockup's fixed size.
+  layout dropdown (11 named layouts plus "Random layout each time"), the layout select
+  disabled while mode is Off. Roadmap and the first 10 layouts were designed and
+  approved as a visual mockup before any code was written, including a follow-up round
+  adding a white border around every tile (even on all sides, except the two layouts —
+  Diagonal Stack and Scattered Polaroid Wall — that were already polaroid-style with a
+  thick bottom border, which kept their existing look unchanged).
+- A second revision round after first building it: four of the original 10 layouts (2-
+  Split Vertical, 2-Split Horizontal, 3 Even Columns, 1 Big + 4 Small) were dropped for
+  being visually flat/uninteresting compared to the rest; Diagonal Stack was tightened
+  from its original heavy overlap to just a minor corner overlap; and the single
+  Scattered Polaroid Wall layout was likewise tightened to minor overlap and expanded
+  into 6 distinct arrangements of the same "polaroid wall" style (Even Grid, Big Top
+  Pair, Two Columns, Diagonal Cascade, Center Cluster, Zigzag Band), each a different
+  loose composition of the same 6 photos rather than one fixed layout. Final list is 11
+  concrete layouts total: Diagonal Stack, 1 Big + 2 Stacked, 4-Grid Even, Feature + 3
+  Thumbs, 6-Grid Even, and the 6 Scattered Wall variants — built with CSS Grid explicit
+  placement for the 4 rectangular ones (a flat list of sibling tiles, letting Grid
+  auto-placement fill the rest in reading order around one explicitly-placed "feature"
+  tile) and `vw`/`vh` absolute positioning for the 7 overlapping/rotated ones, so every
+  layout scales correctly to any real screen resolution.
 - A handful of scoped calls made to keep this a buildable first version, each easy to
   revisit later: collage tiles reuse the existing slideshow-speed setting rather than
   getting a separate duration control; "Mix" mode fires a collage on exactly every 4th
@@ -32,9 +38,14 @@
 - New `collageMode`/`collageLayout` settings (server `settings.ts`, validated in
   `PUT /api/admin/settings`, exposed on the public `GET /api/config`), pushed live to
   `/slideshow` over the existing `config:updated` socket event with no reload needed.
-- Verified against a real running server: all 10 layouts render the correct tile count
-  and CSS class and were visually compared against the approved mockup (pixel-correct
-  match, including the Scattered Polaroid Wall's overlap/rotation and drop shadows);
+- Verified against a real running server: all 11 layouts render the correct tile count
+  and CSS class, the first 10 visually compared against the approved mockup
+  (pixel-correct match, including drop shadows and rotation) and the 5 new Scattered
+  Wall variants (plus the tightened Diagonal Stack and Even Grid overlap) individually
+  screenshotted and checked for correct minor-overlap positioning and no off-screen
+  clipping (one, Center Cluster, was initially found clipping at the frame's bottom
+  edge from the polaroid style's extra bottom padding, and fixed); server-side settings
+  validation confirmed to reject the four removed layout ids and accept the new ones;
   Mix mode's cadence confirmed exactly every 4th turn by reading the counter logic
   (wall-clock polling alone wasn't precise enough to rule out sampling drift); a
   real (dummy-content) video upload confirmed to never appear inside a collage tile

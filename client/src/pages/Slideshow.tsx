@@ -15,16 +15,17 @@ interface MediaItem {
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
 type CollageMode = 'off' | 'always' | 'mixed';
 type CollageLayout =
-  | 'split-2v'
-  | 'split-2h'
   | 'diagonal-2'
   | 'big-plus-2'
-  | 'columns-3'
   | 'grid-4'
   | 'feature-4'
-  | 'big-plus-4'
   | 'grid-6'
   | 'scatter-6'
+  | 'scatter-6-2'
+  | 'scatter-6-3'
+  | 'scatter-6-4'
+  | 'scatter-6-5'
+  | 'scatter-6-6'
   | 'random';
 type ConcreteCollageLayout = Exclude<CollageLayout, 'random'>;
 
@@ -60,16 +61,17 @@ const CONCRETE_TRANSITIONS: Exclude<TransitionStyle, 'none' | 'random'>[] = [
 // How many photos each layout needs — fixed by its geometry (see the CSS
 // classes .collage-* in global.css, and the mockup this was designed from).
 const COLLAGE_LAYOUT_PHOTO_COUNTS: Record<ConcreteCollageLayout, number> = {
-  'split-2v': 2,
-  'split-2h': 2,
   'diagonal-2': 2,
   'big-plus-2': 3,
-  'columns-3': 3,
   'grid-4': 4,
   'feature-4': 4,
-  'big-plus-4': 5,
   'grid-6': 6,
   'scatter-6': 6,
+  'scatter-6-2': 6,
+  'scatter-6-3': 6,
+  'scatter-6-4': 6,
+  'scatter-6-5': 6,
+  'scatter-6-6': 6,
 };
 const CONCRETE_COLLAGE_LAYOUTS = Object.keys(COLLAGE_LAYOUT_PHOTO_COUNTS) as ConcreteCollageLayout[];
 
@@ -112,7 +114,11 @@ function pickCollageSet(allItems: MediaItem[], startIndex: number, layoutSetting
     );
     layout = candidates[Math.floor(Math.random() * candidates.length)];
   } else {
-    layout = COLLAGE_LAYOUT_PHOTO_COUNTS[layoutSetting] <= collectedOffsets.length ? layoutSetting : 'split-2v';
+    // Fallback to the lightest layout (needs only 2 photos, always
+    // satisfiable given the >=2 check above) when the configured layout
+    // needs more photos than are currently available — or when a stored
+    // setting names a layout that no longer exists (e.g. a removed one).
+    layout = COLLAGE_LAYOUT_PHOTO_COUNTS[layoutSetting] <= collectedOffsets.length ? layoutSetting : 'diagonal-2';
   }
 
   const needed = COLLAGE_LAYOUT_PHOTO_COUNTS[layout];

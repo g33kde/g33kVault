@@ -21,16 +21,17 @@ export type CollageMode = (typeof COLLAGE_MODES)[number];
 // client owns the actual layout/CSS; this list is just what admin settings
 // validate against. See CHANGELOG for the mockup these came from.
 export const COLLAGE_LAYOUTS = [
-  'split-2v',
-  'split-2h',
   'diagonal-2',
   'big-plus-2',
-  'columns-3',
   'grid-4',
   'feature-4',
-  'big-plus-4',
   'grid-6',
   'scatter-6',
+  'scatter-6-2',
+  'scatter-6-3',
+  'scatter-6-4',
+  'scatter-6-5',
+  'scatter-6-6',
   'random',
 ] as const;
 export type CollageLayout = (typeof COLLAGE_LAYOUTS)[number];

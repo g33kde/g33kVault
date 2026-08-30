@@ -17,16 +17,17 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
 type CollageMode = 'off' | 'always' | 'mixed';
 type CollageLayout =
-  | 'split-2v'
-  | 'split-2h'
   | 'diagonal-2'
   | 'big-plus-2'
-  | 'columns-3'
   | 'grid-4'
   | 'feature-4'
-  | 'big-plus-4'
   | 'grid-6'
   | 'scatter-6'
+  | 'scatter-6-2'
+  | 'scatter-6-3'
+  | 'scatter-6-4'
+  | 'scatter-6-5'
+  | 'scatter-6-6'
   | 'random';
 
 interface LastBackup {
@@ -171,16 +172,17 @@ const COLLAGE_MODE_LABELS: Record<CollageMode, string> = {
 };
 
 const COLLAGE_LAYOUT_LABELS: Record<CollageLayout, string> = {
-  'split-2v': '2-Split Vertical',
-  'split-2h': '2-Split Horizontal',
   'diagonal-2': 'Diagonal Stack',
   'big-plus-2': '1 Big + 2 Stacked',
-  'columns-3': '3 Even Columns',
   'grid-4': '4-Grid Even',
   'feature-4': 'Feature + 3 Thumbs',
-  'big-plus-4': '1 Big + 4 Small',
   'grid-6': '6-Grid Even',
-  'scatter-6': 'Scattered Polaroid Wall',
+  'scatter-6': 'Scattered Wall — Even Grid',
+  'scatter-6-2': 'Scattered Wall — Big Top Pair',
+  'scatter-6-3': 'Scattered Wall — Two Columns',
+  'scatter-6-4': 'Scattered Wall — Diagonal Cascade',
+  'scatter-6-5': 'Scattered Wall — Center Cluster',
+  'scatter-6-6': 'Scattered Wall — Zigzag Band',
   random: 'Random layout each time',
 };
 

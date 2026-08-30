@@ -1295,27 +1295,14 @@ a.upload-url:focus-visible {
 
 /* Grid-based layouts share the same frame padding/gap; each defines its own
    track sizes and, where needed, explicit tile placement. */
-.collage-split-2v,
-.collage-split-2h,
 .collage-big-plus-2,
-.collage-columns-3,
 .collage-grid-4,
 .collage-feature-4,
-.collage-big-plus-4,
 .collage-grid-6 {
   display: grid;
   gap: 16px;
   padding: 16px;
   box-sizing: border-box;
-}
-
-.collage-split-2v {
-  grid-template-columns: 1fr 1fr;
-}
-
-.collage-split-2h {
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr 1fr;
 }
 
 .collage-big-plus-2 {
@@ -1325,10 +1312,6 @@ a.upload-url:focus-visible {
 .collage-big-plus-2 .collage-tile-1 {
   grid-column: 1;
   grid-row: 1 / 3;
-}
-
-.collage-columns-3 {
-  grid-template-columns: 1fr 1fr 1fr;
 }
 
 .collage-grid-4 {
@@ -1345,96 +1328,358 @@ a.upload-url:focus-visible {
   grid-row: 1 / 4;
 }
 
-.collage-big-plus-4 {
-  grid-template-columns: 3fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-.collage-big-plus-4 .collage-tile-1 {
-  grid-column: 1;
-  grid-row: 1 / 3;
-}
-
 .collage-grid-6 {
   grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
 }
 
-/* Diagonal Stack and Scattered Polaroid Wall place each tile individually
-   with absolute positioning (vw/vh so the composition scales with the
-   screen) rather than a grid — these two keep the thicker-bottom "real
-   Polaroid" look instead of the even white border the grid layouts use. */
+/* Diagonal Stack and every Scattered Wall variant place each tile
+   individually with absolute positioning (vw/vh so the composition scales
+   with the screen) rather than a grid — these keep the thicker-bottom "real
+   Polaroid" look instead of the even white border the grid layouts use.
+   Every arrangement below only lets neighboring tiles overlap slightly (a
+   few vw/vh at most) — by choice, for a loose, organic wall feel without
+   photos meaningfully covering each other. */
 .collage-diagonal-2,
-.collage-scatter-6 {
+.collage-scatter-6,
+.collage-scatter-6-2,
+.collage-scatter-6-3,
+.collage-scatter-6-4,
+.collage-scatter-6-5,
+.collage-scatter-6-6 {
   position: relative;
 }
 .collage-diagonal-2 .collage-tile,
-.collage-scatter-6 .collage-tile {
+.collage-scatter-6 .collage-tile,
+.collage-scatter-6-2 .collage-tile,
+.collage-scatter-6-3 .collage-tile,
+.collage-scatter-6-4 .collage-tile,
+.collage-scatter-6-5 .collage-tile,
+.collage-scatter-6-6 .collage-tile {
   position: absolute;
   padding: 10px 10px 40px;
 }
 
 .collage-diagonal-2 .collage-tile-1 {
-  left: 26.5625vw;
-  top: 13.888vh;
-  width: 46.875vw;
-  height: 63.888vh;
-  transform: rotate(-5deg);
+  left: 8vw;
+  top: 10vh;
+  width: 46vw;
+  height: 66vh;
+  transform: rotate(-4deg);
   z-index: 1;
 }
 .collage-diagonal-2 .collage-tile-2 {
-  left: 43.75vw;
-  top: 30.555vh;
-  width: 35.9375vw;
-  height: 50vh;
-  transform: rotate(6deg);
+  left: 48vw;
+  top: 22vh;
+  width: 44vw;
+  height: 62vh;
+  transform: rotate(4deg);
   z-index: 2;
 }
 
+/* Scattered Wall — Even Grid: a loose 3x2 grid with slight per-tile jitter
+   and rotation, tiles mostly not touching. */
 .collage-scatter-6 .collage-tile-1 {
-  left: 4.6875vw;
-  top: 13.888vh;
-  width: 25vw;
-  height: 36.111vh;
-  transform: rotate(-8deg);
+  left: 4vw;
+  top: 6vh;
+  width: 29vw;
+  height: 40vh;
+  transform: rotate(-3deg);
   z-index: 1;
 }
 .collage-scatter-6 .collage-tile-2 {
-  left: 25.78125vw;
-  top: 31.944vh;
-  width: 26.5625vw;
-  height: 37.5vh;
-  transform: rotate(5deg);
+  left: 35.5vw;
+  top: 8vh;
+  width: 29vw;
+  height: 40vh;
+  transform: rotate(2deg);
   z-index: 2;
 }
 .collage-scatter-6 .collage-tile-3 {
-  left: 51.5625vw;
-  top: 9.722vh;
-  width: 23.4375vw;
-  height: 33.333vh;
+  left: 66vw;
+  top: 5vh;
+  width: 29vw;
+  height: 40vh;
   transform: rotate(-4deg);
   z-index: 3;
 }
 .collage-scatter-6 .collage-tile-4 {
-  left: 8.59375vw;
-  top: 55.555vh;
-  width: 25.78125vw;
-  height: 36.111vh;
-  transform: rotate(7deg);
+  left: 5vw;
+  top: 55vh;
+  width: 29vw;
+  height: 40vh;
+  transform: rotate(3deg);
   z-index: 4;
 }
 .collage-scatter-6 .collage-tile-5 {
-  left: 33.59375vw;
-  top: 59.722vh;
-  width: 25vw;
-  height: 34.722vh;
-  transform: rotate(-6deg);
+  left: 34vw;
+  top: 53vh;
+  width: 29vw;
+  height: 40vh;
+  transform: rotate(-2deg);
   z-index: 5;
 }
 .collage-scatter-6 .collage-tile-6 {
-  left: 58.59375vw;
-  top: 47.222vh;
-  width: 25.78125vw;
-  height: 36.111vh;
+  left: 68vw;
+  top: 56vh;
+  width: 29vw;
+  height: 40vh;
   transform: rotate(4deg);
+  z-index: 6;
+}
+
+/* Scattered Wall — Big Top Pair: two larger photos on top, four smaller
+   ones along the bottom. */
+.collage-scatter-6-2 .collage-tile-1 {
+  left: 4vw;
+  top: 5vh;
+  width: 45vw;
+  height: 45vh;
+  transform: rotate(-3deg);
+  z-index: 1;
+}
+.collage-scatter-6-2 .collage-tile-2 {
+  left: 51vw;
+  top: 6vh;
+  width: 45vw;
+  height: 45vh;
+  transform: rotate(3deg);
+  z-index: 2;
+}
+.collage-scatter-6-2 .collage-tile-3 {
+  left: 3vw;
+  top: 56vh;
+  width: 22vw;
+  height: 38vh;
+  transform: rotate(3deg);
+  z-index: 3;
+}
+.collage-scatter-6-2 .collage-tile-4 {
+  left: 27vw;
+  top: 54vh;
+  width: 22vw;
+  height: 38vh;
+  transform: rotate(-2deg);
+  z-index: 4;
+}
+.collage-scatter-6-2 .collage-tile-5 {
+  left: 51vw;
+  top: 57vh;
+  width: 22vw;
+  height: 38vh;
+  transform: rotate(4deg);
+  z-index: 5;
+}
+.collage-scatter-6-2 .collage-tile-6 {
+  left: 75vw;
+  top: 55vh;
+  width: 22vw;
+  height: 38vh;
+  transform: rotate(-3deg);
+  z-index: 6;
+}
+
+/* Scattered Wall — Two Columns: three photos stacked per side, the right
+   column offset down from the left for an organic stagger. */
+.collage-scatter-6-3 .collage-tile-1 {
+  left: 6vw;
+  top: 4vh;
+  width: 42vw;
+  height: 28vh;
+  transform: rotate(-3deg);
+  z-index: 1;
+}
+.collage-scatter-6-3 .collage-tile-2 {
+  left: 7vw;
+  top: 35vh;
+  width: 42vw;
+  height: 28vh;
+  transform: rotate(2deg);
+  z-index: 2;
+}
+.collage-scatter-6-3 .collage-tile-3 {
+  left: 5vw;
+  top: 66vh;
+  width: 42vw;
+  height: 28vh;
+  transform: rotate(-2deg);
+  z-index: 3;
+}
+.collage-scatter-6-3 .collage-tile-4 {
+  left: 53vw;
+  top: 9vh;
+  width: 42vw;
+  height: 28vh;
+  transform: rotate(3deg);
+  z-index: 4;
+}
+.collage-scatter-6-3 .collage-tile-5 {
+  left: 52vw;
+  top: 40vh;
+  width: 42vw;
+  height: 28vh;
+  transform: rotate(-3deg);
+  z-index: 5;
+}
+.collage-scatter-6-3 .collage-tile-6 {
+  left: 54vw;
+  top: 71vh;
+  width: 42vw;
+  height: 28vh;
+  transform: rotate(4deg);
+  z-index: 6;
+}
+
+/* Scattered Wall — Diagonal Cascade: six square-ish tiles stepping down the
+   diagonal band from top-left to bottom-right, each just barely overlapping
+   the next. */
+.collage-scatter-6-4 .collage-tile-1 {
+  left: 1vw;
+  top: 1vh;
+  width: 19vw;
+  height: 19vh;
+  transform: rotate(-4deg);
+  z-index: 1;
+}
+.collage-scatter-6-4 .collage-tile-2 {
+  left: 17vw;
+  top: 17vh;
+  width: 19vw;
+  height: 19vh;
+  transform: rotate(3deg);
+  z-index: 2;
+}
+.collage-scatter-6-4 .collage-tile-3 {
+  left: 33vw;
+  top: 33vh;
+  width: 19vw;
+  height: 19vh;
+  transform: rotate(-3deg);
+  z-index: 3;
+}
+.collage-scatter-6-4 .collage-tile-4 {
+  left: 49vw;
+  top: 49vh;
+  width: 19vw;
+  height: 19vh;
+  transform: rotate(4deg);
+  z-index: 4;
+}
+.collage-scatter-6-4 .collage-tile-5 {
+  left: 65vw;
+  top: 65vh;
+  width: 19vw;
+  height: 19vh;
+  transform: rotate(-3deg);
+  z-index: 5;
+}
+.collage-scatter-6-4 .collage-tile-6 {
+  left: 81vw;
+  top: 81vh;
+  width: 19vw;
+  height: 19vh;
+  transform: rotate(3deg);
+  z-index: 6;
+}
+
+/* Scattered Wall — Center Cluster: a larger feature photo in the middle
+   with five smaller ones loosely arranged around it. */
+.collage-scatter-6-5 .collage-tile-1 {
+  left: 37vw;
+  top: 32vh;
+  width: 26vw;
+  height: 36vh;
+  transform: rotate(-1deg);
+  z-index: 3;
+}
+.collage-scatter-6-5 .collage-tile-2 {
+  left: 8vw;
+  top: 6vh;
+  width: 22vw;
+  height: 30vh;
+  transform: rotate(-4deg);
+  z-index: 1;
+}
+.collage-scatter-6-5 .collage-tile-3 {
+  left: 70vw;
+  top: 8vh;
+  width: 22vw;
+  height: 30vh;
+  transform: rotate(4deg);
+  z-index: 2;
+}
+.collage-scatter-6-5 .collage-tile-4 {
+  left: 4vw;
+  top: 50vh;
+  width: 22vw;
+  height: 30vh;
+  transform: rotate(3deg);
+  z-index: 4;
+}
+.collage-scatter-6-5 .collage-tile-5 {
+  left: 74vw;
+  top: 48vh;
+  width: 22vw;
+  height: 30vh;
+  transform: rotate(-3deg);
+  z-index: 5;
+}
+.collage-scatter-6-5 .collage-tile-6 {
+  left: 40vw;
+  top: 66vh;
+  width: 22vw;
+  height: 28vh;
+  transform: rotate(2deg);
+  z-index: 6;
+}
+
+/* Scattered Wall — Zigzag Band: six tiles stepping left to right across the
+   middle of the screen, alternating up/down. */
+.collage-scatter-6-6 .collage-tile-1 {
+  left: 6vw;
+  top: 25vh;
+  width: 17vw;
+  height: 34vh;
+  transform: rotate(-4deg);
+  z-index: 1;
+}
+.collage-scatter-6-6 .collage-tile-2 {
+  left: 20vw;
+  top: 49vh;
+  width: 17vw;
+  height: 34vh;
+  transform: rotate(3deg);
+  z-index: 2;
+}
+.collage-scatter-6-6 .collage-tile-3 {
+  left: 34vw;
+  top: 25vh;
+  width: 17vw;
+  height: 34vh;
+  transform: rotate(-3deg);
+  z-index: 3;
+}
+.collage-scatter-6-6 .collage-tile-4 {
+  left: 48vw;
+  top: 49vh;
+  width: 17vw;
+  height: 34vh;
+  transform: rotate(4deg);
+  z-index: 4;
+}
+.collage-scatter-6-6 .collage-tile-5 {
+  left: 62vw;
+  top: 25vh;
+  width: 17vw;
+  height: 34vh;
+  transform: rotate(-3deg);
+  z-index: 5;
+}
+.collage-scatter-6-6 .collage-tile-6 {
+  left: 76vw;
+  top: 49vh;
+  width: 17vw;
+  height: 34vh;
+  transform: rotate(3deg);
   z-index: 6;
 }
