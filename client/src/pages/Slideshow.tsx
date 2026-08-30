@@ -15,7 +15,6 @@ interface MediaItem {
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
 type CollageMode = 'off' | 'always' | 'mixed';
 type CollageLayout =
-  | 'diagonal-2'
   | 'big-plus-2'
   | 'grid-4'
   | 'feature-4'
@@ -24,8 +23,6 @@ type CollageLayout =
   | 'scatter-6-2'
   | 'scatter-6-3'
   | 'scatter-6-4'
-  | 'scatter-6-5'
-  | 'scatter-6-6'
   | 'random';
 type ConcreteCollageLayout = Exclude<CollageLayout, 'random'>;
 
@@ -61,7 +58,6 @@ const CONCRETE_TRANSITIONS: Exclude<TransitionStyle, 'none' | 'random'>[] = [
 // How many photos each layout needs — fixed by its geometry (see the CSS
 // classes .collage-* in global.css, and the mockup this was designed from).
 const COLLAGE_LAYOUT_PHOTO_COUNTS: Record<ConcreteCollageLayout, number> = {
-  'diagonal-2': 2,
   'big-plus-2': 3,
   'grid-4': 4,
   'feature-4': 4,
@@ -70,8 +66,6 @@ const COLLAGE_LAYOUT_PHOTO_COUNTS: Record<ConcreteCollageLayout, number> = {
   'scatter-6-2': 6,
   'scatter-6-3': 6,
   'scatter-6-4': 6,
-  'scatter-6-5': 6,
-  'scatter-6-6': 6,
 };
 const CONCRETE_COLLAGE_LAYOUTS = Object.keys(COLLAGE_LAYOUT_PHOTO_COUNTS) as ConcreteCollageLayout[];
 
@@ -94,8 +88,9 @@ interface CollagePick {
 // autoplaying videos with audio at once would be chaotic, and a tile-sized
 // video loses most of its point). Picks whichever layout the admin chose
 // (or a random one), falling back to a smaller layout — or no collage at
-// all, if fewer than 2 images are available right now — rather than
-// showing a layout with empty gaps on a small gallery.
+// all, if fewer than 3 images are available right now (the smallest layout,
+// 1 Big + 2 Stacked, needs 3) — rather than showing a layout with empty
+// gaps on a small gallery.
 function pickCollageSet(allItems: MediaItem[], startIndex: number, layoutSetting: CollageLayout): CollagePick | null {
   const total = allItems.length;
   if (total === 0) return null;
@@ -105,7 +100,7 @@ function pickCollageSet(allItems: MediaItem[], startIndex: number, layoutSetting
     const item = allItems[(startIndex + offset) % total];
     if (item.kind === 'image') collectedOffsets.push(offset);
   }
-  if (collectedOffsets.length < 2) return null;
+  if (collectedOffsets.length < 3) return null;
 
   let layout: ConcreteCollageLayout;
   if (layoutSetting === 'random') {
@@ -114,11 +109,11 @@ function pickCollageSet(allItems: MediaItem[], startIndex: number, layoutSetting
     );
     layout = candidates[Math.floor(Math.random() * candidates.length)];
   } else {
-    // Fallback to the lightest layout (needs only 2 photos, always
-    // satisfiable given the >=2 check above) when the configured layout
+    // Fallback to the lightest layout (needs only 3 photos, always
+    // satisfiable given the >=3 check above) when the configured layout
     // needs more photos than are currently available — or when a stored
     // setting names a layout that no longer exists (e.g. a removed one).
-    layout = COLLAGE_LAYOUT_PHOTO_COUNTS[layoutSetting] <= collectedOffsets.length ? layoutSetting : 'diagonal-2';
+    layout = COLLAGE_LAYOUT_PHOTO_COUNTS[layoutSetting] <= collectedOffsets.length ? layoutSetting : 'big-plus-2';
   }
 
   const needed = COLLAGE_LAYOUT_PHOTO_COUNTS[layout];

@@ -1333,97 +1333,74 @@ a.upload-url:focus-visible {
   grid-template-rows: 1fr 1fr;
 }
 
-/* Diagonal Stack and every Scattered Wall variant place each tile
-   individually with absolute positioning (vw/vh so the composition scales
-   with the screen) rather than a grid — these keep the thicker-bottom "real
-   Polaroid" look instead of the even white border the grid layouts use.
-   Every arrangement below only lets neighboring tiles overlap slightly (a
-   few vw/vh at most) — by choice, for a loose, organic wall feel without
-   photos meaningfully covering each other. */
-.collage-diagonal-2,
+/* Every Scattered Wall variant places each tile individually with absolute
+   positioning (vw/vh so the composition scales with the screen) rather than
+   a grid — these keep the thicker-bottom "real Polaroid" look instead of
+   the even white border the grid layouts use. Every tile's raw width:height
+   ratio is between 0.75 and 1.0, which on a 16:9 screen renders as a photo
+   between 4:3 and 16:9 — never square — and margins/gaps are trimmed to
+   minimize black space while keeping each layout's original shape. */
 .collage-scatter-6,
 .collage-scatter-6-2,
 .collage-scatter-6-3,
-.collage-scatter-6-4,
-.collage-scatter-6-5,
-.collage-scatter-6-6 {
+.collage-scatter-6-4 {
   position: relative;
 }
-.collage-diagonal-2 .collage-tile,
 .collage-scatter-6 .collage-tile,
 .collage-scatter-6-2 .collage-tile,
 .collage-scatter-6-3 .collage-tile,
-.collage-scatter-6-4 .collage-tile,
-.collage-scatter-6-5 .collage-tile,
-.collage-scatter-6-6 .collage-tile {
+.collage-scatter-6-4 .collage-tile {
   position: absolute;
   padding: 10px 10px 40px;
-}
-
-.collage-diagonal-2 .collage-tile-1 {
-  left: 8vw;
-  top: 10vh;
-  width: 46vw;
-  height: 66vh;
-  transform: rotate(-4deg);
-  z-index: 1;
-}
-.collage-diagonal-2 .collage-tile-2 {
-  left: 48vw;
-  top: 22vh;
-  width: 44vw;
-  height: 62vh;
-  transform: rotate(4deg);
-  z-index: 2;
 }
 
 /* Scattered Wall — Even Grid: a loose 3x2 grid with slight per-tile jitter
    and rotation, tiles mostly not touching. */
 .collage-scatter-6 .collage-tile-1 {
-  left: 4vw;
+  left: 2vw;
   top: 6vh;
-  width: 29vw;
+  width: 31vw;
   height: 40vh;
   transform: rotate(-3deg);
   z-index: 1;
 }
 .collage-scatter-6 .collage-tile-2 {
-  left: 35.5vw;
+  left: 35vw;
   top: 8vh;
-  width: 29vw;
-  height: 40vh;
+  width: 31vw;
+  height: 33vh;
   transform: rotate(2deg);
   z-index: 2;
 }
 .collage-scatter-6 .collage-tile-3 {
-  left: 66vw;
+  left: 68vw;
   top: 5vh;
-  width: 29vw;
-  height: 40vh;
+  width: 31vw;
+  height: 36vh;
   transform: rotate(-4deg);
   z-index: 3;
 }
 .collage-scatter-6 .collage-tile-4 {
-  left: 5vw;
-  top: 55vh;
-  width: 29vw;
-  height: 40vh;
+  left: 3vw;
+  top: 49vh;
+  width: 31vw;
+  height: 31vh;
   transform: rotate(3deg);
   z-index: 4;
 }
 .collage-scatter-6 .collage-tile-5 {
   left: 34vw;
-  top: 53vh;
-  width: 29vw;
-  height: 40vh;
+  top: 51vh;
+  width: 31vw;
+  height: 39vh;
   transform: rotate(-2deg);
   z-index: 5;
 }
 .collage-scatter-6 .collage-tile-6 {
-  left: 68vw;
-  top: 56vh;
-  width: 29vw;
-  height: 40vh;
+  left: 69vw;
+  top: 52vh;
+  width: 31vw;
+  height: 34vh;
   transform: rotate(4deg);
   z-index: 6;
 }
@@ -1431,255 +1408,155 @@ a.upload-url:focus-visible {
 /* Scattered Wall — Big Top Pair: two larger photos on top, four smaller
    ones along the bottom. */
 .collage-scatter-6-2 .collage-tile-1 {
-  left: 4vw;
-  top: 5vh;
-  width: 45vw;
-  height: 45vh;
+  left: 2vw;
+  top: 2vh;
+  width: 38vw;
+  height: 48vh;
   transform: rotate(-3deg);
   z-index: 1;
 }
 .collage-scatter-6-2 .collage-tile-2 {
-  left: 51vw;
-  top: 6vh;
-  width: 45vw;
-  height: 45vh;
+  left: 44vw;
+  top: 3vh;
+  width: 48vw;
+  height: 48vh;
   transform: rotate(3deg);
   z-index: 2;
 }
 .collage-scatter-6-2 .collage-tile-3 {
-  left: 3vw;
-  top: 56vh;
-  width: 22vw;
-  height: 38vh;
+  left: 2vw;
+  top: 55vh;
+  width: 19.5vw;
+  height: 26vh;
   transform: rotate(3deg);
   z-index: 3;
 }
 .collage-scatter-6-2 .collage-tile-4 {
-  left: 27vw;
-  top: 54vh;
+  left: 23.5vw;
+  top: 53vh;
   width: 22vw;
-  height: 38vh;
+  height: 26vh;
   transform: rotate(-2deg);
   z-index: 4;
 }
 .collage-scatter-6-2 .collage-tile-5 {
-  left: 51vw;
-  top: 57vh;
-  width: 22vw;
-  height: 38vh;
+  left: 47.6vw;
+  top: 56vh;
+  width: 24.7vw;
+  height: 26vh;
   transform: rotate(4deg);
   z-index: 5;
 }
 .collage-scatter-6-2 .collage-tile-6 {
-  left: 75vw;
-  top: 55vh;
-  width: 22vw;
-  height: 38vh;
+  left: 74.3vw;
+  top: 54vh;
+  width: 20.8vw;
+  height: 26vh;
   transform: rotate(-3deg);
-  z-index: 6;
-}
-
-/* Scattered Wall — Two Columns: three photos stacked per side, the right
-   column offset down from the left for an organic stagger. */
-.collage-scatter-6-3 .collage-tile-1 {
-  left: 6vw;
-  top: 4vh;
-  width: 42vw;
-  height: 28vh;
-  transform: rotate(-3deg);
-  z-index: 1;
-}
-.collage-scatter-6-3 .collage-tile-2 {
-  left: 7vw;
-  top: 35vh;
-  width: 42vw;
-  height: 28vh;
-  transform: rotate(2deg);
-  z-index: 2;
-}
-.collage-scatter-6-3 .collage-tile-3 {
-  left: 5vw;
-  top: 66vh;
-  width: 42vw;
-  height: 28vh;
-  transform: rotate(-2deg);
-  z-index: 3;
-}
-.collage-scatter-6-3 .collage-tile-4 {
-  left: 53vw;
-  top: 9vh;
-  width: 42vw;
-  height: 28vh;
-  transform: rotate(3deg);
-  z-index: 4;
-}
-.collage-scatter-6-3 .collage-tile-5 {
-  left: 52vw;
-  top: 40vh;
-  width: 42vw;
-  height: 28vh;
-  transform: rotate(-3deg);
-  z-index: 5;
-}
-.collage-scatter-6-3 .collage-tile-6 {
-  left: 54vw;
-  top: 71vh;
-  width: 42vw;
-  height: 28vh;
-  transform: rotate(4deg);
-  z-index: 6;
-}
-
-/* Scattered Wall — Diagonal Cascade: six square-ish tiles stepping down the
-   diagonal band from top-left to bottom-right, each just barely overlapping
-   the next. */
-.collage-scatter-6-4 .collage-tile-1 {
-  left: 1vw;
-  top: 1vh;
-  width: 19vw;
-  height: 19vh;
-  transform: rotate(-4deg);
-  z-index: 1;
-}
-.collage-scatter-6-4 .collage-tile-2 {
-  left: 17vw;
-  top: 17vh;
-  width: 19vw;
-  height: 19vh;
-  transform: rotate(3deg);
-  z-index: 2;
-}
-.collage-scatter-6-4 .collage-tile-3 {
-  left: 33vw;
-  top: 33vh;
-  width: 19vw;
-  height: 19vh;
-  transform: rotate(-3deg);
-  z-index: 3;
-}
-.collage-scatter-6-4 .collage-tile-4 {
-  left: 49vw;
-  top: 49vh;
-  width: 19vw;
-  height: 19vh;
-  transform: rotate(4deg);
-  z-index: 4;
-}
-.collage-scatter-6-4 .collage-tile-5 {
-  left: 65vw;
-  top: 65vh;
-  width: 19vw;
-  height: 19vh;
-  transform: rotate(-3deg);
-  z-index: 5;
-}
-.collage-scatter-6-4 .collage-tile-6 {
-  left: 81vw;
-  top: 81vh;
-  width: 19vw;
-  height: 19vh;
-  transform: rotate(3deg);
   z-index: 6;
 }
 
 /* Scattered Wall — Center Cluster: a larger feature photo in the middle
    with five smaller ones loosely arranged around it. */
-.collage-scatter-6-5 .collage-tile-1 {
-  left: 37vw;
-  top: 32vh;
-  width: 26vw;
-  height: 36vh;
+.collage-scatter-6-3 .collage-tile-1 {
+  left: 30vw;
+  top: 28vh;
+  width: 40vw;
+  height: 46vh;
   transform: rotate(-1deg);
   z-index: 3;
 }
-.collage-scatter-6-5 .collage-tile-2 {
-  left: 8vw;
-  top: 6vh;
-  width: 22vw;
-  height: 30vh;
+.collage-scatter-6-3 .collage-tile-2 {
+  left: 4vw;
+  top: 3vh;
+  width: 27vw;
+  height: 34vh;
   transform: rotate(-4deg);
   z-index: 1;
 }
-.collage-scatter-6-5 .collage-tile-3 {
-  left: 70vw;
-  top: 8vh;
-  width: 22vw;
-  height: 30vh;
+.collage-scatter-6-3 .collage-tile-3 {
+  left: 64vw;
+  top: 4vh;
+  width: 32vw;
+  height: 34vh;
   transform: rotate(4deg);
   z-index: 2;
 }
-.collage-scatter-6-5 .collage-tile-4 {
-  left: 4vw;
-  top: 50vh;
-  width: 22vw;
-  height: 30vh;
+.collage-scatter-6-3 .collage-tile-4 {
+  left: 2vw;
+  top: 44vh;
+  width: 32vw;
+  height: 36vh;
   transform: rotate(3deg);
   z-index: 4;
 }
-.collage-scatter-6-5 .collage-tile-5 {
-  left: 74vw;
-  top: 48vh;
-  width: 22vw;
-  height: 30vh;
+.collage-scatter-6-3 .collage-tile-5 {
+  left: 70vw;
+  top: 42vh;
+  width: 28vw;
+  height: 36vh;
   transform: rotate(-3deg);
   z-index: 5;
 }
-.collage-scatter-6-5 .collage-tile-6 {
-  left: 40vw;
-  top: 66vh;
-  width: 22vw;
-  height: 28vh;
+.collage-scatter-6-3 .collage-tile-6 {
+  left: 38vw;
+  top: 70vh;
+  width: 26vw;
+  height: 30vh;
   transform: rotate(2deg);
   z-index: 6;
 }
 
-/* Scattered Wall — Zigzag Band: six tiles stepping left to right across the
-   middle of the screen, alternating up/down. */
-.collage-scatter-6-6 .collage-tile-1 {
-  left: 6vw;
-  top: 25vh;
-  width: 17vw;
-  height: 34vh;
+/* Scattered Wall — Zigzag Band: two full-height rows (odd tiles up, even
+   tiles down) each 46vh tall with only ~2vh margin top/bottom, so almost
+   the entire frame is covered. Same-row neighbors overlap moderately; the
+   two rows themselves never overlap, since they occupy disjoint vertical
+   bands. */
+.collage-scatter-6-4 .collage-tile-1 {
+  left: 1vw;
+  top: 2vh;
+  width: 35.9vw;
+  height: 46vh;
   transform: rotate(-4deg);
   z-index: 1;
 }
-.collage-scatter-6-6 .collage-tile-2 {
-  left: 20vw;
-  top: 49vh;
-  width: 17vw;
-  height: 34vh;
+.collage-scatter-6-4 .collage-tile-2 {
+  left: 13vw;
+  top: 50vh;
+  width: 39.1vw;
+  height: 46vh;
   transform: rotate(3deg);
   z-index: 2;
 }
-.collage-scatter-6-6 .collage-tile-3 {
-  left: 34vw;
-  top: 25vh;
-  width: 17vw;
-  height: 34vh;
+.collage-scatter-6-4 .collage-tile-3 {
+  left: 25vw;
+  top: 2vh;
+  width: 42.3vw;
+  height: 46vh;
   transform: rotate(-3deg);
   z-index: 3;
 }
-.collage-scatter-6-6 .collage-tile-4 {
-  left: 48vw;
-  top: 49vh;
-  width: 17vw;
-  height: 34vh;
+.collage-scatter-6-4 .collage-tile-4 {
+  left: 37vw;
+  top: 50vh;
+  width: 36.8vw;
+  height: 46vh;
   transform: rotate(4deg);
   z-index: 4;
 }
-.collage-scatter-6-6 .collage-tile-5 {
-  left: 62vw;
-  top: 25vh;
-  width: 17vw;
-  height: 34vh;
+.collage-scatter-6-4 .collage-tile-5 {
+  left: 49vw;
+  top: 2vh;
+  width: 40.5vw;
+  height: 46vh;
   transform: rotate(-3deg);
   z-index: 5;
 }
-.collage-scatter-6-6 .collage-tile-6 {
-  left: 76vw;
-  top: 49vh;
-  width: 17vw;
-  height: 34vh;
+.collage-scatter-6-4 .collage-tile-6 {
+  left: 61vw;
+  top: 50vh;
+  width: 38.2vw;
+  height: 46vh;
   transform: rotate(3deg);
   z-index: 6;
 }
