@@ -13,8 +13,10 @@ code alone.
 - `/booth` — in-browser photo booth: countdown, camera capture, auto-upload (see
   [Photo booth](#photo-booth) below)
 - `/slideshow` — fullscreen kiosk view, updates live via WebSocket as uploads arrive
-- `/admin` — password-protected view to delete photos/videos and adjust slideshow
-  speed, shuffle, and transitions
+- `/admin` — password-protected view: gallery management (delete/rotate photos,
+  duplicate/low-resolution/photo-date scans, pending archive review, backup) and
+  playback settings (speed, shuffle, transitions, Party Mode, Enable Slideshow, Photo
+  Collage)
 
 ## Stack
 
@@ -76,6 +78,12 @@ same photo will slowly degrade its quality — a deliberate trade-off, not a bug
 change is pushed live over the same WebSocket as everything else, so an already-open
 slideshow or admin view picks up the new orientation immediately.
 
+**Clicking a photo** in the main gallery grid opens it in a dedicated popup window
+(rather than a new tab) with left/right arrows to step through the gallery in the same
+newest-first order — hidden, not just disabled, at either end rather than wrapping
+around. Clicking the photo itself closes the window. Handy for checking a photo
+full-size before deciding whether to delete or rotate it.
+
 `/admin` is gated by a single shared password, set via the `ADMIN_PASSWORD` environment
 variable (copy `.env.example` to `.env` and fill it in — `.env` is picked up automatically
 by `docker compose` and is gitignored). **Leaving it unset disables `/admin` entirely**
@@ -86,8 +94,16 @@ storage (cleared when the tab closes), so it isn't re-entered on every visit.
 ## Duplicate detection
 
 `/admin` has a **🔍 Scan for Duplicates** button that finds two different kinds of
-duplicate, shown as separate groups of thumbnails (with the usual delete button on each,
-so cleanup is still a manual, deliberate choice — nothing gets auto-deleted):
+duplicate, shown as separate groups of thumbnails. A progress percentage updates live
+over the same WebSocket while the scan runs — useful feedback on a large, long-untouched
+gallery where the first scan (backfilling hashes — see below) can take a little while.
+Each thumbnail has the usual delete button for spot cleanup, and a **Delete All
+Duplicates** button clears every group in one batch — keeping exactly one copy per
+cluster (the earliest-uploaded), even when a photo shows up in both an exact and a
+similar group. Either way, cleanup only happens when an admin explicitly triggers it —
+nothing is deleted automatically just from running a scan.
+
+The two kinds found:
 
 - **Exact duplicates** — byte-identical files (a SHA-256 content hash), e.g. the same
   photo uploaded twice, or imported twice via the watched folder (which has no
@@ -108,6 +124,39 @@ large, long-untouched gallery (one image decode per photo); every scan after tha
 fast, since it's just comparing already-known values. Verified end-to-end during
 development: an exact copy, a re-saved-at-different-quality copy, and a genuinely
 different photo were all sorted into the right (or no) group correctly.
+
+## Low-resolution photos
+
+`/admin` has a **🖼 Low-Resolution Photos** tool for finding thumbnails, resized
+re-uploads, or screenshots that show up ugly and blurry blown up fullscreen on the
+slideshow — a different problem than duplicate detection, which only catches repeats,
+not a single low-quality original. Pick a threshold from a few common presets (Tiny
+160×120, Old VGA 640×480, SD 854×480, HD-ready 1280×720) or type a custom width/height,
+then scan: every image at or below that threshold, checked orientation-independently (a
+1200×800 landscape photo and its 800×1200 portrait rotation are treated as the same
+size, so rotating a photo doesn't change whether it's flagged), shows up as a list of
+thumbnails — each clickable to open the full photo in a new tab for a closer look before
+deciding. A live progress percentage streams over the same WebSocket the duplicate scan
+uses. **Delete All** clears every flagged photo in one batch, same confirmation-dialog
+pattern as the duplicate scanner's bulk delete.
+
+## Photo dates
+
+Every photo's EXIF "date taken" is extracted automatically as it comes in — on upload,
+booth capture, and watched-folder import alike — and stored alongside its metadata, no
+admin action needed for anything uploaded from here on. `/admin` also has a **📅 Photo
+Dates** scan that backfills this for older photos that predate the feature (or slipped
+in through some other path without it): click it, and it reads EXIF from every photo
+that doesn't have a date yet, reporting how many it found. Re-running the scan is fast
+and safe — it only ever processes photos it hasn't already looked at, so it's not
+redoing work on every click.
+
+Not every photo will get a date this way, and that's expected rather than a bug:
+screenshots and photo-booth captures never had EXIF to begin with, and an iPhone photo
+that arrived as HEIC and was imported *before* this feature existed lost its EXIF for
+good the moment it was converted to JPEG (`heic-convert` doesn't carry metadata forward
+— see [CLAUDE.md](CLAUDE.md) for the full explanation). When a date is known, it shows
+as a small overlay during the slideshow.
 
 ## iPhone photos (HEIC/HEIF)
 
@@ -279,7 +328,8 @@ Pi hardware this project is otherwise documented against.
 ## Backup & migration
 
 Everything that matters — uploaded photos/videos, their metadata, and admin settings
-(slideshow speed, shuffle, transitions) — lives in two Docker volumes: `media-data`
+(slideshow speed, shuffle, transitions, Enable Slideshow, Photo Collage, and more) —
+lives in two Docker volumes: `media-data`
 (the files) and `db-data` (`g33kvault.json` + `settings.json`). Migrating to a new
 machine, or just taking a backup, means moving those two volumes.
 
@@ -387,6 +437,13 @@ first time the app runs, before any admin change has been saved.
 on load and re-shuffles each time it loops back to the start, instead of always playing
 chronologically.
 
+**Enable Slideshow** is a separate toggle for pausing the show entirely — e.g. between
+events, or before guests start arriving — without having to stop the server. Turning it
+off does two things live, no reload needed on either page: `/slideshow` shows "Slideshow
+is currently disabled" instead of the normal rotation, and the "Launch Slideshow" button
+on the host page (`/`) turns into plain non-clickable text reading "Slideshow currently
+disabled" in the same spot. Defaults to enabled.
+
 ## "Now Showing" transitions
 
 Instead of a plain cut, a short animated transition plays whenever the slideshow moves to
@@ -431,6 +488,42 @@ This only applies to photos. A newly uploaded **video** keeps the older, non-int
 behavior — inserted to play in its normal turn soon, without cutting away from whatever's
 currently on screen — since a video's own length doesn't fit a fixed "shown for 10
 seconds" rule the way a photo does.
+
+## Photo Collage
+
+Instead of always showing one photo at a time, the slideshow can group several into a
+single collage slide. Two controls in `/admin`, next to the transition/Party Mode
+settings:
+
+- **Photo Collage mode** — Off (the original single-photo behavior, and the default),
+  Always (every slide is a collage), or Mix (a collage every 4th slide, the rest stay
+  single-photo).
+- **Collage layout** — one of 8 named layouts, or "Random layout each time" to cycle
+  through all of them.
+
+The 8 layouts split into two visual styles:
+
+- **Grid layouts** — 1 Big + 2 Stacked (3 photos), 4-Grid Even, Feature + 3 Thumbs (4
+  photos each), and 6-Grid Even (6 photos). Clean CSS-grid tiling with an even white
+  border on every photo.
+- **Scattered Wall layouts** — Even Grid, Big Top Pair, Center Cluster, and Zigzag Band
+  (6 photos each). Photos are rotated slightly and loosely overlapping, with the
+  thicker-bottom border of a real Polaroid, for a more organic "photos pinned to a wall"
+  look. Every tile is sized to a realistic photo ratio (between 4:3 and 16:9, varied
+  tile-to-tile) rather than a fixed shape, cropped to fill (no letterboxing).
+
+A few things worth knowing about how it behaves:
+
+- Collage slides reuse the regular slideshow-speed setting — there's no separate
+  duration control for them.
+- Videos never appear inside a collage tile; a video due up in rotation is skipped over
+  when filling a collage and keeps its normal solo turn instead.
+- The [New Upload highlight](#new-uploads-jump-the-queue) still takes priority over
+  collage mode — a fresh photo gets its usual full-screen highlighted turn first, with
+  collage rotation resuming right after.
+- A layout only shows once there are enough upcoming photos to fill it — with fewer than
+  3 photos available (the smallest layout's requirement), the slideshow just falls back
+  to showing single photos rather than a collage with empty gaps.
 
 ## Guest-uploaded archives
 
