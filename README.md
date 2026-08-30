@@ -56,6 +56,70 @@ the guest's phone (same Wi-Fi network) — the QR code is generated from whateve
 the host screen was loaded with, so open the host page using the machine's LAN IP
 (e.g. `http://192.168.1.42:3000`), not `localhost`.
 
+## Viewing the slideshow fullscreen (kiosk mode)
+
+`/slideshow` is already styled fullscreen, but the browser's own address bar and tabs
+are still visible unless you tell it to hide them. **Kiosk mode** does that — launches
+with zero browser chrome and no "press Esc to exit fullscreen" prompt. Same flags work
+on every platform (`<host>` is wherever the server is reachable, e.g. a LAN IP or a
+domain behind a reverse proxy):
+
+- `--kiosk` — true fullscreen, no browser chrome.
+- `--noerrdialogs --disable-infobars` — suppresses crash-recovery and other popups that
+  would otherwise sit on top of the slideshow after an unclean shutdown.
+- `--autoplay-policy=no-user-gesture-required` — lets uploaded videos autoplay without a
+  click, which kiosk mode otherwise blocks by default.
+
+**macOS** (confirmed working):
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required "http://<host>:3000/slideshow"
+```
+
+Call the Chrome binary directly rather than `open -a "Google Chrome" --args ...` — if
+Chrome is already running (even in the background, or auto-restored after a crash),
+`open` silently ignores the new flags and just focuses the existing window instead of
+relaunching with them, so it opens as a normal window instead of kiosk. The path needs
+exactly one pair of plain double quotes around it — the real spaces in "Google
+Chrome.app" don't also need backslash-escaping, and combining both breaks the command.
+
+**Windows 11** (confirmed working, Edge ships preinstalled):
+
+```
+"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required http://<host>:3000/slideshow
+```
+
+(Chrome works too, if installed, via the same flags against `chrome.exe`.)
+
+**Linux/Raspberry Pi**, same idea via `chromium`:
+
+```bash
+chromium --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required http://<host>:3000/slideshow
+```
+
+Exiting kiosk mode is **Alt+F4** on Windows/Linux or **Cmd+Q** on macOS — this is
+browser-level fullscreen, not an OS lockdown, so those still work. For a screen the
+public might wander up to, Windows 11 also has a genuinely locked-down **Assigned
+Access / Kiosk mode** (Settings → Accounts → Other users → Kiosk) worth using instead.
+
+**Launching it automatically** on boot/login, so the screen comes back showing the
+slideshow on its own after a power cut:
+
+- **Windows**: put a shortcut to the command above (or a `.bat` file wrapping it) in the
+  Startup folder (`Win+R` → `shell:startup`), or use Task Scheduler with an "At log on"
+  trigger for something that retries if it crashes.
+- **macOS**: wrap the command in an Automator "Application" (New Document →
+  Application → add a "Run Shell Script" action with the command), save it, then add
+  that app under System Settings → General → Login Items & Extensions → Open at Login.
+- **Linux/Pi**: add the command to a `.desktop` autostart entry (`~/.config/autostart/`)
+  on a desktop environment, or an `.xsession`/`xinit` script on a lighter setup.
+
+Also worth setting up on any of these: turn off display sleep (Settings → System →
+Power & battery on Windows; System Settings → Lock Screen on macOS; whatever the
+desktop environment's power settings are on Linux) and enable auto-login for the
+account, so an unattended screen doesn't get stuck showing a login prompt after a
+reboot instead of the slideshow.
+
 ## Moderation
 
 There's no upload approval queue — photos go live on the slideshow instantly, by design
@@ -275,7 +339,9 @@ Hardware guidance:
   file serving and a JSON metadata store, no video transcoding — so even a Pi 3 can run
   the backend alone.
 - If the Pi also drives the display (e.g. Chromium in kiosk mode showing `/slideshow` on
-  an attached screen/TV), prefer a Pi 4/5 for smoother video playback.
+  an attached screen/TV — see [Viewing the slideshow fullscreen
+  (kiosk mode)](#viewing-the-slideshow-fullscreen-kiosk-mode) above), prefer a Pi 4/5
+  for smoother video playback.
 - Uploads land on whatever the Docker volume sits on — the SD card is fine for occasional
   event use; use a USB drive instead if you're running this often and want to reduce SD
   card wear.
