@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### White frame around single photos in the slideshow
+
+- Single-photo slides now get the same cream-white "photo matting" a collage's grid
+  layouts use — a clean, even border on all sides, no rotation. Three decisions
+  clarified before building: even border (not the tilted, thick-bottom Polaroid style
+  the Scattered Wall collage layouts use) — a full-screen rotated photo felt like too
+  big a change for every single slide; the whole photo stays visible, uncropped
+  (`object-fit: contain`, same as before) rather than switching to the collage tiles'
+  crop-to-fill behavior — a photo whose aspect ratio doesn't match the screen now shows
+  the matting color filling that space instead of the previous black letterbox bars,
+  rather than losing part of the photo to a crop; and videos keep their existing
+  full-bleed look — a white-bordered playing video read oddly in a preview mockup.
+  Applies to the "New Upload" highlight too, since that's the same image element with a
+  badge overlaid, not a separate one — no special-casing needed there.
+
 ### Scattered Wall — Zigzag Band: capped overlap at 5%
 
 - The previous version's same-row neighbors overlapped by 28-45% of a tile's width —

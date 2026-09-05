@@ -275,6 +275,24 @@ a.upload-url:focus-visible {
   object-fit: contain;
   background: #000;
 }
+/* White "photo matting" frame for single-photo slides — same cream white as
+   a collage tile's even border, scaled up for a full screen. box-sizing:
+   border-box keeps the element's own footprint at 100%/100% (matching
+   .slide) with the padding eating into that, rather than growing past it —
+   object-fit: contain still shows the whole photo uncropped, so on a photo
+   whose aspect ratio doesn't match the screen the matting simply fills the
+   extra space instead of the usual black letterbox bars. Videos keep the
+   plain .slide look (no -framed modifier added) — a white-bordered playing
+   video reads oddly. Applies to the "New Upload" highlight too, since
+   that's the same <img> element with a badge overlaid, not a separate
+   image — a freshly uploaded photo getting the same frame as any other is
+   the expected behavior, not an exception. No drop shadow: the frame fills
+   the whole viewport with nothing outside it for a shadow to fall against. */
+.slide-framed {
+  box-sizing: border-box;
+  padding: 2vw;
+  background: #f5f5f0;
+}
 .slideshow-empty {
   color: var(--text-dim);
 }

@@ -466,7 +466,7 @@ export default function Slideshow() {
     <div className="page slideshow-page">
       <div key={current.id} className={`slide-frame ${transitionClass}`}>
         {current.kind === 'image' ? (
-          <img src={src} className="slide" alt="" />
+          <img src={src} className="slide slide-framed" alt="" />
         ) : (
           <video src={src} className="slide" autoPlay muted={muted} onEnded={advance} />
         )}

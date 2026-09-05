@@ -692,6 +692,14 @@ A few things worth knowing about how it behaves:
   3 photos available (the smallest layout's requirement), the slideshow just falls back
   to showing single photos rather than a collage with empty gaps.
 
+**Single photos get a matching frame, too** — even outside collage mode, every
+single-photo slide shows a clean white border on all sides (the same cream-white
+"matting" as a collage's grid-layout tiles), rather than the bare full-bleed photo. A
+photo whose aspect ratio doesn't match the screen still shows the whole thing uncropped
+— the matting fills the extra space instead of the black letterbox bars a mismatched
+photo would otherwise show. Videos aren't framed this way, since a white-bordered
+playing video looks odd.
+
 ## Guest-uploaded archives
 
 `/upload` also accepts a `.zip`, `.tar.gz`, or `.rar` file — handy for a guest with a
