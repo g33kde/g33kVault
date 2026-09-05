@@ -268,6 +268,7 @@ a.upload-url:focus-visible {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  background: #000;
 }
 .slide {
   width: 100%;
@@ -276,22 +277,26 @@ a.upload-url:focus-visible {
   background: #000;
 }
 /* White "photo matting" frame for single-photo slides — same cream white as
-   a collage tile's even border, scaled up for a full screen. box-sizing:
-   border-box keeps the element's own footprint at 100%/100% (matching
-   .slide) with the padding eating into that, rather than growing past it —
-   object-fit: contain still shows the whole photo uncropped, so on a photo
-   whose aspect ratio doesn't match the screen the matting simply fills the
-   extra space instead of the usual black letterbox bars. Videos keep the
-   plain .slide look (no -framed modifier added) — a white-bordered playing
-   video reads oddly. Applies to the "New Upload" highlight too, since
-   that's the same <img> element with a badge overlaid, not a separate
-   image — a freshly uploaded photo getting the same frame as any other is
-   the expected behavior, not an exception. No drop shadow: the frame fills
-   the whole viewport with nothing outside it for a shadow to fall against. */
+   a collage tile's even border. Unlike .slide (which fills .slide-frame
+   edge to edge), this is deliberately smaller than the viewport — same as
+   a collage tile never filling the whole .collage-frame — so .slide-frame's
+   black shows as a gutter all around it (centered via .slide-frame's own
+   flex centering) for the white border to actually read as a border against,
+   plus the same drop shadow a collage tile gets now that there's a dark
+   backdrop for it to fall on. object-fit: contain still shows the whole
+   photo uncropped, so on a photo whose aspect ratio doesn't match the
+   screen the matting fills the extra space instead of black letterbox bars.
+   Videos keep the plain .slide look (no -framed modifier added) — a
+   white-bordered playing video reads oddly. Applies to the "New Upload"
+   highlight too, since that's the same <img> element with a badge
+   overlaid, not a separate image. */
 .slide-framed {
+  width: 94vw;
+  height: 94vh;
   box-sizing: border-box;
   padding: 2vw;
   background: #f5f5f0;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
 }
 .slideshow-empty {
   color: var(--text-dim);

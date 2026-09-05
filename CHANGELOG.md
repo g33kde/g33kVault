@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fix: single-photo frame wasn't visible against a white background
+
+- The white photo-matting frame added just above filled the entire viewport edge to
+  edge, so there was nothing behind it to actually read as a "frame" — no visible
+  border effect, since the white just blended into the actual screen edge. A collage
+  tile, by contrast, sits inset within `.collage-frame`'s black background, which is
+  exactly what makes its white border visible. Fixed by giving the single-photo frame
+  the same treatment: `.slide-frame` is now black (matching `.collage-frame`), and the
+  framed photo is slightly smaller than the viewport (94vw × 94vh, centered) rather than
+  filling it, so the black shows as a gutter all around — plus the same drop shadow a
+  collage tile gets, now that there's a dark backdrop for it to actually fall on.
+
 ### White frame around single photos in the slideshow
 
 - Single-photo slides now get the same cream-white "photo matting" a collage's grid
