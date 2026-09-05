@@ -19,11 +19,18 @@ interface MediaItem {
 // thousands of <img>/button elements on every keystroke was slow enough to
 // make checkboxes feel unresponsive for tens of seconds. Only re-renders
 // when one of these props actually changes.
+//
+// Collapsed by default (`open`) and the grid itself — the actual <img>
+// tags — isn't rendered at all until expanded, on top of loading="lazy"
+// below: a large gallery costs nothing on page load until an admin
+// actually asks to see it, not just "less" via lazy-loading alone.
 const PhotoGalleryGrid = memo(function PhotoGalleryGrid({
   items,
   rotateError,
   rotatingId,
   deletingId,
+  open,
+  onToggle,
   onOpenViewer,
   onRotate,
   onDelete,
@@ -32,23 +39,30 @@ const PhotoGalleryGrid = memo(function PhotoGalleryGrid({
   rotateError: string;
   rotatingId: string | null;
   deletingId: string | null;
+  open: boolean;
+  onToggle: () => void;
   onOpenViewer: (id: string) => void;
   onRotate: (id: string, direction: 'cw' | 'ccw') => void;
   onDelete: (id: string) => void;
 }) {
-  const reversed = useMemo(() => [...items].reverse(), [items]);
+  // Skipping the reverse (not just the render) while collapsed avoids an
+  // O(n) array copy on every items change for a section nobody's looking at.
+  const reversed = useMemo(() => (open ? [...items].reverse() : []), [items, open]);
 
   return (
     <div className="admin-card">
       <h2 className="admin-card-heading">Photo Gallery</h2>
-      <p className="tagline">
-        {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete, ↺/↻ to rotate
-      </p>
+      <button type="button" className="admin-gallery-toggle" onClick={onToggle}>
+        <span>
+          {items.length} item{items.length === 1 ? '' : 's'}
+          {open ? ' — click ✕ to delete, ↺/↻ to rotate' : ' — tap to show'}
+        </span>
+        <Chevron open={open} />
+      </button>
       {rotateError && <p className="error-msg">{rotateError}</p>}
 
-      {items.length === 0 ? (
-        <p>No photos yet.</p>
-      ) : (
+      {open && items.length === 0 && <p>No photos yet.</p>}
+      {open && items.length > 0 && (
         <div className="admin-grid">
           {reversed.map((item) => (
             <div key={item.id} className="admin-thumb">
@@ -354,6 +368,8 @@ export default function Admin() {
   const [photoDatesToolOpen, setPhotoDatesToolOpen] = useState(false);
   const [lowResToolOpen, setLowResToolOpen] = useState(false);
   const [pendingUploadsOpen, setPendingUploadsOpen] = useState(false);
+  const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false);
+  const togglePhotoGallery = useCallback(() => setPhotoGalleryOpen((o) => !o), []);
 
   async function verifyPassword(candidate: string) {
     if (!candidate) return;
@@ -1493,6 +1509,8 @@ export default function Admin() {
         rotateError={rotateError}
         rotatingId={rotatingId}
         deletingId={deletingId}
+        open={photoGalleryOpen}
+        onToggle={togglePhotoGallery}
         onOpenViewer={openPhotoViewer}
         onRotate={handleRotate}
         onDelete={handleDelete}

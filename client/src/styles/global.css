@@ -583,6 +583,22 @@ a.upload-url:focus-visible {
   border-bottom: 1px solid var(--accent-dim);
 }
 
+.admin-gallery-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 1rem;
+  text-align: left;
+}
+
 .admin-tools {
   width: 100%;
   max-width: 900px;
@@ -1592,56 +1608,59 @@ a.upload-url:focus-visible {
   z-index: 6;
 }
 
-/* Scattered Wall — Zigzag Band: two full-height rows (odd tiles up, even
-   tiles down) each 46vh tall with only ~2vh margin top/bottom, so almost
-   the entire frame is covered. Same-row neighbors overlap moderately; the
-   two rows themselves never overlap, since they occupy disjoint vertical
-   bands. */
+/* Scattered Wall — Zigzag Band: two rows (odd tiles up, even tiles down),
+   each 40vh tall. Same-row neighbors overlap by only ~1.2vw — under 5% of
+   any tile's own width — so a photo is never meaningfully covered by its
+   neighbor; the two rows themselves never overlap vertically, since they
+   occupy disjoint vertical bands. Fitting 3 tiles per row at this tight an
+   overlap needs narrower tiles than the layout used before (was 46vh),
+   which leaves a bit more black margin top/bottom — the trade-off for
+   keeping neighbors from hiding much of each other. */
 .collage-scatter-6-4 .collage-tile-1 {
   left: 1vw;
-  top: 2vh;
-  width: 35.9vw;
-  height: 46vh;
+  top: 3vh;
+  width: 31.2vw;
+  height: 40vh;
   transform: rotate(-4deg);
   z-index: 1;
 }
 .collage-scatter-6-4 .collage-tile-2 {
-  left: 13vw;
-  top: 50vh;
-  width: 39.1vw;
-  height: 46vh;
+  left: 1vw;
+  top: 54vh;
+  width: 33.2vw;
+  height: 40vh;
   transform: rotate(3deg);
   z-index: 2;
 }
 .collage-scatter-6-4 .collage-tile-3 {
-  left: 25vw;
-  top: 2vh;
-  width: 42.3vw;
-  height: 46vh;
+  left: 31.45vw;
+  top: 3vh;
+  width: 36vw;
+  height: 40vh;
   transform: rotate(-3deg);
   z-index: 3;
 }
 .collage-scatter-6-4 .collage-tile-4 {
-  left: 37vw;
-  top: 50vh;
-  width: 36.8vw;
-  height: 46vh;
+  left: 33.45vw;
+  top: 54vh;
+  width: 30.4vw;
+  height: 40vh;
   transform: rotate(4deg);
   z-index: 4;
 }
 .collage-scatter-6-4 .collage-tile-5 {
-  left: 49vw;
-  top: 2vh;
-  width: 40.5vw;
-  height: 46vh;
+  left: 66.7vw;
+  top: 3vh;
+  width: 32.2vw;
+  height: 40vh;
   transform: rotate(-3deg);
   z-index: 5;
 }
 .collage-scatter-6-4 .collage-tile-6 {
-  left: 61vw;
-  top: 50vh;
-  width: 38.2vw;
-  height: 46vh;
+  left: 63.1vw;
+  top: 54vh;
+  width: 35.8vw;
+  height: 40vh;
   transform: rotate(3deg);
   z-index: 6;
 }

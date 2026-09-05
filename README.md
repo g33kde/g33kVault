@@ -124,12 +124,17 @@ reboot instead of the slideshow.
 
 There's no upload approval queue — photos go live on the slideshow instantly, by design
 (see [Notes / ideas for later](#notes--ideas-for-later)). What there is instead is a
-lightweight way to clean up after the fact: `/admin` shows every photo/video as a grid,
-newest upload first, with rotate buttons and a delete button on each photo (delete-only
-for videos — see below), plus a control for the slideshow speed (see
-[Configuration](#configuration-env-vars) below). Deleting removes the file from disk,
-drops it from the metadata store, and broadcasts live over the same WebSocket as uploads
-— so it disappears from an open slideshow immediately, mid-event, without a page refresh.
+lightweight way to clean up after the fact: `/admin`'s **Photo Gallery** card shows
+every photo/video as a grid, newest upload first, with rotate buttons and a delete
+button on each photo (delete-only for videos — see below), plus a control for the
+slideshow speed (see [Configuration](#configuration-env-vars) below). Deleting removes
+the file from disk, drops it from the metadata store, and broadcasts live over the same
+WebSocket as uploads — so it disappears from an open slideshow immediately, mid-event,
+without a page refresh.
+
+Collapsed by default, tap/click to expand — the item count keeps updating live either
+way, but the grid itself (and every thumbnail's image request) isn't loaded until
+expanded, so opening `/admin` stays fast even with a very large gallery.
 
 **Rotating a photo** — ↺ (bottom-left, counter-clockwise) and ↻ (bottom-right,
 clockwise) — actually re-encodes and overwrites the stored file, not just a CSS flip, so
@@ -390,6 +395,102 @@ Resource guidance: any modern x86_64 machine is comfortable, even a modest VM (1
 vCPUs, 1GB+ RAM) — the server itself is lightweight (static file serving + a JSON
 metadata store, no video transcoding), and x86_64 hardware is generally faster than the
 Pi hardware this project is otherwise documented against.
+
+## Running in a Proxmox LXC container
+
+Doesn't need to be a full VM — an LXC container works, and given what this app actually
+needs (Node.js, a filesystem, LAN reachability, nothing exotic), LXC is arguably a
+better fit than a VM here: lighter weight and faster to spin up, since it shares the
+Proxmox host's kernel instead of needing its own. Unprivileged is fine — no need for a
+privileged container — and any Debian/Ubuntu-based template works, the same as the
+[x86_64 section](#running-on-x86_64-linux-vm-or-bare-metal) above. Two ways to run it:
+
+### Option 1: Docker Compose inside the LXC
+
+Keeps this in lockstep with the [Raspberry Pi](#running-on-a-raspberry-pi) /
+[x86_64](#running-on-x86_64-linux-vm-or-bare-metal) instructions above — same
+`git clone` + `docker compose up --build -d`, same update procedure, same backup
+scripts. The one LXC-specific step: Docker needs to create its own nested
+namespaces/cgroups, so enable the **`nesting`** feature on the container first (Proxmox
+UI: container → *Options* → *Features*, or `features: nesting=1` in its config) —
+without it, the Docker daemon won't start inside the container. If Docker's storage
+driver throws permission errors, also try enabling **`keyctl`** alongside it.
+
+### Option 2: Run Node directly, no Docker
+
+Docker here is just a packaging convenience, not something the app needs at runtime —
+skipping it sidesteps the nesting question entirely and is arguably more idiomatic for
+a single-purpose LXC (one lightweight container, one service, no nested container
+runtime inside it).
+
+```bash
+# Install Node.js 20 (Debian/Ubuntu; see nodejs.org for other distros)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+git clone https://github.com/g33kde/g33kVault.git
+cd g33kVault
+npm install
+npm run build
+
+# The Docker image copies the client build into server/public at build time —
+# without Docker, do that copy by hand:
+mkdir -p server/public
+cp -r client/dist/* server/public/
+```
+
+Run it with the same environment variables the [Configuration](#configuration-env-vars)
+table below documents (`PORT`, `MEDIA_DIR`, `DB_PATH`, `ADMIN_PASSWORD`, etc.) — a
+systemd unit keeps it running and restarts it on a crash, the direct-install equivalent
+of Docker Compose's `restart: unless-stopped`:
+
+```ini
+# /etc/systemd/system/g33kvault.service
+[Unit]
+Description=g33kVault
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/g33kVault
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=MEDIA_DIR=/root/g33kVault/media
+Environment=DB_PATH=/root/g33kVault/data/g33kvault.json
+Environment=IMPORT_DIR=/root/g33kVault/import
+Environment=ADMIN_PASSWORD=changeme
+ExecStart=/usr/bin/node server/dist/index.js
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now g33kvault
+```
+
+**Updating**, once set up this way:
+
+```bash
+cd g33kVault
+git pull
+npm install
+npm run build
+rm -rf server/public && mkdir server/public && cp -r client/dist/* server/public/
+sudo systemctl restart g33kvault
+```
+
+**Backup**: the `/admin` **⬇ Download Backup** button (see [Backup &
+migration](#backup--migration) below) works identically here — it just shells out to
+`tar` on the server's own filesystem, no Docker involved either way. The
+`scripts/backup.sh`/`restore.sh` CLI scripts, though, specifically reach into Docker
+Compose's named volumes and won't work as-is against a plain directory — for this
+deployment, back up `MEDIA_DIR` and `DB_PATH`'s folder directly instead (e.g.
+`tar czf backup.tar.gz media data`, run from wherever those two paths live), which is
+actually simpler than the Docker-volume version since there's no volume indirection to
+reach through.
 
 ## Backup & migration
 
@@ -675,14 +776,15 @@ all. Good enough as an approximation; not meant to be exact.
 ## Notes / ideas for later
 
 - `/admin`'s photo grid (and every other thumbnail list — duplicates, pending uploads,
-  low-resolution results) requests each photo's full original file, with `loading="lazy"`
-  as the only mitigation against loading a very large gallery's worth of full-size images
-  at once. Fine at moderate gallery sizes; a genuinely large one (thousands of photos,
-  each several MB from a modern phone) would still benefit from real server-side
-  thumbnails — resized + cached on ingestion, served from a separate endpoint or query
-  param — rather than relying on the browser to lazy-load full-resolution files. Not yet
-  needed badly enough to justify the added complexity (thumbnail generation, storage,
-  cache invalidation on rotate/delete), but worth revisiting if galleries keep growing.
+  low-resolution results) requests each photo's full original file, mitigated by
+  `loading="lazy"` and, for the main Photo Gallery grid specifically, staying collapsed
+  (nothing requested at all) until an admin expands it. Fine at moderate gallery sizes;
+  a genuinely large one (thousands of photos, each several MB from a modern phone) would
+  still benefit from real server-side thumbnails — resized + cached on ingestion, served
+  from a separate endpoint or query param — rather than relying on the browser to
+  lazy-load full-resolution files once that section is opened. Not yet needed badly
+  enough to justify the added complexity (thumbnail generation, storage, cache
+  invalidation on rotate/delete), but worth revisiting if galleries keep growing.
 - Still no pre-upload approval queue by design — uploads go live instantly, and
   moderation is after-the-fact via `/admin` (see [Moderation](#moderation)).
 - Uploads can optionally carry a name (see [Uploader name](#uploader-name)) but it's

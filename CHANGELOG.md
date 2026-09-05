@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+### Scattered Wall — Zigzag Band: capped overlap at 5%
+
+- The previous version's same-row neighbors overlapped by 28-45% of a tile's width —
+  enough to hide a meaningful chunk of the photo behind it. Repositioned all 6 tiles so
+  neighbors overlap by only ~2-2.4% of tile area, comfortably under a 5% cap. Tiles also
+  shrank somewhat (40vh vs the previous 46vh) — fitting 3 per row at this tight an
+  overlap needs narrower tiles, which leaves a bit more black margin top/bottom than the
+  max-fill version from two rounds ago. A deliberate trade-off: minimizing how much of
+  each photo gets hidden now wins over squeezing out every last bit of black space.
+- Caught and fixed a measurement mistake before shipping this: an initial pass
+  calibrated the new positions against each tile's *axis-aligned bounding box*, which
+  for a rotated element is inflated well beyond its actual visible footprint (empty
+  space in the rotated corners counts toward the bounding box but isn't really there) —
+  that first attempt measured 6-8% "overlap" that wasn't actually real. Recomputed using
+  true rotated-rectangle polygon intersection (the tiles' real rotated footprints, not
+  their bounding boxes) to get an accurate number before finalizing the positions.
+
+### Photo Gallery collapsed by default in /admin
+
+- Follow-up to the two fixes above: with the re-render cost and per-image lazy-loading
+  both fixed, the Photo Gallery card still requested every visible thumbnail the
+  instant `/admin` loaded, since the grid was always rendered. It's now a collapsed
+  accordion, matching the Gallery Tools row below it (chevron, item count, "tap to
+  show") — the grid, and the `loading="lazy"` `<img>` tags inside it, aren't rendered
+  into the DOM at all until an admin actually expands it, so a large gallery costs
+  nothing on page load instead of "less than before." Verified against a synthetic
+  2,000-item gallery: zero `/media/` requests and zero rendered thumbnails while
+  collapsed, expanding renders all 2,000 correctly with lazy-loading still limiting
+  actual network requests to what's near the viewport, and the item count keeps
+  updating live over the existing socket while collapsed (only what's *rendered* is
+  gated by the new toggle — the underlying data/socket layer is unchanged).
+
 ### Admin layout fixes for iPhone
 
 - Follow-up to the iOS input-lag fix below: with that solved, the actual layout on a
