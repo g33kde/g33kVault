@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
 interface MediaItem {
@@ -12,6 +12,96 @@ interface MediaItem {
   width?: number;
   height?: number;
 }
+
+// Split out and memoized so a gallery of thousands of photos doesn't get
+// fully re-diffed on every unrelated state change elsewhere in Admin (e.g.
+// toggling a Playback Settings checkbox) — on a phone, re-reconciling
+// thousands of <img>/button elements on every keystroke was slow enough to
+// make checkboxes feel unresponsive for tens of seconds. Only re-renders
+// when one of these props actually changes.
+const PhotoGalleryGrid = memo(function PhotoGalleryGrid({
+  items,
+  rotateError,
+  rotatingId,
+  deletingId,
+  onOpenViewer,
+  onRotate,
+  onDelete,
+}: {
+  items: MediaItem[];
+  rotateError: string;
+  rotatingId: string | null;
+  deletingId: string | null;
+  onOpenViewer: (id: string) => void;
+  onRotate: (id: string, direction: 'cw' | 'ccw') => void;
+  onDelete: (id: string) => void;
+}) {
+  const reversed = useMemo(() => [...items].reverse(), [items]);
+
+  return (
+    <div className="admin-card">
+      <h2 className="admin-card-heading">Photo Gallery</h2>
+      <p className="tagline">
+        {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete, ↺/↻ to rotate
+      </p>
+      {rotateError && <p className="error-msg">{rotateError}</p>}
+
+      {items.length === 0 ? (
+        <p>No photos yet.</p>
+      ) : (
+        <div className="admin-grid">
+          {reversed.map((item) => (
+            <div key={item.id} className="admin-thumb">
+              {item.kind === 'video' ? (
+                <video src={`/media/${item.filename}`} controls muted playsInline />
+              ) : (
+                <button type="button" className="admin-thumb-open-btn" onClick={() => onOpenViewer(item.id)}>
+                  <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
+                </button>
+              )}
+              {item.uploader && (
+                <span className="admin-thumb-uploader" title={item.uploader}>
+                  {item.uploader}
+                </span>
+              )}
+              {item.kind === 'image' && (
+                <>
+                  <button
+                    className="admin-rotate-btn admin-rotate-ccw-btn"
+                    onClick={() => onRotate(item.id, 'ccw')}
+                    disabled={rotatingId === item.id}
+                    aria-label="Rotate counter-clockwise"
+                    title="Rotate counter-clockwise"
+                  >
+                    {rotatingId === item.id ? '…' : '↺'}
+                  </button>
+                  <button
+                    className="admin-rotate-btn admin-rotate-cw-btn"
+                    onClick={() => onRotate(item.id, 'cw')}
+                    disabled={rotatingId === item.id}
+                    aria-label="Rotate clockwise"
+                    title="Rotate clockwise"
+                  >
+                    {rotatingId === item.id ? '…' : '↻'}
+                  </button>
+                </>
+              )}
+              <button
+                className="admin-delete-btn"
+                onClick={() => onDelete(item.id)}
+                disabled={deletingId === item.id}
+                aria-label="Delete"
+                title="Delete"
+              >
+                {deletingId === item.id ? '…' : '✕'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
@@ -476,17 +566,20 @@ export default function Admin() {
     return false;
   }
 
-  async function handleDelete(id: string) {
-    if (!password) return;
-    if (!window.confirm('Delete this photo/video? This cannot be undone.')) return;
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (!password) return;
+      if (!window.confirm('Delete this photo/video? This cannot be undone.')) return;
 
-    setDeletingId(id);
-    try {
-      await deleteMediaItem(id);
-    } finally {
-      setDeletingId(null);
-    }
-  }
+      setDeletingId(id);
+      try {
+        await deleteMediaItem(id);
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [password]
+  );
 
   async function handleDeleteAllDuplicates() {
     if (!password || !duplicates) return;
@@ -794,37 +887,40 @@ export default function Admin() {
     }
   }
 
-  async function handleRotate(id: string, direction: 'cw' | 'ccw') {
-    if (!password) return;
+  const handleRotate = useCallback(
+    async (id: string, direction: 'cw' | 'ccw') => {
+      if (!password) return;
 
-    setRotatingId(id);
-    setRotateError('');
-    try {
-      const res = await fetch(`/api/media/${id}/rotate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
-        body: JSON.stringify({ direction }),
-      });
+      setRotatingId(id);
+      setRotateError('');
+      try {
+        const res = await fetch(`/api/media/${id}/rotate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+          body: JSON.stringify({ direction }),
+        });
 
-      if (res.status === 401) {
-        handleAuthFailure();
-        return;
+        if (res.status === 401) {
+          handleAuthFailure();
+          return;
+        }
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setRotateError(data.error || 'Could not rotate this image');
+          return;
+        }
+
+        const updated: MediaItem = await res.json();
+        setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+      } catch {
+        setRotateError('Network error');
+      } finally {
+        setRotatingId(null);
       }
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setRotateError(data.error || 'Could not rotate this image');
-        return;
-      }
-
-      const updated: MediaItem = await res.json();
-      setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-    } catch {
-      setRotateError('Network error');
-    } finally {
-      setRotatingId(null);
-    }
-  }
+    },
+    [password]
+  );
 
   function backupSummary(): string {
     if (!lastBackup) return 'No backup taken yet';
@@ -869,13 +965,13 @@ export default function Admin() {
   // same window instead of spawning another one. Explicit size/chrome flags
   // are the standard way to ask for a separate window rather than a tab —
   // browsers treat this as a preference, not a guarantee.
-  function openPhotoViewer(id: string) {
+  const openPhotoViewer = useCallback((id: string) => {
     window.open(
       `/photo-viewer?id=${encodeURIComponent(id)}`,
       'g33kvault-photo-viewer',
       'width=1100,height=850,menubar=no,toolbar=no,location=no,status=no,scrollbars=no,resizable=yes,popup=1'
     );
-  }
+  }, []);
 
   function renderDuplicateGroups(groups: MediaItem[][]) {
     return groups.map((group) => (
@@ -885,7 +981,7 @@ export default function Admin() {
             {item.kind === 'video' ? (
               <video src={`/media/${item.filename}`} controls muted playsInline />
             ) : (
-              <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+              <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
             )}
             <button
               className="admin-delete-btn"
@@ -1124,7 +1220,7 @@ export default function Admin() {
                             {item.kind === 'video' ? (
                               <video src={`/media/${item.filename}`} controls muted playsInline />
                             ) : (
-                              <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+                              <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
                             )}
                           </div>
                         ))}
@@ -1363,7 +1459,7 @@ export default function Admin() {
                           {lowResItems.map((item) => (
                             <div key={item.id} className="admin-thumb">
                               <a href={`/media/${item.filename}?v=${item.size}`} target="_blank" rel="noopener noreferrer">
-                                <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
+                                <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
                               </a>
                               {item.width && item.height && (
                                 <span className="admin-thumb-resolution">
@@ -1392,67 +1488,15 @@ export default function Admin() {
         </div>
       </div>
 
-      <div className="admin-card">
-        <h2 className="admin-card-heading">Photo Gallery</h2>
-        <p className="tagline">
-          {items.length} item{items.length === 1 ? '' : 's'} — click ✕ to delete, ↺/↻ to rotate
-        </p>
-        {rotateError && <p className="error-msg">{rotateError}</p>}
-
-        {items.length === 0 ? (
-          <p>No photos yet.</p>
-        ) : (
-          <div className="admin-grid">
-            {[...items].reverse().map((item) => (
-              <div key={item.id} className="admin-thumb">
-                {item.kind === 'video' ? (
-                  <video src={`/media/${item.filename}`} controls muted playsInline />
-                ) : (
-                  <button type="button" className="admin-thumb-open-btn" onClick={() => openPhotoViewer(item.id)}>
-                    <img src={`/media/${item.filename}?v=${item.size}`} alt="" />
-                  </button>
-                )}
-                {item.uploader && (
-                  <span className="admin-thumb-uploader" title={item.uploader}>
-                    {item.uploader}
-                  </span>
-                )}
-                {item.kind === 'image' && (
-                  <>
-                    <button
-                      className="admin-rotate-btn admin-rotate-ccw-btn"
-                      onClick={() => handleRotate(item.id, 'ccw')}
-                      disabled={rotatingId === item.id}
-                      aria-label="Rotate counter-clockwise"
-                      title="Rotate counter-clockwise"
-                    >
-                      {rotatingId === item.id ? '…' : '↺'}
-                    </button>
-                    <button
-                      className="admin-rotate-btn admin-rotate-cw-btn"
-                      onClick={() => handleRotate(item.id, 'cw')}
-                      disabled={rotatingId === item.id}
-                      aria-label="Rotate clockwise"
-                      title="Rotate clockwise"
-                    >
-                      {rotatingId === item.id ? '…' : '↻'}
-                    </button>
-                  </>
-                )}
-                <button
-                  className="admin-delete-btn"
-                  onClick={() => handleDelete(item.id)}
-                  disabled={deletingId === item.id}
-                  aria-label="Delete"
-                  title="Delete"
-                >
-                  {deletingId === item.id ? '…' : '✕'}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <PhotoGalleryGrid
+        items={items}
+        rotateError={rotateError}
+        rotatingId={rotatingId}
+        deletingId={deletingId}
+        onOpenViewer={openPhotoViewer}
+        onRotate={handleRotate}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

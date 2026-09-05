@@ -622,16 +622,29 @@ a.upload-url:focus-visible {
   font-weight: bold;
   text-align: left;
 }
+/* The label (e.g. "📦 Pending Uploads") never wraps or shrinks — it's short
+   enough to always fit. The summary next to it is the one that can run long
+   ("Last backup 2h ago · 340.5 MB · 4300 items"), so it's the one that gives
+   up space and truncates — otherwise it overflows the row (and, since nothing
+   here scrolls independently, the whole page) on a narrow screen. */
+.admin-tool-header > span:first-child {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .admin-tool-header-right {
   display: flex;
   align-items: center;
   gap: 0.875rem;
+  min-width: 0;
 }
 .admin-tool-summary {
   font-size: 0.8rem;
   color: var(--text-dim);
   font-weight: normal;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .admin-tool-chevron {
   flex-shrink: 0;
@@ -897,6 +910,78 @@ a.upload-url:focus-visible {
 }
 .admin-rotate-cw-btn {
   right: 6px;
+}
+
+/* --- Admin on a narrow (phone) screen ---
+   Primary use case here is a quick spot-check during a live event (glance
+   at the gallery, delete/rotate a photo), not full desktop-depth admin work
+   — so this favors compactness and not-visibly-broken over showing every
+   last detail. Left untouched above ~480px; desktop layout is unaffected. */
+@media (max-width: 480px) {
+  .admin-card,
+  .admin-tool-body {
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
+  }
+
+  /* The longest tool labels ("🖼 Low-Resolution Photos") leave almost no
+     room for the summary next to them on one row — truncating it down to a
+     sliver like "N…" isn't actually useful. Letting the header wrap to a
+     second row (summary+chevron below the label) gives both real room,
+     while staying far more compact than showing every detail inline. */
+  .admin-tool-header {
+    flex-wrap: wrap;
+  }
+  .admin-tool-header-right {
+    flex-basis: 100%;
+    justify-content: space-between;
+  }
+
+  /* Each label stacks directly above the control it describes, full-width,
+     instead of free-flowing flex-wrap — which was letting a label land on
+     its own line separated from its input/select (and, for a checkbox's
+     own label, letting a long one wrap word-by-word). */
+  .admin-settings {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-settings > label,
+  .admin-settings > input,
+  .admin-settings > select,
+  .admin-settings > span {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  /* A <select> otherwise sizes itself to fit its widest option (e.g. "Mix
+     (collage every 4th slide)"), which was pushing some dropdowns wider
+     than the card itself — width:100% above already fixes this, but
+     min-width:0 keeps it from re-asserting that intrinsic width against a
+     flex/grid ancestor. Scoped to > select (not a bare descendant selector)
+     so it doesn't reach into unrelated nested elements. */
+  .admin-settings > select {
+    min-width: 0;
+  }
+  .admin-settings .btn {
+    width: auto;
+    align-self: flex-start;
+  }
+
+  /* Bigger touch targets, closer to Apple's 44pt guidance — left as-is
+     above this breakpoint since a 28px circle is fine with a mouse. */
+  .admin-rotate-btn,
+  .admin-delete-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 1.1rem;
+  }
+
+  /* The desktop-oriented 160px minimum column already drops to a single,
+     nearly-full-width column at iPhone widths — fine for looking at one
+     photo, but a lot of scrolling to spot-check a large gallery. A smaller
+     minimum keeps 2 columns, which scans faster. */
+  .admin-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
 }
 
 /* --- Photo Booth --- */

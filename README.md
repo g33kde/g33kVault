@@ -674,6 +674,15 @@ all. Good enough as an approximation; not meant to be exact.
 
 ## Notes / ideas for later
 
+- `/admin`'s photo grid (and every other thumbnail list — duplicates, pending uploads,
+  low-resolution results) requests each photo's full original file, with `loading="lazy"`
+  as the only mitigation against loading a very large gallery's worth of full-size images
+  at once. Fine at moderate gallery sizes; a genuinely large one (thousands of photos,
+  each several MB from a modern phone) would still benefit from real server-side
+  thumbnails — resized + cached on ingestion, served from a separate endpoint or query
+  param — rather than relying on the browser to lazy-load full-resolution files. Not yet
+  needed badly enough to justify the added complexity (thumbnail generation, storage,
+  cache invalidation on rotate/delete), but worth revisiting if galleries keep growing.
 - Still no pre-upload approval queue by design — uploads go live instantly, and
   moderation is after-the-fact via `/admin` (see [Moderation](#moderation)).
 - Uploads can optionally carry a name (see [Uploader name](#uploader-name)) but it's

@@ -2,6 +2,75 @@
 
 ## [Unreleased]
 
+### Admin layout fixes for iPhone
+
+- Follow-up to the iOS input-lag fix below: with that solved, the actual layout on a
+  narrow screen turned out to have several real overflow bugs, not just tight spacing.
+  Confirmed with a real WebKit-engine screenshot at iPhone width (390px) before and
+  after each fix, not just reasoning about the CSS. A `@media (max-width: 480px)`
+  breakpoint (desktop layout is completely unaffected):
+  - **Gallery Tools accordion headers** (Duplicate Photos, Photo Dates, Low-Resolution
+    Photos, Pending Uploads, Backup & Restore) could overflow their row — "Backup &
+    Restore" with a real backup summary needed 431px in a 324px-wide row, and since
+    nothing there scrolled independently, that dragged the *entire page* into
+    horizontal scroll. The label now always stays on one line; the summary next to it
+    truncates with an ellipsis, and — since the longest labels left so little room that
+    truncation degenerated to something like "N…" — the summary wraps to its own full
+    row below the label instead of being squeezed into a sliver.
+  - **The Playback Settings form** used a free-flowing `flex-wrap`, which could let a
+    label land on its own line separated from the input/select it describes, and let a
+    long checkbox label (e.g. "Party Mode (random transition every slide)") wrap
+    word-by-word. Each label now stacks directly above its own control, full-width.
+  - **Every `<select>`** (Transition, Photo Collage mode/layout) sizes itself to fit its
+    widest option by default — "Mix (collage every 4th slide)" was making some
+    dropdowns wider than the card itself. Now full-width and capped to the card.
+  - **The Photo Gallery grid** dropped to a single, nearly-full-width column at iPhone
+    widths (the existing 160px-minimum column size was already too wide for 2 columns
+    at this breakpoint, even before any of these changes) — fine for looking at one
+    photo, but a lot of scrolling to spot-check a large gallery, which is the primary
+    way this gets used from a phone (a quick glance/delete/rotate during a live event,
+    not full scan/backup work). Narrowed the minimum column to keep 2 columns.
+  - Rotate/delete buttons bumped from 28px to 38px (mobile only) — closer to Apple's
+    44pt touch-target guidance without changing the desktop-mouse-sized default.
+  - One bug caught during this work and fixed before it shipped: an early version of
+    the settings-stacking fix used a bare `input` descendant selector that also matched
+    the checkbox `<input>` nested inside its own `<label>` (not just the top-level
+    number input it was meant for), stretching a 12px checkbox to ~188px wide and
+    squeezing its label text into a wrapped sliver. Caught by inspecting real computed
+    styles, not just eyeballing a screenshot.
+
+### Fix: Admin unresponsive on iOS with a large gallery
+
+- Reported as "can't click any checkboxes or change any settings" on an iPhone; turned
+  out to be severe input lag (up to ~30 seconds for a checkbox to register), not a
+  touch/CSS bug — confirmed by reproducing with Playwright's WebKit engine (Safari's
+  actual rendering engine) plus real touch taps, which worked instantly on a small
+  gallery. Two compounding causes, both scoped to large galleries (thousands of items):
+  1. The Photo Gallery grid and the Playback Settings form (checkboxes, selects) lived
+     in one large component, so toggling any setting forced React to re-render and
+     re-diff every thumbnail in the grid, not just the control that changed. Fixed by
+     extracting the grid into its own `React.memo`-wrapped component, with the handler
+     functions it needs (`onOpenViewer`/`onRotate`/`onDelete`) wrapped in `useCallback`
+     so their identity stays stable across renders — otherwise a memoized component still
+     re-renders on every new function reference passed in as a prop.
+  2. Every thumbnail — in the main gallery, duplicate groups, pending-batch review, and
+     low-resolution results — requested the full original photo with no lazy-loading
+     and no server-side thumbnail generation, so loading the admin page requested and
+     decoded every photo in the library at once. Fixed with `loading="lazy"` on every
+     gallery `<img>`; confirmed via a real browser network trace on a synthetic
+     4,300-item gallery that this cuts initial image requests from 4,300 to ~10 (just
+     what's visible in the viewport). This is very likely the dominant factor on a real
+     phone with real multi-megabyte photos — thumbnails still aren't generated
+     server-side, so a very large gallery will still be heavier than ideal; worth a
+     proper thumbnailing pipeline if galleries keep growing (see "Notes / ideas for
+     later" in the README).
+- Verified end-to-end: a synthetic 4,300-item gallery (seeded directly into the JSON
+  store, matching a real user's reported library size) measured under 6x CPU throttling
+  in Chromium — checkbox-toggle latency dropped from 475ms to 144-224ms with both fixes
+  applied, and this doesn't yet account for the far larger real-world effect of
+  lazy-loading on actual multi-megabyte phone photos over a real network, which the
+  synthetic small test images can't fully demonstrate.
+
 ### Photo Collage mode
 
 - New "🖼 Photo Collage" control in /admin's Playback Settings, next to Transition and
