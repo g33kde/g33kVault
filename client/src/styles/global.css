@@ -289,12 +289,23 @@ a.upload-url:focus-visible {
    Videos keep the plain .slide look (no -framed modifier added) — a
    white-bordered playing video reads oddly. Applies to the "New Upload"
    highlight too, since that's the same <img> element with a badge
-   overlaid, not a separate image. */
+   overlaid, not a separate image.
+
+   Sizing uses calc() with a fixed px amount, not vw/vh percentages —
+   94vw/94vh looked uneven (a real bug, not just a screen-size quirk):
+   vw and vh are percentages of two *different* base dimensions, so on
+   any non-square screen they carve off a different number of pixels per
+   axis (e.g. 1600x900 gave a 48px gutter on the sides but only 27px on
+   top/bottom). Subtracting the same fixed px from both 100vw and 100vh
+   guarantees an equal gutter on all 4 sides regardless of aspect ratio.
+   Padding is likewise a fixed px, not vw, for the same reason (this one
+   actually was already equal in practice, but fixed px makes that a
+   guarantee rather than a coincidence of the aspect ratio). */
 .slide-framed {
-  width: 94vw;
-  height: 94vh;
+  width: calc(100vw - 48px);
+  height: calc(100vh - 48px);
   box-sizing: border-box;
-  padding: 2vw;
+  padding: 12px;
   background: #f5f5f0;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
 }

@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Fix: single-photo frame gutter was uneven
+
+- Sized the black gutter around the frame with `94vw`/`94vh`, which looked wrong: `vw`
+  and `vh` are percentages of two *different* base dimensions (viewport width vs.
+  height), so carving off the same percentage from each produces a different number of
+  pixels per axis on any non-square screen — 1600×900 gave a 48px gutter on the sides
+  but only 27px top/bottom. Confirmed uneven with a real measurement, then fixed with
+  `calc(100vw - 48px)` / `calc(100vh - 48px)` — subtracting the same fixed pixel amount
+  from both axes guarantees an equal gutter regardless of aspect ratio, verified at
+  16:9, 4:3, and a phone's portrait ratio (24px on all 4 sides in every case). Also
+  shrank both the gutter and the white border themselves (was a chunkier 2vw padding,
+  now a fixed 12px, closer to the collage tiles' own 10px) — smaller and unmistakably
+  even beats bigger and slightly lopsided.
+
 ### Fix: single-photo frame wasn't visible against a white background
 
 - The white photo-matting frame added just above filled the entire viewport edge to
