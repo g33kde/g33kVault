@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Fix: single-photo frame's letterbox "matting" was too much white
+
+- Reported as "the slideshow background is white" — for a photo whose aspect ratio
+  didn't match the screen (a portrait photo being the clearest case), the cream-white
+  fill added a few rounds ago to avoid black letterbox bars could end up covering most
+  of the screen, dominating the composition far more than a thin border was ever meant
+  to. Checked with the user which of three fixes they wanted (revert to plain black,
+  keep a thin border with black filling the rest, or crop photos to fill the frame) —
+  they picked the middle one: a white border that hugs the photo's own actual size,
+  with black filling whatever's left over.
+- Done in pure CSS, no JavaScript measurement needed: the `<img>` gets `width/height:
+  auto` plus `max-width`/`max-height` in viewport units (not percentages, which would
+  create a circular dependency on the border wrapper's own size) — a plain image with
+  only max-width/max-height set naturally scales to fit both while preserving its
+  intrinsic aspect ratio, the same mechanism behind an ordinary responsive
+  `max-width: 100%` image, just applied to both axes at once. The white-bordered wrapper
+  then has no explicit size of its own, so as a centered flex child it shrink-wraps to
+  exactly the image's real rendered size plus its own padding — the border ends up
+  exactly where the photo's edge actually is, not the edge of the available screen area.
+- The uploader/date tags move with it, still anchored to this now-tighter box rather
+  than the wider empty area — otherwise they'd end up floating away from the actual
+  photo for a narrow portrait one, the same misalignment problem fixed for the previous
+  (differently-shaped) frame a few rounds ago.
+- Verified with the same portrait/landscape test photos used throughout this feature's
+  development: black now fills the letterbox space instead of cream, the border still
+  hugs a landscape photo just as tightly as before, both tags measured to stay inside
+  the tighter frame boundary, and video (unframed, unaffected either way) confirmed
+  still full-bleed.
+
 ### Optional approval for regular photo/video uploads
 
 - New **"👀 Require approval for uploads"** toggle in `/admin`'s Playback Settings. Off

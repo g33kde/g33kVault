@@ -467,11 +467,13 @@ export default function Slideshow() {
       <div key={current.id} className={`slide-frame ${transitionClass}`}>
         {current.kind === 'image' ? (
           <div className="slide-frame-inner">
-            <img src={src} className="slide slide-framed" alt="" />
-            {current.uploader && <div className="slide-uploader-tag">{current.uploader}</div>}
-            {current.photo_taken_at != null && (
-              <div className="slide-photo-date-tag">{formatPhotoDate(current.photo_taken_at)}</div>
-            )}
+            <div className="slide-photo-frame">
+              <img src={src} className="slide slide-framed" alt="" />
+              {current.uploader && <div className="slide-uploader-tag">{current.uploader}</div>}
+              {current.photo_taken_at != null && (
+                <div className="slide-photo-date-tag">{formatPhotoDate(current.photo_taken_at)}</div>
+              )}
+            </div>
           </div>
         ) : (
           <video src={src} className="slide" autoPlay muted={muted} onEnded={advance} />

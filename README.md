@@ -693,11 +693,13 @@ A few things worth knowing about how it behaves:
   to showing single photos rather than a collage with empty gaps.
 
 **Single photos get a matching frame, too** — even outside collage mode, every
-single-photo slide shows a clean white border on all sides (the same cream-white
-"matting" as a collage's grid-layout tiles), rather than the bare full-bleed photo. A
-photo whose aspect ratio doesn't match the screen still shows the whole thing uncropped
-— the matting fills the extra space instead of the black letterbox bars a mismatched
-photo would otherwise show. Videos aren't framed this way, since a white-bordered
+single-photo slide shows a clean white border on all sides (the same cream-white color
+as a collage's grid-layout tiles), rather than the bare full-bleed photo. The border
+hugs the photo's own actual size rather than the full screen, so a photo whose aspect
+ratio doesn't match the screen still shows the whole thing uncropped, with plain black
+filling whatever space is left over — not a large cream fill, which for a very
+differently-shaped photo (a portrait one being the clearest case) could otherwise end
+up covering most of the screen. Videos aren't framed this way, since a white-bordered
 playing video looks odd.
 
 ## Guest-uploaded archives

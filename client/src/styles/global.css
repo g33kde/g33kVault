@@ -276,52 +276,58 @@ a.upload-url:focus-visible {
   object-fit: contain;
   background: #000;
 }
-/* White "photo matting" frame for single-photo slides — same cream white as
-   a collage tile's even border. Unlike .slide (which fills .slide-frame
-   edge to edge), this wrapper is deliberately smaller than the viewport —
-   same as a collage tile never filling the whole .collage-frame — so
-   .slide-frame's black shows as a gutter all around it (centered via
-   .slide-frame's own flex centering) for the white border to actually read
-   as a border against, plus the same drop shadow a collage tile gets now
-   that there's a dark backdrop for it to fall on. Videos keep the plain
-   .slide look (not wrapped in this) — a white-bordered playing video reads
-   oddly. Applies to the "New Upload" highlight too, since that's the same
-   <img> element with a badge overlaid, not a separate image.
+/* Single-photo frame: a black backdrop (.slide-frame-inner, same available
+   area as the frame gutter below) with a white-bordered box that hugs the
+   photo's own actual rendered size — not the full available area — so any
+   space left over for a mismatched aspect ratio reads as plain black, not a
+   big cream "matting" fill (an earlier version's tradeoff, reversed after
+   seeing how much of the screen that matting could take over for a portrait
+   photo on a landscape screen).
 
-   Sizing uses calc() with a fixed px amount, not vw/vh percentages —
-   94vw/94vh looked uneven (a real bug, not just a screen-size quirk):
-   vw and vh are percentages of two *different* base dimensions, so on
-   any non-square screen they carve off a different number of pixels per
-   axis (e.g. 1600x900 gave a 48px gutter on the sides but only 27px on
-   top/bottom). Subtracting the same fixed px from both 100vw and 100vh
-   guarantees an equal gutter on all 4 sides regardless of aspect ratio.
-   Padding is likewise a fixed px, not vw, for the same reason (this one
-   actually was already equal in practice, but fixed px makes that a
-   guarantee rather than a coincidence of the aspect ratio).
-
-   A separate wrapper (not just this styling directly on the <img>, as a
-   first version did) so the uploader/date tags can nest inside it and
-   anchor their position:absolute to *this* box instead of the full-screen
-   .slideshow-page — the first version had them still pinned to the raw
-   screen edge, so they sat straddling the frame's bottom border instead of
-   inside it. */
+   The hugging is pure CSS, no JS measurement: .slide-framed gets
+   width/height: auto plus max-width/max-height in viewport units (not
+   percentages, which would create a circular dependency on the shrink-wrap
+   wrapper's own size) — a plain <img> with only max-width/max-height set
+   naturally scales to fit both while preserving its intrinsic aspect ratio,
+   the same mechanism behind a plain responsive `max-width:100%` image, just
+   applied to both axes. .slide-photo-frame then has no explicit size of its
+   own, so as a centered flex child of .slide-frame-inner it shrink-wraps to
+   exactly (the img's real rendered size + this wrapper's own padding). */
 .slide-frame-inner {
-  position: relative;
   width: calc(100vw - 48px);
   height: calc(100vh - 48px);
-  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+/* 72px = .slide-frame-inner's own 48px inset (24px gutter each side) plus
+   .slide-photo-frame's 12px padding each side — the total space between
+   the photo's own pixels and the outer edge of the available area, on
+   each axis, so the photo (plus its white border) never actually exceeds
+   that area no matter how its aspect ratio compares to the screen's. */
+.slide-frame-inner .slide-framed {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: calc(100vw - 72px);
+  max-height: calc(100vh - 72px);
+  background: transparent;
+}
+/* White border + shadow, sized by its content (see above) rather than any
+   explicit width/height — same cream white as a collage tile's even
+   border, and the same drop shadow now that there's a dark backdrop for it
+   to actually fall on. A separate element (not this styling directly on
+   the <img>) so the uploader/date tags can nest inside it and anchor their
+   position:absolute to *this* box — sized to the photo, not the full
+   available area — rather than the full-screen .slideshow-page (an earlier
+   version had them pinned to the raw screen edge, so they sat straddling
+   the frame's bottom border instead of inside it). */
+.slide-photo-frame {
+  position: relative;
   padding: 12px;
   background: #f5f5f0;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
-}
-/* The <img> itself just fills its wrapper's padded content box — no
-   background of its own, so wherever object-fit: contain doesn't paint the
-   photo (a mismatched aspect ratio), the wrapper's cream shows through
-   instead of the plain .slide black background. */
-.slide-frame-inner .slide-framed {
-  width: 100%;
-  height: 100%;
-  background: transparent;
 }
 .slideshow-empty {
   color: var(--text-dim);
