@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>g33kVault</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSRequiresIPhoneOS</key>
+	<false/>
+	<!--
+	Empty dict (rather than referencing a named background color) so this
+	doesn't depend on any asset catalog entry existing — see project.yml's
+	note on the app icon for why that's deferred until Xcode can verify it.
+	-->
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<!--
+	Self-hosted g33kVault servers are almost always plain HTTP on the LAN
+	(a Raspberry Pi or similar, no TLS cert) — NSAllowsLocalNetworking
+	permits that for local/private-network addresses specifically, rather
+	than disabling ATS globally (NSAllowsArbitraryLoads), which would be a
+	much broader relaxation than this app actually needs.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<!--
+	Required on tvOS 14+ before an app can actually reach devices on the
+	local network (mDNS/LAN discovery and plain connections alike) — shown
+	to the user as a one-time permission prompt on first launch.
+	-->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>g33kVault connects to your self-hosted g33kVault server on your local network to display the live photo slideshow.</string>
+</dict>
+</plist>

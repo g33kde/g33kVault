@@ -1,0 +1,33 @@
+name: g33kVaultTV
+options:
+  bundleIdPrefix: com.g33kvault
+  deploymentTarget:
+    tvOS: "17.0"
+targets:
+  g33kVaultTV:
+    type: application
+    platform: tvOS
+    sources:
+      - path: g33kVaultTV
+        excludes:
+          - Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.g33kvault.tv
+        PRODUCT_NAME: g33kVaultTV
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "3"
+        CODE_SIGN_STYLE: Automatic
+        # Point straight at the hand-written Info.plist rather than
+        # XcodeGen's own `info:` target key, which generates/overwrites a
+        # plist from YAML properties instead of using an existing file
+        # verbatim — that clobbered this one's ATS/local-network entries on
+        # first attempt. GENERATE_INFOPLIST_FILE: NO stops Xcode's newer
+        # auto-info-plist feature from doing the same thing.
+        INFOPLIST_FILE: g33kVaultTV/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        # No custom app icon / top shelf image yet — tvOS's layered
+        # "brandassets" icon structure needs Xcode itself to get right
+        # (and to verify), which isn't installed as of this first pass. A
+        # blank/default icon is a cosmetic gap, not a functional one; adding
+        # a real one is a good next step once the app is confirmed running.

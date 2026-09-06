@@ -785,6 +785,52 @@ and `/booth` — type it once on either page and it carries over to the other) s
 doesn't have to retype it if they come back to upload more later in the event. It's local
 to that phone/browser, not synced anywhere.
 
+## Apple TV app
+
+`tvos/g33kVaultTV/` is a native tvOS app for showing the slideshow on an Apple TV. It's
+**not** a web-view wrapper around `/slideshow` — tvOS has no WKWebView (or any
+general-purpose browser engine) at all, confirmed by checking `AppleTVOS.sdk`'s
+frameworks directly rather than assuming, so the only way to get this content onto a TV
+is a native reimplementation talking to the same REST API the web slideshow uses
+(`GET /api/media`, `GET /api/config`, static files under `/media/<filename>`).
+
+- **First run**: the app shows a single-field Settings screen asking for the server's
+  address (same host[:port] you'd open in a browser for the host screen or `/admin` —
+  no need to type `http://`). Saved locally on the Apple TV; press Menu on the Siri
+  Remote from the slideshow at any time to come back and change it.
+- **What it shows**: single photo/video rotation with the same "🆕 New Upload"
+  highlight behavior as the web slideshow (a lone fresh photo jumps the queue and gets
+  a badge for 10 seconds; a whole approved batch — or a require-approval upload — queues
+  in quietly instead). Respects the admin's shuffle, interval, slideshow-enabled and
+  require-approval settings.
+- **Not yet implemented**: Collage layouts, the transition styles, and Party Mode (see
+  [Photo Collage](#photo-collage) and ["Now Showing" transitions](#now-showing-transitions))
+  are web-slideshow-only for now — deliberately scoped out of this first native pass
+  rather than half-implemented. A good next step once the core app has been used for a
+  real event.
+- **"Live" means polling, not push**: there's no Socket.IO client in this project (would
+  mean adding an external Swift package), so the tvOS app polls `/api/media` and
+  `/api/config` every 4 seconds instead of getting instant Socket.IO events like the web
+  slideshow does. On a self-hosted LAN server this is a reasonable trade-off — new
+  uploads show up within a few seconds, not instantly — but making it push-based later is
+  a reasonable next step.
+- **Video sound**: the web slideshow autoplays video muted by default (a browser
+  autoplay-policy workaround, with a "tap for sound" button) — that restriction doesn't
+  apply to a native tvOS app, so videos play with sound immediately, no separate button.
+- **Building it**: needs a Mac with Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+  (`brew install xcodegen`) — the actual Xcode project is generated, not checked in:
+  ```bash
+  cd tvos/g33kVaultTV
+  xcodegen generate
+  open g33kVaultTV.xcodeproj   # or build/run via xcodebuild / the tvOS Simulator
+  ```
+- **Local network permission**: the app requests local-network access on first launch
+  (tvOS requires this before any app can reach LAN devices) and its `Info.plist` scopes
+  App Transport Security to local networking only (`NSAllowsLocalNetworking`), matching
+  this project's usual plain-HTTP-on-the-LAN deployment rather than requiring HTTPS.
+- No custom app icon yet (tvOS's layered "brand assets" icon needs Xcode to get right) —
+  cosmetic gap, not a functional one.
+
 ## Event statistics
 
 The upload page (`/upload`) shows a small live "EVENT STATISTICS" panel below the

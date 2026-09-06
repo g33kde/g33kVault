@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+### Native Apple TV app (`tvos/g33kVaultTV/`)
+
+- Asked to scope out an iOS/Apple TV app; started with Apple TV. The original plan was
+  a thin WKWebView wrapper around the existing `/slideshow` page — but a real build
+  attempt revealed tvOS has no WebKit at all (`WebKit.framework` isn't part of
+  `AppleTVOS.sdk`, confirmed by listing every framework in it, not assumed from
+  memory). Apple TV has no general-purpose browser engine, unlike iOS/macOS, so a
+  web-view wrapper genuinely can't work on this platform. Flagged this to the user and
+  pivoted to a native SwiftUI app instead, once they confirmed that direction.
+- The native app talks directly to the same REST endpoints the web slideshow uses
+  (`GET /api/media`, `GET /api/config`, `/media/<filename>`) and reimplements the core
+  single photo/video rotation experience, including the "🆕 New Upload" highlight
+  behavior for a lone fresh photo vs. a quietly-queued batch. Collage layouts,
+  transition styles and Party Mode are deliberately not reimplemented in this first
+  pass. See [Apple TV app](README.md#apple-tv-app) in the README for the full rundown,
+  including the polling-instead-of-Socket.IO trade-off and build instructions.
+- Verified against a real running server in the tvOS Simulator, not just a successful
+  build: booted an "Apple TV 4K" simulator, pointed the app at a live local server,
+  and screenshotted the actual result at each step. This caught two real bugs a build
+  alone wouldn't have — `.textFieldStyle(.roundedBorder)` is unavailable on tvOS (fixed
+  by dropping the explicit style, which tvOS doesn't need for its remote-driven focus
+  chrome anyway), and the uploader-name tag was pinned to the screen edge instead of
+  the photo frame's edge because it was a ZStack sibling of the framed image rather than
+  an overlay on it — a greedy `Spacer()` in the tag row expanded the whole ZStack to
+  full screen width, the same underlying category of bug the web slideshow's frame hit
+  and fixed earlier (tags need to be nested/attached to the frame's own box, not a
+  separate layer positioned against the full screen). Fixed by attaching the tags as an
+  `.overlay(alignment: .bottom)` on the exact view chain that has the frame's
+  padding/background, which guarantees the same bounding box.
+- Also needed a fresh tvOS platform/simulator download mid-session — `xcrun simctl list
+  runtimes` intermittently came back completely empty despite the SDK being present on
+  disk, and `xcodebuild -downloadPlatform tvOS` had to be re-run (twice) before the
+  simulator devices actually registered. Not something this project's code caused; a
+  quirk of this particular machine's Xcode/platform installation state.
+
 ### "Approve All Pending" button in /admin
 
 - A new **"✅ Approve All Pending"** button sits above the individual batch rows in the
