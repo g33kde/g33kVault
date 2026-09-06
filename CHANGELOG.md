@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### "Approve All Pending" button in /admin
+
+- A new **"✅ Approve All Pending"** button sits above the individual batch rows in the
+  "📦 Pending Uploads" tool — approves every pending batch in one click (with the usual
+  confirmation dialog), for clearing a backlog without reviewing each batch one at a
+  time. New `POST /api/admin/pending-batches/approve-all` endpoint; the existing
+  single-batch Approve All/Reject All buttons on each batch are unchanged.
+- The existing rule for a single approved item getting the normal "🆕 New Upload"
+  highlight instead of a quiet insert — previously judged per batch — is judged across
+  *everything* this button approves in one action: a backlog of, say, 15 individual
+  pending uploads (each its own one-item "batch") approved all at once stays quiet for
+  all 15, rather than firing 15 highlights back to back, which would have defeated the
+  entire point of the quiet path. Only the case where there's truly just one photo
+  pending, period, gets the highlight.
+- Verified against a real running server: a mix of three single-upload batches plus one
+  two-photo archive batch (5 items total) all correctly used the quiet `media:approved`
+  event; with exactly one photo pending, the same button correctly fired `media:new`
+  instead; the pending list and public gallery count updated correctly in both cases;
+  and the button, its confirmation dialog text, and the resulting empty state were all
+  checked in a real browser.
+
 ### Fix: single-photo frame's letterbox "matting" was too much white
 
 - Reported as "the slideshow background is white" — for a photo whose aspect ratio

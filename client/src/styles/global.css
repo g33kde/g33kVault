@@ -846,6 +846,9 @@ a.upload-url:focus-visible {
   flex-shrink: 0;
 }
 
+.pending-approve-all-btn {
+  margin-bottom: 1.25rem;
+}
 .pending-batches {
   display: flex;
   flex-direction: column;

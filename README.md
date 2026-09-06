@@ -718,7 +718,11 @@ live slideshow:
   the whole batch, then either **Approve All** (the batch goes live — quietly entering
   the normal slideshow rotation, no "New Upload" badge, since that's meant for one fresh
   photo, not dozens landing at once) or **Reject All** (permanently deleted, immediately,
-  same as any other delete in this app).
+  same as any other delete in this app). A **✅ Approve All Pending** button above the
+  list approves every batch at once, for clearing a backlog without reviewing each one
+  individually — same quiet-vs-highlighted rule, just judged across everything it
+  approves in one click rather than per batch, so approving a pile of individually
+  pending photos this way doesn't fire off a highlight for each one.
 - Until approved, a pending photo doesn't count toward anything public — not the
   slideshow, not the Event Statistics panel, not the admin's other review tools
   (duplicate/photo-date/low-resolution scans all work on approved photos only).

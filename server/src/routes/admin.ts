@@ -504,6 +504,43 @@ export function adminRouter(io: SocketIOServer) {
     }
   });
 
+  // Approves every pending batch in one click, for clearing out a backlog
+  // (e.g. after leaving "Require approval for uploads" on for a while)
+  // without reviewing each one individually. Same highlight-vs-quiet rule
+  // as approving a single batch below, but judged across everything being
+  // approved by this one action rather than per batch — otherwise a
+  // backlog of, say, 15 single-photo pending uploads (15 separate
+  // "batches" of one) would fire 15 disruptive highlights back to back,
+  // exactly what the quiet 'media:approved' path exists to avoid. Only
+  // the genuinely common case — approving all of it when there's just one
+  // photo pending, period — gets the highlight.
+  router.post('/pending-batches/approve-all', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    try {
+      const ids = new Set(getAllMedia().filter((m) => m.status === 'pending').map((m) => m.id));
+
+      if (ids.size === 0) {
+        res.json({ approved: 0 });
+        return;
+      }
+
+      const updated = updateManyMedia(ids, { status: 'approved' });
+      const event = updated.length === 1 ? 'media:new' : 'media:approved';
+      for (const row of updated) {
+        io.emit(event, row);
+      }
+
+      res.json({ approved: updated.length });
+    } catch (err) {
+      console.error('Approving all pending batches failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Approve failed' });
+    }
+  });
+
   // Flips every photo in the batch to approved in one write, so it starts
   // showing up in the public gallery/slideshow and the admin gallery grid.
   // A batch of exactly one item — a single web-upload held for approval

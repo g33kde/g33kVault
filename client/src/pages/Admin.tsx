@@ -360,6 +360,7 @@ export default function Admin() {
   const [pendingBatchesError, setPendingBatchesError] = useState('');
   const [approvingBatchId, setApprovingBatchId] = useState<string | null>(null);
   const [rejectingBatchId, setRejectingBatchId] = useState<string | null>(null);
+  const [approvingAll, setApprovingAll] = useState(false);
   const [batchActionError, setBatchActionError] = useState('');
 
   // The occasional-use maintenance tools collapse into accordion rows (see
@@ -830,6 +831,46 @@ export default function Admin() {
     }
   }
 
+  async function handleApproveAllPending() {
+    if (!password || !pendingBatches || pendingBatches.length === 0) return;
+    const total = pendingBatches.reduce((sum, b) => sum + b.items.length, 0);
+    if (
+      !window.confirm(
+        `Approve all ${total} pending photo${total === 1 ? '' : 's'} across ${pendingBatches.length} batch${
+          pendingBatches.length === 1 ? '' : 'es'
+        }? They'll start appearing in the slideshow.`
+      )
+    ) {
+      return;
+    }
+
+    setApprovingAll(true);
+    setBatchActionError('');
+    try {
+      const res = await fetch('/api/admin/pending-batches/approve-all', {
+        method: 'POST',
+        headers: { 'X-Admin-Password': password },
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setBatchActionError(data.error || 'Approve failed');
+        return;
+      }
+
+      setPendingBatches([]);
+    } catch {
+      setBatchActionError('Network error');
+    } finally {
+      setApprovingAll(false);
+    }
+  }
+
   async function handleApproveBatch(batch: PendingBatch) {
     if (!password) return;
     if (
@@ -1216,11 +1257,21 @@ export default function Admin() {
               {pendingBatchesError && <p className="error-msg">{pendingBatchesError}</p>}
               {batchActionError && <p className="error-msg">{batchActionError}</p>}
               {pendingBatches && pendingBatches.length === 0 && (
-                <p className="tagline">No archive uploads awaiting review.</p>
+                <p className="tagline">Nothing awaiting review.</p>
               )}
               {pendingBatches && pendingBatches.length > 0 && (
-                <div className="pending-batches">
-                  {pendingBatches.map((batch) => (
+                <>
+                  <button
+                    className="btn btn-primary pending-approve-all-btn"
+                    onClick={handleApproveAllPending}
+                    disabled={approvingAll || approvingBatchId !== null || rejectingBatchId !== null}
+                  >
+                    {approvingAll
+                      ? 'Approving…'
+                      : `✅ Approve All Pending (${pendingBatches.reduce((sum, b) => sum + b.items.length, 0)})`}
+                  </button>
+                  <div className="pending-batches">
+                    {pendingBatches.map((batch) => (
                     <div key={batch.batchId} className="pending-batch">
                       <div className="pending-batch-header">
                         <div className="pending-batch-info">
@@ -1265,7 +1316,8 @@ export default function Admin() {
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                </>
               )}
             </div>
           )}
