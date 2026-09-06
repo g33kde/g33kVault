@@ -47,6 +47,7 @@ interface Settings {
   slideshowEnabled?: boolean;
   collageMode?: CollageMode;
   collageLayout?: CollageLayout;
+  requireApproval?: boolean;
   lastBackup?: BackupInfo;
 }
 
@@ -118,6 +119,22 @@ export function getSlideshowEnabled(): boolean {
 export function setSlideshowEnabled(value: boolean): boolean {
   const settings = readSettings();
   settings.slideshowEnabled = value;
+  writeSettings(settings);
+  return value;
+}
+
+// When on, a guest's single-photo/video upload via /upload or /booth lands
+// in the same 'pending' review queue as a guest-uploaded archive's contents
+// (see routes/upload.ts, routes/admin.ts pending-batches) instead of going
+// straight to the live slideshow. Off by default — matches the original
+// zero-moderation behavior.
+export function getRequireApproval(): boolean {
+  return readSettings().requireApproval ?? false;
+}
+
+export function setRequireApproval(value: boolean): boolean {
+  const settings = readSettings();
+  settings.requireApproval = value;
   writeSettings(settings);
   return value;
 }

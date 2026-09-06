@@ -466,7 +466,13 @@ export default function Slideshow() {
     <div className="page slideshow-page">
       <div key={current.id} className={`slide-frame ${transitionClass}`}>
         {current.kind === 'image' ? (
-          <img src={src} className="slide slide-framed" alt="" />
+          <div className="slide-frame-inner">
+            <img src={src} className="slide slide-framed" alt="" />
+            {current.uploader && <div className="slide-uploader-tag">{current.uploader}</div>}
+            {current.photo_taken_at != null && (
+              <div className="slide-photo-date-tag">{formatPhotoDate(current.photo_taken_at)}</div>
+            )}
+          </div>
         ) : (
           <video src={src} className="slide" autoPlay muted={muted} onEnded={advance} />
         )}
@@ -476,9 +482,8 @@ export default function Slideshow() {
           🔇 Tap for sound
         </button>
       )}
-      {current.uploader && <div className="slide-uploader-tag">{current.uploader}</div>}
-      {current.kind === 'image' && current.photo_taken_at != null && (
-        <div className="slide-photo-date-tag">{formatPhotoDate(current.photo_taken_at)}</div>
+      {current.kind === 'video' && current.uploader && (
+        <div className="slide-uploader-tag">{current.uploader}</div>
       )}
       {showNewUploadBadge && <div className="new-upload-badge">🆕 New Upload</div>}
     </div>

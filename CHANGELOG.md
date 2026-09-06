@@ -2,6 +2,58 @@
 
 ## [Unreleased]
 
+### Optional approval for regular photo/video uploads
+
+- New **"👀 Require approval for uploads"** toggle in `/admin`'s Playback Settings. Off
+  by default (unchanged behavior). When on, every photo/video from `/upload` or `/booth`
+  — not just a guest-uploaded archive's contents, which already worked this way — is
+  held for review instead of going straight to the live slideshow. Concept discussed
+  before building: three real design forks (how a single upload should fit into a UI
+  built around archive batches, whether Photo Booth should be covered, and what
+  approving one photo should look like), each resolved before writing code.
+- Reuses the exact same `pending`/`batchId`/`batchLabel` machinery a guest-uploaded
+  archive's contents already use — a single upload just becomes a "batch" of one, with
+  its own `batchId` (its own row id) and `batchLabel` (its original filename), showing
+  up as its own entry in the existing "📦 Pending Uploads" list with the same Approve/
+  Reject actions. No new review UI, no new data model.
+- Approving a batch of exactly one item now emits the normal `media:new` event — the
+  full-screen "🆕 New Upload" highlight, exactly as if the upload hadn't waited for
+  approval — rather than the quieter `media:approved` a real multi-photo archive batch
+  still gets (unchanged): dozens of back-to-back highlights for one approved archive
+  would be worse than none, but a single approved photo doesn't have that problem.
+- `/upload` shows an accurate note before and after uploading — before, if the setting
+  is on, a note that covers everything (not just archives, which is what the pre-existing
+  archive-specific note was scoped to); after, a message distinguishing "received,
+  pending approval" (a plain photo/video held by this setting) from "received, being
+  processed" (an archive still being extracted) — previously any `202` response was
+  unconditionally labeled "archive," which would have been wrong for the new case.
+- Verified end-to-end against a real running server: upload with the setting off
+  (unaffected, still 201/`media:new`, confirmed no regression); upload with it on
+  (202/`pending`, correctly excluded from `/api/media` and the Event Statistics count);
+  approve (fires `media:new`, moves into `/api/media`) and reject (fully deletes,
+  confirmed via the pending-batches list going empty) via the real admin endpoints; a
+  genuine multi-photo archive still uses the quiet `media:approved` per item, unaffected
+  by the new single-item logic; the Admin.tsx checkbox loads, saves, and persists
+  correctly; the Upload.tsx pre- and post-upload messaging, screenshotted in a real
+  browser, matches exactly.
+
+### Fix: uploader/date tags cutting into the single-photo frame's border
+
+- Reported with a real screenshot: the bottom of the white photo frame looked
+  interrupted/broken. Root cause confirmed by measuring the actual DOM — the uploader
+  name and photo-date tags were still positioned `bottom: 1.25rem` from the *screen*
+  edge, a leftover from before the frame existed (when the photo filled the full
+  screen, so that offset happened to land near the photo's edge too). With the frame
+  now inset, that put the tags straddling the frame's bottom border — mostly inside it,
+  a few pixels poking out into the black gutter — rather than cleanly on one side of it.
+  The gutter itself (24px) also isn't tall enough to fit a tag outside the frame without
+  enlarging it, so — confirmed with the user first — the tags now nest inside the framed
+  photo instead, anchored to the frame's own box rather than the screen edge, floating
+  over the bottom of the photo like a caption. Verified the tags now sit fully inside
+  the frame boundary at every position (uploader bottom-right, date bottom-center,
+  together, with a portrait photo matching the original bug report), and that videos —
+  which don't get a frame — keep their uploader tag exactly where it was, unaffected.
+
 ### Fix: single-photo frame gutter was uneven
 
 - Sized the black gutter around the frame with `94vw`/`94vh`, which looked wrong: `vw`

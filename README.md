@@ -14,9 +14,9 @@ code alone.
   [Photo booth](#photo-booth) below)
 - `/slideshow` — fullscreen kiosk view, updates live via WebSocket as uploads arrive
 - `/admin` — password-protected view: gallery management (delete/rotate photos,
-  duplicate/low-resolution/photo-date scans, pending archive review, backup) and
-  playback settings (speed, shuffle, transitions, Party Mode, Enable Slideshow, Photo
-  Collage)
+  duplicate/low-resolution/photo-date scans, pending upload review, backup) and playback
+  settings (speed, shuffle, transitions, Party Mode, Enable Slideshow, Photo Collage,
+  Require approval for uploads)
 
 ## Stack
 
@@ -713,10 +713,10 @@ live slideshow:
 - Every photo/video extracted from it lands in a review queue instead of the gallery,
   grouped with everything else from that same archive as one batch.
 - An admin reviews it from the "📦 Pending Uploads" section in `/admin` — thumbnails for
-  the whole batch, then either **Approve All** (the batch goes live, quietly entering
-  the normal slideshow rotation — no "New Upload" badge, since that's meant for a single
-  fresh photo, not dozens landing at once) or **Reject All** (permanently deleted,
-  immediately, same as any other delete in this app).
+  the whole batch, then either **Approve All** (the batch goes live — quietly entering
+  the normal slideshow rotation, no "New Upload" badge, since that's meant for one fresh
+  photo, not dozens landing at once) or **Reject All** (permanently deleted, immediately,
+  same as any other delete in this app).
 - Until approved, a pending photo doesn't count toward anything public — not the
   slideshow, not the Event Statistics panel, not the admin's other review tools
   (duplicate/photo-date/low-resolution scans all work on approved photos only).
@@ -727,6 +727,19 @@ exclusive to that admin-only path. Archives get a separate, larger size limit
 (`MAX_ARCHIVE_SIZE_MB`, default 500 MB) than a single photo/video upload
 (`MAX_FILE_SIZE_MB`), since a compressed multi-photo dump is reasonably much bigger than
 any one file.
+
+### Requiring approval for every upload, not just archives
+
+`/admin`'s **"👀 Require approval for uploads"** toggle (in Playback Settings) extends
+this same review queue to regular photo/video uploads too, from both `/upload` and
+`/booth` — off by default, so nothing changes unless turned on. A plain upload held this
+way shows up in the same "📦 Pending Uploads" list as an archive's contents, just as its
+own single-photo entry rather than a multi-photo batch — and approving it plays the
+normal full-screen **"🆕 New Upload"** highlight, exactly as it would have if the setting
+were off, since the "quiet, no badge" behavior above exists specifically to avoid dozens
+of back-to-back highlights for one big archive, which doesn't apply to a single photo.
+`/upload` tells the guest their photo is pending review, the same way it already does
+for an archive.
 
 ## Photo booth
 

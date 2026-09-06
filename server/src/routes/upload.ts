@@ -13,6 +13,7 @@ import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
 import { extractPhotoTakenAt } from '../photoDate';
 import { archiveKindFor } from '../archiveExtract';
 import { importArchive } from '../importFolder';
+import { getRequireApproval } from '../settings';
 
 fs.mkdirSync(config.mediaDir, { recursive: true });
 
@@ -145,8 +146,10 @@ export function uploadRouter(io: SocketIOServer) {
     }
 
     const finalPath = path.join(config.mediaDir, filename);
+    const id = randomUUID();
+    const requireApproval = getRequireApproval();
     const media = {
-      id: randomUUID(),
+      id,
       filename,
       original_name: req.file.originalname,
       mime_type: mimeType,
@@ -157,12 +160,22 @@ export function uploadRouter(io: SocketIOServer) {
       photo_taken_at: photoTakenAt,
       content_hash: await computeContentHash(finalPath),
       phash: kind === 'image' ? await computePerceptualHash(finalPath) : null,
+      // requireApproval (an admin setting) holds every direct upload for
+      // review exactly like a guest-uploaded archive's contents already
+      // are — reusing the same pending-batches admin UI, one item per
+      // "batch" (batchId set to its own id, so /pending-batches/:batchId's
+      // filter on m.batchId matches it — see routes/admin.ts). Undefined
+      // status/batchId/batchLabel when the setting is off, same as before
+      // this feature existed.
+      ...(requireApproval
+        ? { status: 'pending' as const, batchId: id, batchLabel: req.file.originalname }
+        : {}),
     };
 
     insertMedia(media);
-    io.emit('media:new', media);
+    io.emit(requireApproval ? 'media:pending' : 'media:new', media);
 
-    res.status(201).json(media);
+    res.status(requireApproval ? 202 : 201).json(requireApproval ? { pending: true, batchId: id } : media);
   });
 
   return router;

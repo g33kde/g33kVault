@@ -21,6 +21,8 @@ import {
   setPartyMode,
   getSlideshowEnabled,
   setSlideshowEnabled,
+  getRequireApproval,
+  setRequireApproval,
   getCollageMode,
   setCollageMode,
   getCollageLayout,
@@ -47,6 +49,7 @@ function currentSettings() {
     slideshowEnabled: getSlideshowEnabled(),
     collageMode: getCollageMode(),
     collageLayout: getCollageLayout(),
+    requireApproval: getRequireApproval(),
     lastBackup: getLastBackup(),
   };
 }
@@ -120,8 +123,16 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
-    const { slideshowIntervalMs, shuffle, transitionStyle, partyMode, slideshowEnabled, collageMode, collageLayout } =
-      req.body ?? {};
+    const {
+      slideshowIntervalMs,
+      shuffle,
+      transitionStyle,
+      partyMode,
+      slideshowEnabled,
+      collageMode,
+      collageLayout,
+      requireApproval,
+    } = req.body ?? {};
 
     if (
       typeof slideshowIntervalMs !== 'number' ||
@@ -165,6 +176,11 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
+    if (typeof requireApproval !== 'boolean') {
+      res.status(400).json({ error: 'requireApproval must be a boolean' });
+      return;
+    }
+
     setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
     setShuffle(shuffle);
     setTransitionStyle(transitionStyle as TransitionStyle);
@@ -172,6 +188,7 @@ export function adminRouter(io: SocketIOServer) {
     setSlideshowEnabled(slideshowEnabled);
     setCollageMode(collageMode as CollageMode);
     setCollageLayout(collageLayout as CollageLayout);
+    setRequireApproval(requireApproval);
 
     const updated = currentSettings();
     io.emit('config:updated', updated);
@@ -489,10 +506,13 @@ export function adminRouter(io: SocketIOServer) {
 
   // Flips every photo in the batch to approved in one write, so it starts
   // showing up in the public gallery/slideshow and the admin gallery grid.
-  // Deliberately emits a quieter 'media:approved' per item rather than
-  // 'media:new' — the latter triggers the slideshow's "New Upload"
-  // highlight, which would mean dozens of disruptive highlights back to
-  // back for one approved batch.
+  // A batch of exactly one item — a single web-upload held for approval
+  // (requireApproval setting), or the rare one-photo archive — gets the
+  // normal 'media:new' treatment, the same "New Upload" highlight it would
+  // have gotten if approval had been off; a real multi-photo batch instead
+  // gets the quieter 'media:approved' per item, since dozens of disruptive
+  // highlights back to back for one approved archive would be worse than
+  // no highlight at all.
   router.post('/pending-batches/:batchId/approve', (req, res) => {
     if (!checkAdminPassword(req.header('x-admin-password'))) {
       res.status(401).json({ error: 'Invalid password' });
@@ -513,8 +533,9 @@ export function adminRouter(io: SocketIOServer) {
       }
 
       const updated = updateManyMedia(ids, { status: 'approved' });
+      const event = updated.length === 1 ? 'media:new' : 'media:approved';
       for (const row of updated) {
-        io.emit('media:approved', row);
+        io.emit(event, row);
       }
 
       res.json({ approved: updated.length });

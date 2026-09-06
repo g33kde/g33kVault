@@ -158,6 +158,7 @@ interface SettingsPayload {
   slideshowEnabled: boolean;
   collageMode: CollageMode;
   collageLayout: CollageLayout;
+  requireApproval: boolean;
   lastBackup: LastBackup | null;
 }
 
@@ -311,6 +312,7 @@ export default function Admin() {
   const [slideshowEnabled, setSlideshowEnabled] = useState(true);
   const [collageMode, setCollageMode] = useState<CollageMode>('off');
   const [collageLayout, setCollageLayout] = useState<CollageLayout>('random');
+  const [requireApproval, setRequireApproval] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState('');
 
@@ -416,6 +418,7 @@ export default function Admin() {
         setSlideshowEnabled(data.slideshowEnabled);
         setCollageMode(data.collageMode);
         setCollageLayout(data.collageLayout);
+        setRequireApproval(data.requireApproval);
         setLastBackupState(data.lastBackup);
       })
       .catch((status) => {
@@ -444,6 +447,7 @@ export default function Admin() {
       setSlideshowEnabled(data.slideshowEnabled);
       setCollageMode(data.collageMode);
       setCollageLayout(data.collageLayout);
+      setRequireApproval(data.requireApproval);
       setLastBackupState(data.lastBackup);
     });
     socket.on('duplicates:progress', (data: { current: number; total: number }) => setScanProgress(data));
@@ -486,6 +490,7 @@ export default function Admin() {
           slideshowEnabled,
           collageMode,
           collageLayout,
+          requireApproval,
         }),
       });
 
@@ -1089,6 +1094,23 @@ export default function Admin() {
             />
             Enable Slideshow
           </label>
+
+          <label htmlFor="require-approval-input" className="admin-checkbox-label">
+            <input
+              id="require-approval-input"
+              type="checkbox"
+              checked={requireApproval}
+              onChange={(e) => {
+                setRequireApproval(e.target.checked);
+                setSaveStatus('idle');
+              }}
+            />
+            👀 Require approval for uploads
+          </label>
+          <p className="tagline admin-settings-caption">
+            When on, every photo/video from /upload or /booth waits for review in{' '}
+            <strong>📦 Pending Uploads</strong> below, same as a guest-uploaded archive already does.
+          </p>
 
           <label htmlFor="shuffle-input" className="admin-checkbox-label">
             <input

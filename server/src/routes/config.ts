@@ -7,6 +7,7 @@ import {
   getSlideshowEnabled,
   getCollageMode,
   getCollageLayout,
+  getRequireApproval,
 } from '../settings';
 
 export const configRouter = Router();
@@ -20,5 +21,6 @@ configRouter.get('/', (_req, res) => {
     slideshowEnabled: getSlideshowEnabled(),
     collageMode: getCollageMode(),
     collageLayout: getCollageLayout(),
+    requireApproval: getRequireApproval(),
   });
 });

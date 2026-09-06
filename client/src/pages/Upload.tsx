@@ -7,10 +7,15 @@ interface UploadResult {
   name: string;
   ok: boolean;
   error?: string;
-  // True for an uploaded archive: it's been received and is being
-  // extracted, but won't appear in the slideshow until an admin reviews
-  // and approves it — a different outcome than a normal instant upload.
+  // True for an uploaded archive, or (when the admin's "Require approval"
+  // setting is on) any regular photo/video: it's been received but won't
+  // appear in the slideshow until an admin reviews and approves it — a
+  // different outcome than a normal instant upload.
   pending?: boolean;
+  // Distinguishes the two reasons a result can be pending, for the correct
+  // wording below — an archive is still being extracted in the background,
+  // while a plain photo/video held for approval is already fully processed.
+  isArchive?: boolean;
 }
 
 interface Stats {
@@ -47,6 +52,7 @@ export default function Upload() {
   const [status, setStatus] = useState<Status>('idle');
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<UploadResult[]>([]);
+  const [requireApproval, setRequireApproval] = useState(false);
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsFetchedAt, setStatsFetchedAt] = useState(0);
@@ -85,9 +91,16 @@ export default function Upload() {
   useEffect(() => {
     fetchStats();
 
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then((data: { requireApproval: boolean }) => setRequireApproval(data.requireApproval));
+
     const socket: Socket = io({ path: '/socket.io' });
     socket.on('media:new', fetchStats);
     socket.on('media:deleted', fetchStats);
+    socket.on('config:updated', (data: { requireApproval: boolean }) =>
+      setRequireApproval(data.requireApproval)
+    );
 
     const tick = setInterval(() => setNow(Date.now()), STATS_TICK_MS);
 
@@ -119,7 +132,12 @@ export default function Upload() {
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: formData });
         if (res.ok) {
-          outcomes.push({ name: file.name, ok: true, pending: res.status === 202 });
+          outcomes.push({
+            name: file.name,
+            ok: true,
+            pending: res.status === 202,
+            isArchive: isArchiveFile(file),
+          });
         } else {
           const data = await res.json().catch(() => ({}));
           outcomes.push({ name: file.name, ok: false, error: data.error || 'Upload failed' });
@@ -144,7 +162,8 @@ export default function Upload() {
 
   const failed = results.filter((r) => !r.ok);
   const succeeded = results.filter((r) => r.ok && !r.pending);
-  const pendingArchives = results.filter((r) => r.ok && r.pending);
+  const pendingArchives = results.filter((r) => r.ok && r.pending && r.isArchive);
+  const pendingApproval = results.filter((r) => r.ok && r.pending && !r.isArchive);
 
   return (
     <div className="page upload-page">
@@ -178,7 +197,13 @@ export default function Upload() {
               processed — your photos will appear once the event host approves them.
             </p>
           )}
-          {succeeded.length === 0 && pendingArchives.length === 0 && failed.length > 0 && (
+          {pendingApproval.length > 0 && (
+            <p>
+              👀 {pendingApproval.length} item{pendingApproval.length === 1 ? '' : 's'} received — waiting for the
+              event host to approve before appearing in the slideshow.
+            </p>
+          )}
+          {succeeded.length === 0 && pendingArchives.length === 0 && pendingApproval.length === 0 && failed.length > 0 && (
             <p>{failed.length} failed.</p>
           )}
           {failed.length > 0 && (
@@ -208,11 +233,19 @@ export default function Upload() {
                   hidden
                 />
               </label>
-              <p className="upload-archive-note">
-                📦 Got a whole folder of photos? You can also upload a <strong>.zip</strong>, <strong>.tar.gz</strong>
-                , or <strong>.rar</strong> file — they'll be reviewed by the event host before appearing in the
-                slideshow.
-              </p>
+              {requireApproval ? (
+                <p className="upload-archive-note">
+                  👀 Everything you upload here — including a <strong>.zip</strong>, <strong>.tar.gz</strong>, or{' '}
+                  <strong>.rar</strong> file of photos — is reviewed by the event host before appearing in the
+                  slideshow.
+                </p>
+              ) : (
+                <p className="upload-archive-note">
+                  📦 Got a whole folder of photos? You can also upload a <strong>.zip</strong>,{' '}
+                  <strong>.tar.gz</strong>, or <strong>.rar</strong> file — they'll be reviewed by the event host
+                  before appearing in the slideshow.
+                </p>
+              )}
             </>
           )}
 
