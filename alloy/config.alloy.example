@@ -1,0 +1,41 @@
+// Starter Grafana Alloy config for host-level telemetry (Pi CPU/memory/
+// disk/network) — a separate, optional thing from g33kVault's own
+// app-level Loki push (uploads/access/moderation stats), which the app
+// does itself and doesn't need Alloy for. See GRAFANA.md.
+//
+// Copy this file to config.alloy (gitignored — it'll hold your real
+// credentials) and fill in the three placeholders below. Grafana Cloud's
+// own "Connections > Add new connection > Linux Server" wizard generates a
+// more complete version of this same file (more collectors, proper job
+// labels) if you'd rather start from that instead of this hand-written one
+// — either works with the docker-compose.yml `alloy` service as-is.
+//
+// docker-compose.yml mounts the host's /proc, /sys, and / read-only into
+// /host/proc, /host/sys, /host/root — the *_path arguments below point the
+// unix exporter at those instead of the container's own (which would just
+// report the container, not the actual Pi).
+
+prometheus.exporter.unix "host" {
+  procfs_path = "/host/proc"
+  sysfs_path  = "/host/sys"
+  rootfs_path = "/host/root"
+}
+
+prometheus.scrape "host" {
+  targets    = prometheus.exporter.unix.host.targets
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    // From Grafana Cloud: Connections > Prometheus > this instance's
+    // details — a URL ending in .../api/prom/push, NOT the same as the
+    // Loki push URL the app itself uses (see GRAFANA.md).
+    url = "https://<your-prometheus-instance>.grafana.net/api/prom/push"
+
+    basic_auth {
+      username = "<your-prometheus-instance-id>"
+      password = "<your-grafana-cloud-api-token>"
+    }
+  }
+}

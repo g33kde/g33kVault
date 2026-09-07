@@ -12,10 +12,37 @@ services:
       - MAX_FILE_SIZE_MB=100
       - SLIDESHOW_INTERVAL_MS=6000
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      # Optional — Grafana Cloud Loki push (app-level stats: uploads,
+      # access, moderation). Empty/unset leaves the integration fully off
+      # regardless of what's toggled in /admin. See GRAFANA.md.
+      - GRAFANA_CLOUD_LOKI_URL=${GRAFANA_CLOUD_LOKI_URL:-}
+      - GRAFANA_CLOUD_LOKI_USER=${GRAFANA_CLOUD_LOKI_USER:-}
+      - GRAFANA_CLOUD_TOKEN=${GRAFANA_CLOUD_TOKEN:-}
     volumes:
       - media-data:/app/media
       - db-data:/app/data
       - ./import:/app/import
+    restart: unless-stopped
+
+  # Optional, host-level telemetry (Pi CPU/memory/disk) — a separate thing
+  # from the app-level Loki push above, which g33kVault does itself. Off by
+  # default: only starts with `docker compose --profile monitoring up`.
+  # Needs ./alloy/config.alloy — copy config.alloy.example and fill in your
+  # Grafana Cloud Prometheus (Mimir) remote_write details, or better, use
+  # the config Grafana Cloud's own "Add new: Linux Server" integration
+  # generates for you. See GRAFANA.md.
+  alloy:
+    image: grafana/alloy:latest
+    profiles: ['monitoring']
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
     restart: unless-stopped
 
 volumes:

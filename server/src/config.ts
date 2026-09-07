@@ -16,4 +16,15 @@ export const config = {
   slideshowIntervalMs: parseInt(process.env.SLIDESHOW_INTERVAL_MS || '6000', 10),
   // Empty/unset disables the admin view entirely rather than defaulting open.
   adminPassword: process.env.ADMIN_PASSWORD || '',
+  // Grafana Cloud Loki push credentials — env vars only, never written to
+  // settingsPath, same reasoning as adminPassword above: a secret shouldn't
+  // live in a file the admin UI's settings form round-trips through. All
+  // three (URL + user/instance id + token) travel together since none of
+  // them means anything without the other two, so they get the same
+  // treatment. See GRAFANA.md for what these actually are and where to get
+  // them. The /admin "Grafana Cloud" section only toggles/tests the
+  // connection these define — it can't set or reveal them.
+  grafanaLokiUrl: process.env.GRAFANA_CLOUD_LOKI_URL || '',
+  grafanaLokiUser: process.env.GRAFANA_CLOUD_LOKI_USER || '',
+  grafanaCloudToken: process.env.GRAFANA_CLOUD_TOKEN || '',
 };

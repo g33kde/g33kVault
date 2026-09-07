@@ -137,6 +137,30 @@ interface LastBackup {
   lastBackupItemCount: number;
 }
 
+type GrafanaCategory = 'usage' | 'uploads' | 'system' | 'moderation';
+const GRAFANA_CATEGORIES: GrafanaCategory[] = ['usage', 'uploads', 'system', 'moderation'];
+const GRAFANA_CATEGORY_LABELS: Record<GrafanaCategory, string> = {
+  usage: 'Usage & devices (page views, device/browser type)',
+  uploads: 'Uploads (counts, sizes, success/failure)',
+  system: 'System health (photo/pending counts, free disk space)',
+  moderation: 'Moderation (rotations, deletions, approvals, settings changes)',
+};
+const GRAFANA_PUSH_INTERVALS: { value: number; label: string }[] = [
+  { value: 30_000, label: 'Every 30 seconds' },
+  { value: 60_000, label: 'Every 1 minute' },
+  { value: 300_000, label: 'Every 5 minutes' },
+];
+
+interface GrafanaStatus {
+  configured: boolean;
+  enabled: boolean;
+  categories: GrafanaCategory[];
+  pushIntervalMs: number;
+  lastPushAt: number | null;
+  lastError: string | null;
+  bufferedCount: number;
+}
+
 interface DuplicateGroups {
   exact: MediaItem[][];
   similar: MediaItem[][];
@@ -320,6 +344,15 @@ export default function Admin() {
   const [backingUp, setBackingUp] = useState(false);
   const [backupError, setBackupError] = useState('');
 
+  const [grafanaStatus, setGrafanaStatus] = useState<GrafanaStatus | null>(null);
+  const [grafanaEnabled, setGrafanaEnabled] = useState(false);
+  const [grafanaCategories, setGrafanaCategoriesState] = useState<GrafanaCategory[]>([...GRAFANA_CATEGORIES]);
+  const [grafanaPushIntervalMs, setGrafanaPushIntervalMs] = useState<number>(60_000);
+  const [grafanaSaveStatus, setGrafanaSaveStatus] = useState<SaveStatus>('idle');
+  const [grafanaSaveError, setGrafanaSaveError] = useState('');
+  const [grafanaTesting, setGrafanaTesting] = useState(false);
+  const [grafanaTestResult, setGrafanaTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
   const [duplicates, setDuplicates] = useState<DuplicateGroups | null>(null);
   const [scanningDuplicates, setScanningDuplicates] = useState(false);
   const [duplicatesError, setDuplicatesError] = useState('');
@@ -367,6 +400,7 @@ export default function Admin() {
   // CHANGELOG) — collapsed by default so the page opens short; each stays
   // independently toggleable rather than closing the others.
   const [backupOpen, setBackupOpen] = useState(false);
+  const [grafanaOpen, setGrafanaOpen] = useState(false);
   const [duplicatesToolOpen, setDuplicatesToolOpen] = useState(false);
   const [photoDatesToolOpen, setPhotoDatesToolOpen] = useState(false);
   const [lowResToolOpen, setLowResToolOpen] = useState(false);
@@ -427,6 +461,7 @@ export default function Admin() {
       });
 
     fetchPendingBatches();
+    fetchGrafanaStatus();
 
     const socket: Socket = io({ path: '/socket.io' });
     socket.on('media:new', (item: MediaItem) => setItems((prev) => [...prev, item]));
@@ -831,6 +866,95 @@ export default function Admin() {
     }
   }
 
+  async function fetchGrafanaStatus() {
+    if (!password) return;
+    try {
+      const res = await fetch('/api/admin/grafana/status', { headers: { 'X-Admin-Password': password } });
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+      if (!res.ok) return;
+      const data: GrafanaStatus = await res.json();
+      setGrafanaStatus(data);
+      setGrafanaEnabled(data.enabled);
+      setGrafanaCategoriesState(data.categories);
+      setGrafanaPushIntervalMs(data.pushIntervalMs);
+    } catch {
+      // Non-critical background status — the card just shows nothing new
+      // until the next fetch rather than surfacing a network-error banner.
+    }
+  }
+
+  async function handleSaveGrafanaSettings() {
+    if (!password) return;
+    setGrafanaSaveStatus('saving');
+    setGrafanaSaveError('');
+    try {
+      const res = await fetch('/api/admin/grafana/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body: JSON.stringify({
+          enabled: grafanaEnabled,
+          categories: grafanaCategories,
+          pushIntervalMs: grafanaPushIntervalMs,
+        }),
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setGrafanaSaveStatus('error');
+        setGrafanaSaveError(data.error || 'Could not save');
+        return;
+      }
+
+      setGrafanaStatus(await res.json());
+      setGrafanaSaveStatus('saved');
+    } catch {
+      setGrafanaSaveStatus('error');
+      setGrafanaSaveError('Network error');
+    }
+  }
+
+  async function handleTestGrafana() {
+    if (!password) return;
+    setGrafanaTesting(true);
+    setGrafanaTestResult(null);
+    try {
+      const res = await fetch('/api/admin/grafana/test', {
+        method: 'POST',
+        headers: { 'X-Admin-Password': password },
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      setGrafanaTestResult(
+        res.ok ? { ok: true, message: 'Test event sent successfully.' } : { ok: false, message: data.error || 'Test failed' }
+      );
+      fetchGrafanaStatus();
+    } catch {
+      setGrafanaTestResult({ ok: false, message: 'Network error' });
+    } finally {
+      setGrafanaTesting(false);
+    }
+  }
+
+  function toggleGrafanaCategory(category: GrafanaCategory) {
+    setGrafanaCategoriesState((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+    );
+    setGrafanaSaveStatus('idle');
+  }
+
   async function handleApproveAllPending() {
     if (!password || !pendingBatches || pendingBatches.length === 0) return;
     const total = pendingBatches.reduce((sum, b) => sum + b.items.length, 0);
@@ -991,6 +1115,15 @@ export default function Admin() {
     )} · ${lastBackup.lastBackupItemCount} item${lastBackup.lastBackupItemCount === 1 ? '' : 's'}`;
   }
 
+  function grafanaSummary(): string {
+    if (!grafanaStatus) return 'Not connected';
+    if (!grafanaStatus.configured) return 'Not configured (see GRAFANA.md)';
+    if (!grafanaStatus.enabled) return 'Configured, currently off';
+    if (grafanaStatus.lastError) return `Error: ${grafanaStatus.lastError.slice(0, 60)}`;
+    if (grafanaStatus.lastPushAt) return `Last push ${formatRelativeTime(grafanaStatus.lastPushAt)}`;
+    return 'On — waiting for first push';
+  }
+
   function duplicatesSummary(): string {
     if (!duplicates) return 'Not scanned yet';
     if (duplicates.exact.length === 0 && duplicates.similar.length === 0) return 'No duplicates found';
@@ -1135,6 +1268,13 @@ export default function Admin() {
             />
             Enable Slideshow
           </label>
+          <p className="tagline admin-settings-caption">
+            <a href="/slideshow?preview=1" target="_blank" rel="noopener noreferrer">
+              🔍 Preview slideshow
+            </a>{' '}
+            — opens the real rotation even while disabled above, so you can check it
+            looks right before guests can see it.
+          </p>
 
           <label htmlFor="require-approval-input" className="admin-checkbox-label">
             <input
@@ -1345,6 +1485,107 @@ export default function Admin() {
                 </button>
               </div>
               {backupError && <p className="error-msg">{backupError}</p>}
+            </div>
+          )}
+        </div>
+
+        <div className={`admin-tool ${grafanaOpen ? 'open' : ''}`}>
+          <button type="button" className="admin-tool-header" onClick={() => setGrafanaOpen((o) => !o)}>
+            <span>📊 Grafana Cloud</span>
+            <span className="admin-tool-header-right">
+              <span className="admin-tool-summary">{grafanaSummary()}</span>
+              <Chevron open={grafanaOpen} />
+            </span>
+          </button>
+          {grafanaOpen && (
+            <div className="admin-tool-body">
+              {grafanaStatus && !grafanaStatus.configured && (
+                <p className="tagline admin-settings-caption">
+                  Not configured yet — set <code>GRAFANA_CLOUD_LOKI_URL</code>,{' '}
+                  <code>GRAFANA_CLOUD_LOKI_USER</code>, and <code>GRAFANA_CLOUD_TOKEN</code> as environment
+                  variables on the server and restart it. See{' '}
+                  <a href="https://github.com/g33kde/g33kVault/blob/main/GRAFANA.md" target="_blank" rel="noopener noreferrer">
+                    GRAFANA.md
+                  </a>{' '}
+                  for where to get these from your Grafana Cloud account. This section can't set them for you —
+                  they're deployment config, not a saved setting, same as the admin password.
+                </p>
+              )}
+
+              <label htmlFor="grafana-enabled-input" className="admin-checkbox-label">
+                <input
+                  id="grafana-enabled-input"
+                  type="checkbox"
+                  checked={grafanaEnabled}
+                  disabled={!grafanaStatus?.configured}
+                  onChange={(e) => {
+                    setGrafanaEnabled(e.target.checked);
+                    setGrafanaSaveStatus('idle');
+                  }}
+                />
+                Enable Grafana Cloud reporting
+              </label>
+
+              <p className="tagline admin-settings-caption">What to send:</p>
+              {GRAFANA_CATEGORIES.map((category) => (
+                <label key={category} htmlFor={`grafana-category-${category}`} className="admin-checkbox-label">
+                  <input
+                    id={`grafana-category-${category}`}
+                    type="checkbox"
+                    checked={grafanaCategories.includes(category)}
+                    disabled={!grafanaStatus?.configured}
+                    onChange={() => toggleGrafanaCategory(category)}
+                  />
+                  {GRAFANA_CATEGORY_LABELS[category]}
+                </label>
+              ))}
+
+              <label htmlFor="grafana-interval-input" className="admin-checkbox-label">
+                Push interval
+                <select
+                  id="grafana-interval-input"
+                  value={grafanaPushIntervalMs}
+                  disabled={!grafanaStatus?.configured}
+                  onChange={(e) => {
+                    setGrafanaPushIntervalMs(Number(e.target.value));
+                    setGrafanaSaveStatus('idle');
+                  }}
+                >
+                  {GRAFANA_PUSH_INTERVALS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="admin-backup">
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveGrafanaSettings}
+                  disabled={!grafanaStatus?.configured || grafanaSaveStatus === 'saving'}
+                >
+                  {grafanaSaveStatus === 'saving' ? 'Saving…' : 'Save'}
+                </button>
+                {grafanaSaveStatus === 'saved' && <span className="save-ok">Saved</span>}
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleTestGrafana}
+                  disabled={!grafanaStatus?.configured || grafanaTesting}
+                >
+                  {grafanaTesting ? 'Sending…' : 'Send test event'}
+                </button>
+              </div>
+              {grafanaSaveStatus === 'error' && <p className="error-msg">{grafanaSaveError}</p>}
+              {grafanaTestResult && (
+                <p className={grafanaTestResult.ok ? 'save-ok' : 'error-msg'}>{grafanaTestResult.message}</p>
+              )}
+              {grafanaStatus && grafanaStatus.bufferedCount > 0 && (
+                <p className="tagline admin-settings-caption">
+                  {grafanaStatus.bufferedCount} event{grafanaStatus.bufferedCount === 1 ? '' : 's'} buffered,
+                  waiting to send (offline, or the last push failed).
+                </p>
+              )}
             </div>
           )}
         </div>

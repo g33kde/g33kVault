@@ -1,13 +1,15 @@
 import { Router } from 'express';
-import { getApprovedMedia } from '../db';
+import { getApprovedMedia, getAllMedia } from '../db';
 
-export const statsRouter = Router();
-
-statsRouter.get('/', (_req, res) => {
+// Shared with the Grafana "system" snapshot (see grafana/eventLog.ts /
+// index.ts's snapshot loop) so both compute counts the exact same way —
+// factored out rather than duplicated.
+export function computeStats() {
   const media = getApprovedMedia();
   const photos = media.filter((m) => m.kind === 'image').length;
   const videos = media.filter((m) => m.kind === 'video').length;
   const storageBytes = media.reduce((sum, m) => sum + m.size, 0);
+  const pending = getAllMedia().filter((m) => m.status === 'pending').length;
 
   // Approximate, not a real headcount: the uploader name is optional free
   // text with no identity behind it, normalized (trimmed, lowercased) so
@@ -20,11 +22,18 @@ statsRouter.get('/', (_req, res) => {
       .filter((name): name is string => !!name)
   ).size;
 
-  res.json({
+  return {
     photos,
     videos,
+    pending,
     contributors,
     storageBytes,
     uptimeMs: Math.round(process.uptime() * 1000),
-  });
+  };
+}
+
+export const statsRouter = Router();
+
+statsRouter.get('/', (_req, res) => {
+  res.json(computeStats());
 });

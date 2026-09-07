@@ -7,6 +7,7 @@ import { config } from '../config';
 import { getApprovedMedia, getMediaById, deleteMedia, updateMedia } from '../db';
 import { checkAdminPassword } from '../adminAuth';
 import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
+import { logEvent } from '../grafana/eventLog';
 
 // Formats sharp can re-encode losslessly-ish on this project's own terms.
 // GIF is deliberately excluded — animated-GIF rotation needs per-frame
@@ -81,6 +82,7 @@ export function mediaRouter(io: SocketIOServer) {
         content_hash: await computeContentHash(filePath),
         phash: await computePerceptualHash(filePath),
       });
+      logEvent('moderation', 'photo_rotated', { direction });
       io.emit('media:updated', updated);
       res.json(updated);
     } catch (err) {
@@ -102,6 +104,7 @@ export function mediaRouter(io: SocketIOServer) {
     }
 
     fs.unlink(path.join(config.mediaDir, removed.filename), () => {});
+    logEvent('moderation', 'photo_deleted', { kind: removed.kind });
     io.emit('media:deleted', { id: removed.id });
     res.status(204).end();
   });

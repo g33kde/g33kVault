@@ -2,6 +2,79 @@
 
 ## [Unreleased]
 
+### Grafana Cloud integration
+
+- Optional, off by default: ships upload/access/moderation stats to a Grafana Cloud
+  account via a new "📊 Grafana Cloud" section in `/admin`. Full write-up — what a
+  Grafana account needs to provide (Loki URL, instance ID, API token), the complete
+  event catalog, privacy/cardinality design, and the optional host-metrics-via-Alloy
+  add-on — is in the new **[GRAFANA.md](GRAFANA.md)**.
+- Designed and scoped through an extended back-and-forth before any code: landed on
+  shipping structured JSON logs to Grafana Cloud's Loki push API directly from the app
+  (plain HTTPS, no new dependency — Loki's JSON push API doesn't need the
+  protobuf+snappy encoding Prometheus remote_write requires), queried back as
+  metric-shaped dashboards via LogQL, rather than building a full Prometheus
+  `/metrics` + remote_write pipeline. Optional host-level telemetry (Pi CPU/disk/
+  memory — things the app's own process fundamentally can't see about itself) is a
+  separate, one-time Grafana Alloy sidecar setup (`docker compose --profile
+  monitoring up`), not admin-UI-driven — see GRAFANA.md for why that split.
+- `GRAFANA_CLOUD_LOKI_URL`/`GRAFANA_CLOUD_LOKI_USER`/`GRAFANA_CLOUD_TOKEN` are env-var
+  only, same treatment as `ADMIN_PASSWORD` — never written to `settings.json`. The
+  admin section can toggle the integration, pick which categories to send (Usage &
+  devices / Uploads / System health / Moderation — all independently switchable), set
+  the push interval, and fire a real test push to verify credentials, but can't set or
+  reveal the credentials themselves.
+- Aggregate-only by design, not an opt-in choice: no IP addresses or per-guest/
+  per-session identifiers in any category, ever. Device/browser info is a coarse
+  bucket (mobile/tablet/desktop × iOS/Android/other × Safari/Chrome/Firefox/other),
+  hand-rolled from the User-Agent header rather than adding a parser dependency — only
+  a few buckets were ever needed. Loki stream labels stay to `{app, event_group}`;
+  everything else lives inside each JSON log line's body, queried with LogQL's
+  `| json` — deliberate, to avoid the classic way self-hosted Grafana integrations
+  blow through Grafana Cloud's free-tier active-series limit.
+- Buffer-and-retry for events that fail to send (an event's Wi-Fi may have no internet
+  uplink even though the app itself needs none): a bounded, disk-persisted queue
+  (survives a Pi reboot mid-event), retried on the next push interval, oldest events
+  dropped first if an extended offline stretch fills it.
+- Instrumented: page views on the five real page routes (not a blanket request
+  logger — asset/API/media traffic was never logged), every upload outcome (success
+  with kind/size/format/device, and each rejection reason), a periodic system
+  snapshot (photo/video/pending counts, free disk space on the media volume, live
+  Socket.IO connection count — reusing `/api/stats`'s counting logic rather than
+  duplicating it), and every moderation action (settings changes, rotations,
+  deletions, batch approvals/rejections, duplicate/low-res cleanups, backups). Upload
+  events also now know whether they came from `/upload` or `/booth` — a small
+  `source` field the client now sends, purely for this breakdown.
+- Verified for real, not just by building: ran an actual local mock Loki HTTP server,
+  pointed a real running g33kVault at it, and confirmed end-to-end — the Basic-auth
+  header decoded to the right credentials, a real photo upload and page view produced
+  correctly-shaped JSON log lines (right device/OS classification from a real iPhone
+  User-Agent), the disk-persisted buffer filled and then correctly flushed on the next
+  push-interval tick, and the `/admin` card's checkboxes, save, and "Send test event"
+  button all worked against the real server in a real browser.
+
+### "Preview slideshow" link in /admin, works even while disabled
+
+- A new **"🔍 Preview slideshow"** link sits right under the **Enable Slideshow**
+  toggle in `/admin` — opens `/slideshow?preview=1` in a new tab, which shows the real
+  photo/video rotation even when "Enable Slideshow" is off for everyone else. Lets an
+  admin check the show looks right (new transitions, collage layout, a just-approved
+  batch) before flipping it on for guests, instead of having to enable it first.
+- No new auth check needed for the `?preview=1` bypass: "Enable Slideshow" has always
+  been a pause/display toggle, not an access control (see the existing "Enable
+  Slideshow" README entry) — the same media is already reachable unauthenticated via
+  `/api/media` and `/media/<filename>` regardless of this flag, so nothing new is
+  actually being exposed.
+- When preview mode is genuinely showing something guests currently can't see (i.e.
+  the toggle actually is off), a small amber "🔍 Admin preview — disabled for guests"
+  badge sits in the bottom-left corner — bottom-left specifically so it never collides
+  with the top-center "New Upload" badge. No badge appears once Enable Slideshow is
+  back on, since at that point the preview matches what guests see anyway.
+- Verified for real: installed Playwright locally, ran the actual dev server, turned
+  Enable Slideshow off via the admin API, confirmed plain `/slideshow` still shows
+  "Slideshow is currently disabled" while `/slideshow?preview=1` shows the real photo
+  plus the preview badge, and confirmed the admin page's link points at the right URL.
+
 ### Fix: polaroid transition showed a doubled white background behind the photo
 
 - Reported: in single-photo mode, the "polaroid" transition still showed white

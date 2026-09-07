@@ -144,7 +144,17 @@ function pickTransitionClass(style: TransitionStyle, partyMode: boolean): string
   return style === 'none' ? '' : `t-${style}`;
 }
 
+// `?preview=1` lets an admin open the real rotation from /admin even while
+// "Enable Slideshow" is off for everyone else. No auth check needed here —
+// "Enable Slideshow" is only ever a pause/UX toggle (see README), not an
+// access control: the same media is already reachable unauthenticated via
+// /api/media and /media/<filename> regardless of this flag.
+function isPreviewMode(): boolean {
+  return new URLSearchParams(window.location.search).get('preview') === '1';
+}
+
 export default function Slideshow() {
+  const isPreview = isPreviewMode();
   const [items, setItems] = useState<MediaItem[]>([]);
   const [index, setIndex] = useState(0);
   const [imageDuration, setImageDuration] = useState(DEFAULT_IMAGE_DURATION_MS);
@@ -437,7 +447,7 @@ export default function Slideshow() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id, imageDuration]);
 
-  if (!slideshowEnabled) {
+  if (!slideshowEnabled && !isPreview) {
     return (
       <div className="page slideshow-page slideshow-empty">
         <h1 className="brand">
@@ -450,6 +460,15 @@ export default function Slideshow() {
     );
   }
 
+  // Only shown when preview mode is actually overriding something — i.e.
+  // this view differs from what guests currently see — not on every preview
+  // load, so it doesn't clutter a routine "does this look right" check once
+  // the slideshow is already enabled for real.
+  const previewBadge =
+    isPreview && !slideshowEnabled ? (
+      <div className="slideshow-preview-badge">🔍 Admin preview — disabled for guests</div>
+    ) : null;
+
   if (!current) {
     return (
       <div className="page slideshow-page slideshow-empty">
@@ -459,6 +478,7 @@ export default function Slideshow() {
           </a>
         </h1>
         <p>Waiting for the first upload…</p>
+        {previewBadge}
       </div>
     );
   }
@@ -476,6 +496,7 @@ export default function Slideshow() {
             </div>
           ))}
         </div>
+        {previewBadge}
       </div>
     );
   }
@@ -508,6 +529,7 @@ export default function Slideshow() {
         <div className="slide-uploader-tag">{current.uploader}</div>
       )}
       {showNewUploadBadge && <div className="new-upload-badge">🆕 New Upload</div>}
+      {previewBadge}
     </div>
   );
 }

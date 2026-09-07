@@ -14,6 +14,8 @@ import { extractPhotoTakenAt } from '../photoDate';
 import { archiveKindFor } from '../archiveExtract';
 import { importArchive } from '../importFolder';
 import { getRequireApproval } from '../settings';
+import { logEvent } from '../grafana/eventLog';
+import { classifyUserAgent } from '../grafana/userAgent';
 
 fs.mkdirSync(config.mediaDir, { recursive: true });
 
@@ -72,6 +74,15 @@ function sanitizeUploader(raw: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+// Which page the upload came from — sent by the client (Upload.tsx/
+// Booth.tsx both append a `source` field), just for the "photo booth vs.
+// regular upload" breakdown in Grafana (see GRAFANA.md). Never trusted for
+// anything functional, only for this label — falls back to 'upload' for
+// any older/unrecognized client rather than rejecting the upload over it.
+function sanitizeSource(raw: unknown): 'upload' | 'booth' {
+  return raw === 'booth' ? 'booth' : 'upload';
+}
+
 export function uploadRouter(io: SocketIOServer) {
   const router = Router();
 
@@ -81,9 +92,13 @@ export function uploadRouter(io: SocketIOServer) {
       return;
     }
 
+    const source = sanitizeSource(req.body?.source);
+    const { deviceType, os } = classifyUserAgent(req.header('user-agent'));
+
     if (isAllowedArchiveUpload(req.file.originalname)) {
       if (req.file.size > config.maxArchiveSizeMb * 1024 * 1024) {
         fs.unlink(req.file.path, () => {});
+        logEvent('uploads', 'upload_rejected', { reason: 'archive_too_large', source });
         res.status(400).json({ error: `Archive must be smaller than ${config.maxArchiveSizeMb} MB` });
         return;
       }
@@ -92,6 +107,7 @@ export function uploadRouter(io: SocketIOServer) {
       const batchLabel = req.file.originalname;
       const uploader = sanitizeUploader(req.body?.uploader);
       const archivePath = req.file.path;
+      const archiveSize = req.file.size;
 
       // The guest gets an immediate response — extraction/hashing every
       // photo inside can take a while, and holding a mobile connection open
@@ -99,6 +115,13 @@ export function uploadRouter(io: SocketIOServer) {
       // after the response is sent; any failure is logged, not surfaced to
       // the guest (they've already been told it's received).
       res.status(202).json({ pending: true, batchId });
+      logEvent('uploads', 'upload_completed', {
+        kind: 'archive',
+        size_bytes: archiveSize,
+        source,
+        device_type: deviceType,
+        os,
+      });
       importArchive(archivePath, io, { status: 'pending', batchId, batchLabel, uploader }).catch((err) => {
         console.error(`Failed to process uploaded archive "${batchLabel}":`, err);
       });
@@ -113,12 +136,14 @@ export function uploadRouter(io: SocketIOServer) {
     // the (currently unreachable) case where that check is ever loosened.
     if (!kind) {
       fs.unlink(req.file.path, () => {});
+      logEvent('uploads', 'upload_rejected', { reason: 'unsupported_type', source });
       res.status(400).json({ error: 'Unsupported file type' });
       return;
     }
 
     if (req.file.size > config.maxFileSizeMb * 1024 * 1024) {
       fs.unlink(req.file.path, () => {});
+      logEvent('uploads', 'upload_rejected', { reason: 'file_too_large', source });
       res.status(400).json({ error: `File must be smaller than ${config.maxFileSizeMb} MB` });
       return;
     }
@@ -138,6 +163,7 @@ export function uploadRouter(io: SocketIOServer) {
       } catch (err) {
         console.error('HEIC conversion failed:', err);
         fs.unlink(req.file.path, () => {});
+        logEvent('uploads', 'upload_rejected', { reason: 'heic_conversion_failed', source });
         res.status(400).json({ error: 'Could not process this photo (unsupported HEIC file)' });
         return;
       }
@@ -173,6 +199,15 @@ export function uploadRouter(io: SocketIOServer) {
     };
 
     insertMedia(media);
+    logEvent('uploads', 'upload_completed', {
+      kind,
+      mime_type: mimeType,
+      size_bytes: media.size,
+      source,
+      device_type: deviceType,
+      os,
+      pending: requireApproval,
+    });
     io.emit(requireApproval ? 'media:pending' : 'media:new', media);
 
     res.status(requireApproval ? 202 : 201).json(requireApproval ? { pending: true, batchId: id } : media);

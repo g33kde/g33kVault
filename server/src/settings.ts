@@ -17,6 +17,18 @@ export type TransitionStyle = (typeof TRANSITION_STYLES)[number];
 export const COLLAGE_MODES = ['off', 'always', 'mixed'] as const;
 export type CollageMode = (typeof COLLAGE_MODES)[number];
 
+// What gets shipped to Grafana Cloud when the integration is on — see
+// GRAFANA.md. Each category is independently toggleable so an admin who
+// only cares about, say, upload volume can leave device/access tracking
+// off. "system" covers server-health snapshots (counts, disk space), not
+// host-level telemetry (CPU/temp) — that's Alloy's job, configured
+// separately outside the app (see GRAFANA.md).
+export const GRAFANA_CATEGORIES = ['usage', 'uploads', 'system', 'moderation'] as const;
+export type GrafanaCategory = (typeof GRAFANA_CATEGORIES)[number];
+
+export const GRAFANA_PUSH_INTERVALS_MS = [30_000, 60_000, 300_000] as const;
+export type GrafanaPushIntervalMs = (typeof GRAFANA_PUSH_INTERVALS_MS)[number];
+
 // Each id's required photo count is fixed by its geometry — the slideshow
 // client owns the actual layout/CSS; this list is just what admin settings
 // validate against. See CHANGELOG for the mockup these came from.
@@ -49,6 +61,9 @@ interface Settings {
   collageLayout?: CollageLayout;
   requireApproval?: boolean;
   lastBackup?: BackupInfo;
+  grafanaEnabled?: boolean;
+  grafanaCategories?: GrafanaCategory[];
+  grafanaPushIntervalMs?: GrafanaPushIntervalMs;
 }
 
 fs.mkdirSync(path.dirname(config.settingsPath), { recursive: true });
@@ -170,4 +185,45 @@ export function setLastBackup(info: BackupInfo): BackupInfo {
   settings.lastBackup = info;
   writeSettings(settings);
   return info;
+}
+
+// Off by default even when GRAFANA_CLOUD_* env vars are set — configuring
+// the connection and turning it on are deliberately separate steps (see
+// GRAFANA.md), so setting the env vars alone never starts shipping data.
+export function getGrafanaEnabled(): boolean {
+  return readSettings().grafanaEnabled ?? false;
+}
+
+export function setGrafanaEnabled(value: boolean): boolean {
+  const settings = readSettings();
+  settings.grafanaEnabled = value;
+  writeSettings(settings);
+  return value;
+}
+
+// All four categories on by default once enabled — matches this project's
+// usual "opt out, not opt in" pattern for admin-controlled settings (e.g.
+// shuffle, collage). The aggregate-only design (no per-guest data in any
+// category, ever — see GRAFANA.md) is what makes defaulting to "on" a
+// reasonable choice here rather than something to opt into.
+export function getGrafanaCategories(): GrafanaCategory[] {
+  return readSettings().grafanaCategories ?? [...GRAFANA_CATEGORIES];
+}
+
+export function setGrafanaCategories(value: GrafanaCategory[]): GrafanaCategory[] {
+  const settings = readSettings();
+  settings.grafanaCategories = value;
+  writeSettings(settings);
+  return value;
+}
+
+export function getGrafanaPushIntervalMs(): GrafanaPushIntervalMs {
+  return readSettings().grafanaPushIntervalMs ?? 60_000;
+}
+
+export function setGrafanaPushIntervalMs(value: GrafanaPushIntervalMs): GrafanaPushIntervalMs {
+  const settings = readSettings();
+  settings.grafanaPushIntervalMs = value;
+  writeSettings(settings);
+  return value;
 }

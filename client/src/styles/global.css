@@ -608,6 +608,27 @@ a.upload-url:focus-visible {
   animation: new-upload-badge-kf 5s ease-in-out both;
 }
 
+/* Persistent (no animation) since it's a standing reminder for as long as
+   an admin is looking at a preview that guests can't currently see —
+   bottom-left so it never competes with the top-center New Upload badge. */
+.slideshow-preview-badge {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 0.95rem;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid #ffb84d;
+  background: rgba(40, 26, 5, 0.85);
+  color: #ffb84d;
+  box-shadow: 0 0 20px rgba(255, 184, 77, 0.35);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
 .admin-link {
   color: var(--text-dim);
   font-size: 0.85rem;

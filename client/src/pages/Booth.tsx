@@ -98,6 +98,7 @@ function canvasToFile(canvas: HTMLCanvasElement, name: string): Promise<File> {
 async function uploadFile(file: File, uploader: string): Promise<boolean> {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('source', 'booth');
   if (uploader.trim()) {
     formData.append('uploader', uploader.trim());
   }

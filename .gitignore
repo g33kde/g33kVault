@@ -18,3 +18,7 @@ server/import/
 # (`cd tvos/g33kVaultTV && xcodegen generate`) — not checked in, same idea
 # as not committing a compiled binary.
 tvos/*/*.xcodeproj/
+
+# Real Alloy config holds actual Grafana Cloud credentials (see
+# alloy/config.alloy.example and GRAFANA.md) — never commit it.
+/alloy/config.alloy

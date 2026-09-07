@@ -29,13 +29,24 @@ import {
   setCollageLayout,
   getLastBackup,
   setLastBackup,
+  getGrafanaEnabled,
+  setGrafanaEnabled,
+  getGrafanaCategories,
+  setGrafanaCategories,
+  getGrafanaPushIntervalMs,
+  setGrafanaPushIntervalMs,
   TRANSITION_STYLES,
   TransitionStyle,
   COLLAGE_MODES,
   CollageMode,
   COLLAGE_LAYOUTS,
   CollageLayout,
+  GRAFANA_CATEGORIES,
+  GrafanaCategory,
+  GRAFANA_PUSH_INTERVALS_MS,
+  GrafanaPushIntervalMs,
 } from '../settings';
+import { getGrafanaStatus, sendGrafanaTestEvent, ensureGrafanaPushLoop, logEvent } from '../grafana/eventLog';
 
 const MIN_INTERVAL_MS = 1000;
 const MAX_INTERVAL_MS = 10 * 60 * 1000;
@@ -191,8 +202,73 @@ export function adminRouter(io: SocketIOServer) {
     setRequireApproval(requireApproval);
 
     const updated = currentSettings();
+    logEvent('moderation', 'settings_changed', updated);
     io.emit('config:updated', updated);
     res.json(updated);
+  });
+
+  // See GRAFANA.md. `configured` reflects whether the GRAFANA_CLOUD_* env
+  // vars are set — this route never echoes their actual values back, only
+  // whether they're present, and the live connection status (last
+  // push/error) from eventLog.ts's in-memory state.
+  router.get('/grafana/status', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+    res.json(getGrafanaStatus());
+  });
+
+  router.put('/grafana/settings', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    const { enabled, categories, pushIntervalMs } = req.body ?? {};
+
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+
+    if (
+      !Array.isArray(categories) ||
+      categories.length === 0 ||
+      !categories.every((c) => GRAFANA_CATEGORIES.includes(c))
+    ) {
+      res.status(400).json({ error: `categories must be a non-empty array of: ${GRAFANA_CATEGORIES.join(', ')}` });
+      return;
+    }
+
+    if (!GRAFANA_PUSH_INTERVALS_MS.includes(pushIntervalMs)) {
+      res.status(400).json({ error: `pushIntervalMs must be one of: ${GRAFANA_PUSH_INTERVALS_MS.join(', ')}` });
+      return;
+    }
+
+    setGrafanaEnabled(enabled);
+    setGrafanaCategories(categories as GrafanaCategory[]);
+    setGrafanaPushIntervalMs(pushIntervalMs as GrafanaPushIntervalMs);
+    ensureGrafanaPushLoop();
+
+    res.json(getGrafanaStatus());
+  });
+
+  // A real push, independent of the enabled toggle and the persistent
+  // buffer — lets an admin verify GRAFANA_CLOUD_* credentials actually work
+  // before flipping the integration on for real.
+  router.post('/grafana/test', async (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    const result = await sendGrafanaTestEvent();
+    if (result.ok) {
+      res.json({ ok: true });
+    } else {
+      res.status(502).json({ ok: false, error: result.error });
+    }
   });
 
   // Streams a tar.gz of MEDIA_DIR and the metadata directory straight to the
@@ -240,6 +316,10 @@ export function adminRouter(io: SocketIOServer) {
           lastBackupAt: Date.now(),
           lastBackupSizeBytes: totalBytes,
           lastBackupItemCount: getAllMedia().length,
+        });
+        logEvent('moderation', 'backup_completed', {
+          size_bytes: info.lastBackupSizeBytes,
+          item_count: info.lastBackupItemCount,
         });
         io.emit('config:updated', { ...currentSettings(), lastBackup: info });
       } else {
@@ -342,6 +422,7 @@ export function adminRouter(io: SocketIOServer) {
         io.emit('duplicates:deleteProgress', { current: i + 1, total: removed.length });
       }
 
+      logEvent('moderation', 'duplicates_deleted', { count: removed.length });
       res.json({ deleted: removed.length });
     } catch (err) {
       console.error('Delete-all-duplicates failed:', err);
@@ -460,6 +541,7 @@ export function adminRouter(io: SocketIOServer) {
         io.emit('media:deleted', { id: row.id });
       }
 
+      logEvent('moderation', 'low_resolution_deleted', { count: removed.length });
       res.json({ deleted: removed.length });
     } catch (err) {
       console.error('Delete-all-low-resolution failed:', err);
@@ -534,6 +616,7 @@ export function adminRouter(io: SocketIOServer) {
         io.emit(event, row);
       }
 
+      logEvent('moderation', 'batch_approved', { count: updated.length, via: 'approve_all' });
       res.json({ approved: updated.length });
     } catch (err) {
       console.error('Approving all pending batches failed:', err);
@@ -575,6 +658,7 @@ export function adminRouter(io: SocketIOServer) {
         io.emit(event, row);
       }
 
+      logEvent('moderation', 'batch_approved', { count: updated.length, via: 'single_batch' });
       res.json({ approved: updated.length });
     } catch (err) {
       console.error('Approving pending batch failed:', err);
@@ -609,6 +693,7 @@ export function adminRouter(io: SocketIOServer) {
         fs.unlink(path.join(config.mediaDir, row.filename), () => {});
       }
 
+      logEvent('moderation', 'batch_rejected', { count: removed.length });
       res.json({ rejected: removed.length });
     } catch (err) {
       console.error('Rejecting pending batch failed:', err);

@@ -587,6 +587,9 @@ suit and these commands need adjusting to match.
 | `MAX_ARCHIVE_SIZE_MB`      | `500`                    | Max upload size for a `.zip`/`.tar.gz`/`.rar` (see "Guest-uploaded archives" below) |
 | `SLIDESHOW_INTERVAL_MS`    | `6000`                   | Initial slideshow image duration — see below   |
 | `ADMIN_PASSWORD`           | *(unset)*                | Password for `/admin`; unset disables it entirely |
+| `GRAFANA_CLOUD_LOKI_URL`   | *(unset)*                | Optional — see [GRAFANA.md](GRAFANA.md) |
+| `GRAFANA_CLOUD_LOKI_USER`  | *(unset)*                | Optional — see [GRAFANA.md](GRAFANA.md) |
+| `GRAFANA_CLOUD_TOKEN`      | *(unset)*                | Optional — see [GRAFANA.md](GRAFANA.md) |
 
 Videos play to completion (or their natural length) before advancing; images use the
 slideshow interval — except a freshly uploaded image, which interrupts immediately (see
@@ -610,6 +613,17 @@ off does two things live, no reload needed on either page: `/slideshow` shows "S
 is currently disabled" instead of the normal rotation, and the "Launch Slideshow" button
 on the host page (`/`) turns into plain non-clickable text reading "Slideshow currently
 disabled" in the same spot. Defaults to enabled.
+
+Right below that toggle, **🔍 Preview slideshow** opens `/slideshow?preview=1` — the
+real rotation, even while Enable Slideshow is off — so an admin can check it looks
+right (a new transition, collage layout, a just-approved batch) before turning it on
+for guests. It shows a small "Admin preview — disabled for guests" badge whenever it's
+actually showing something guests currently can't (i.e. the toggle really is off); no
+badge once Enable Slideshow is back on, since the preview then matches what everyone
+else sees. The `?preview=1` bypass isn't behind a password — Enable Slideshow was
+never an access control (the same photos/videos are already reachable
+unauthenticated via `/api/media` and `/media/<filename>` either way), just a
+pause/display toggle, so nothing new is exposed by letting the link skip it.
 
 ## "Now Showing" transitions
 
@@ -845,6 +859,15 @@ reload.
 differences on the same name don't inflate it — not a real headcount, since it's free
 text with no identity behind it and anonymous uploads (no name given) aren't counted at
 all. Good enough as an approximation; not meant to be exact.
+
+## Grafana Cloud integration
+
+Optional — ships upload/access/moderation stats to a Grafana Cloud account for
+dashboards, without needing to SSH in and grep logs yourself. Off by default, and
+needs nothing set up to use g33kVault normally. Configured via env vars plus a
+"📊 Grafana Cloud" section in `/admin` — see **[GRAFANA.md](GRAFANA.md)** for what a
+Grafana tenant/account needs to provide (Loki URL, instance ID, API token), the full
+list of what gets sent, and the privacy/cardinality design behind it.
 
 ## Notes / ideas for later
 

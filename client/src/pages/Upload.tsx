@@ -126,6 +126,7 @@ export default function Upload() {
     for (const file of files) {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('source', 'upload');
       if (uploaderName.trim()) {
         formData.append('uploader', uploaderName.trim());
       }
