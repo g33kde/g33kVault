@@ -2,6 +2,56 @@
 
 ## [Unreleased]
 
+### Fix: polaroid transition showed a doubled white background behind the photo
+
+- Reported: in single-photo mode, the "polaroid" transition still showed white
+  background space behind the image. Root cause: the polaroid CSS (`.t-polaroid
+  .slide`) was written before every single photo got its own permanent white-bordered
+  frame (`.slide-photo-frame`) and gave the `<img>` itself a second background +
+  padding + rotation — nesting one polaroid-style white border inside another. Because
+  only the inner image was animated/rotated, the outer frame stayed static and
+  axis-aligned behind it, showing as a mismatched white box around the rotated photo.
+- Fixed by moving the polaroid animation to `.slide-photo-frame` itself (rotating the
+  whole white-bordered card as one rigid unit, like an actual polaroid) and removing
+  the redundant background/padding/shadow it was redeclaring on the image. Video slides
+  (which have no separate frame wrapper) keep the original self-contained polaroid
+  styling on the `<video>` element, unaffected.
+- Verified for real: installed Playwright locally (found its browser binaries already
+  cached on this machine from earlier work, but the `playwright` npm package itself
+  wasn't a project dependency), ran a real Vite dev server + backend, set
+  `transitionStyle` to `polaroid` via the admin API, uploaded a real test photo, and
+  screenshotted the settled slideshow — one clean rotated white border, and confirmed
+  via `getComputedStyle` that the rotation transform lives on `.slide-photo-frame`
+  while the `<img>` itself has no transform of its own (previously reversed).
+
+### Preload the next slide's photo during the current one
+
+- Reported: single photos sometimes took a few seconds to appear in the slideshow —
+  a big photo's `<img>` only started downloading once it actually became the current
+  slide, so a slow-to-decode/large file showed as a blank stall instead of a clean
+  transition.
+- Fixed by warming the browser's cache one slide early: while the current slide is
+  showing, a throwaway `new Image()` is pointed at the *next* slide's URL, so it has
+  the current slide's whole duration to finish downloading in the background before
+  it's actually displayed — by the time `advance()` swaps in the real `<img>`, the
+  browser typically already has it cached.
+- Scoped deliberately narrow for this first pass (asked the user, who confirmed):
+  only the plain single-photo case is preloaded — the exact case that was reported
+  slow. Videos aren't preloaded (they stream progressively, so prefetching the whole
+  file isn't the same win a decoded image gets), and a collage's tiles beyond the
+  first aren't specifically covered (predicting a collage's full photo set ahead of
+  time would mean duplicating the layout-picking/mixed-mode-counter logic without
+  actually running it — real added complexity for a case that wasn't reported as
+  slow). A collage's first tile still benefits, since it shares the same array
+  position as an ordinary next-slide preload.
+- No test framework or browser automation is set up in this project yet (see
+  CLAUDE.md), so this was verified by build/typecheck passing and a careful trace of
+  the effect's dependency/ref-sync ordering (confirmed `indexRef`/`itemsRef` are
+  synced before this effect runs each commit) rather than a live network-tab
+  capture — worth a quick manual check in DevTools' Network tab after deploying
+  (filter by `/media/`, watch for the next photo's request starting before the
+  current slide's timer fires).
+
 ### Native Apple TV app (`tvos/g33kVaultTV/`)
 
 - Asked to scope out an iOS/Apple TV app; started with Apple TV. The original plan was

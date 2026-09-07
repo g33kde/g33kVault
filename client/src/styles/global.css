@@ -375,7 +375,21 @@ a.upload-url:focus-visible {
     transform: translateY(0) rotate(-2deg);
   }
 }
-.t-polaroid .slide {
+/* A single photo already sits inside .slide-photo-frame — the permanent
+   white-bordered frame every photo gets (see the comment above it) — so
+   animate THAT wrapper as one rigid card rather than the <img> alone.
+   Redeclaring a second background/padding/shadow here (as this rule used
+   to) gave the image its own polaroid border nested inside the frame's
+   already-white border: a doubled white "matting" that stayed put, static,
+   while just the inner image slid/rotated — reported as "a white
+   background behind the image" in polaroid mode specifically. */
+.t-polaroid .slide-photo-frame {
+  animation: t-polaroid-kf 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+/* Video has no .slide-photo-frame wrapper (only photos get one), so it
+   keeps the original self-contained look: its own thick white "polaroid"
+   border animated directly on the <video> element. */
+.t-polaroid video.slide {
   animation: t-polaroid-kf 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   width: auto;
   height: auto;

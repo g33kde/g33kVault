@@ -407,6 +407,26 @@ export default function Slideshow() {
       // a solo video (no collage) advances via onEnded, no timer.
     }
 
+    // Preload the next slide's image while this one is still showing, so a
+    // large photo has this slide's whole duration to download instead of
+    // starting cold when it actually becomes current — that gap is what was
+    // reported as a multi-second stall on big photos. Deliberately simple:
+    // just the very next item by array position (using the step this slide
+    // just set, so it's right even after a collage), not a full simulation
+    // of the next collage pick — videos aren't preloaded (they stream
+    // progressively, unlike a decoded image, so prefetching the whole file
+    // isn't the same win) and a collage's tiles past the first aren't
+    // covered, but this is exactly the single-photo case that was slow.
+    const nextItems = itemsRef.current;
+    if (nextItems.length > 0) {
+      const nextStep = slideStepRef.current || 1;
+      const nextItem = nextItems[(indexRef.current + nextStep) % nextItems.length];
+      if (nextItem && nextItem.kind === 'image') {
+        const preload = new Image();
+        preload.src = `/media/${nextItem.filename}?v=${nextItem.size}`;
+      }
+    }
+
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
