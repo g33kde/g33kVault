@@ -184,19 +184,22 @@ pattern is opening it in Grafana afterward and looking at how each panel is conf
 
 ### Ready-made dashboard
 
-[`grafana/dashboard.json`](grafana/dashboard.json) in this repo is a complete,
-importable dashboard covering every category above: uploads over time, rejection
-reasons, bytes uploaded, page views by route, device/browser/OS breakdowns, live
-stat tiles for current photo/video/pending counts and free disk space, and a raw
-moderation activity log.
+[`grafana/dashboard.json`](grafana/dashboard.json) in this repo is a complete
+dashboard covering every category above: uploads over time, rejection reasons, bytes
+uploaded, page views by route, device/browser/OS breakdowns, live stat tiles for
+current photo/video/pending counts and free disk space, and a raw moderation activity
+log — refined and confirmed working directly in Grafana Cloud (thresholds on the stat
+tiles, `| __error__=""` filtering on the LogQL queries, panel descriptions), then
+re-exported into this file in Grafana Cloud's own dashboard schema.
 
-**Dashboards → New → Import**, paste the contents of that file (or upload it directly),
-and when prompted, point its one input ("Loki") at your Grafana Cloud Loki data source.
-
-This hasn't been test-imported against a live Grafana Cloud instance (nothing in this
-session has one) — the queries match the exact event schema above and the JSON is
-structurally valid, but if a panel looks wrong after importing, say which one and it's
-a quick fix.
+**Dashboards → New → Import**, paste the contents of that file (or upload it directly).
+Unlike a hand-built exportable dashboard, this one doesn't prompt you to pick a data
+source on import — it's wired to whichever Loki data source is named
+**`grafanacloud-logs`** in your stack, which is the name Grafana Cloud auto-provisions
+by default, so this works as-is for most stacks. If yours is named something else (a
+renamed or additional Loki data source), either rename it to match, or find/replace
+`"grafanacloud-logs"` with your data source's actual name in the JSON before
+importing.
 
 ## Optional: host-level metrics via Grafana Alloy
 

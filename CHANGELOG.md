@@ -56,10 +56,14 @@
   category — uploads over time, rejection reasons, bytes uploaded, page views by
   route, device/browser/OS breakdowns, stat tiles for current photo/pending counts and
   free disk space, and a raw moderation activity log — plus a "building one by hand"
-  walkthrough in GRAFANA.md for going beyond it. Unlike the rest of this feature, this
-  wasn't verified against a live Grafana instance (none available this session) — the
-  queries match the app's actual event schema and the JSON is structurally valid, but
-  flagged as untested-by-import in the docs.
+  walkthrough in GRAFANA.md for going beyond it. The original version was written
+  without a live Grafana instance to test against; the project owner then imported it
+  for real, refined the panels directly in Grafana Cloud (thresholds, LogQL error
+  filtering, descriptions), and re-exported it into the repo in Grafana Cloud's own
+  dashboard schema — now confirmed working, not just structurally valid. It's wired to
+  a data source literally named `grafanacloud-logs` (Grafana Cloud's auto-provisioned
+  default) rather than prompting on import; see GRAFANA.md if yours is named
+  differently.
 
 ### "Preview slideshow" link in /admin, works even while disabled
 
