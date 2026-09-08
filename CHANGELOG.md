@@ -6,12 +6,16 @@
 
 - Every Loki stream now carries an `instance` label, so two (or twenty) g33kVault
   deployments pushing to the same Grafana Cloud account no longer produce
-  indistinguishable, silently-combined logs. Auto-generated (a short random id) and
-  persisted on first use — a VM nobody's configured this on is still permanently
-  distinguishable from every other one, never silently mixed. Overridable with a
-  friendly name (`office-lobby`, `sarahs-wedding`) via a new **Instance name** field in
-  `/admin`'s "📊 Grafana Cloud" section; clearing it falls back to a fresh
-  auto-generated id rather than an empty label.
+  indistinguishable, silently-combined logs. Auto-generated from the host's own
+  hostname plus a random number (e.g. `raspberrypi-482913`) and persisted on first
+  use — a VM nobody's configured this on is still permanently distinguishable from
+  every other one, never silently mixed, and at least somewhat recognizable at a
+  glance rather than a pure random string. (Inside a plain `docker compose up` with no
+  `hostname:` set, this ends up built from Docker's own opaque container id instead —
+  set `hostname:` per deployment, or just use the override below, if that matters.)
+  Overridable with a friendly name (`office-lobby`, `sarahs-wedding`) via a new
+  **Instance name** field in `/admin`'s "📊 Grafana Cloud" section; clearing it falls
+  back to a fresh auto-generated id rather than an empty label.
 - `alloy/config.alloy.example` gained an `external_labels { instance = "..." }` block
   for the same reason on the host-metrics side — without it, multiple VMs' Alloy host
   metrics would collide in Prometheus the same way logs would have. Set to the same

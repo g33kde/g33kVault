@@ -257,14 +257,20 @@ dashboard panel silently sums all of them together.
 **The fix is one more label: `instance`.** Every Loki stream g33kVault pushes now
 carries it automatically. Where the value comes from:
 
-- The first time anything reads it, g33kVault generates a short random id (e.g.
-  `a3f9c1`) and **persists it** in `settings.json` — so even a VM nobody's touched this
-  setting on is still permanently distinguishable from every other one. It's never
-  silently regenerated after that.
+- The first time anything reads it, g33kVault generates one from the host's own
+  hostname plus a random number (e.g. `raspberrypi-482913`) and **persists it** in
+  `settings.json` — so even a VM nobody's touched this setting on is still
+  permanently distinguishable from every other one, and at least somewhat
+  recognizable at a glance. It's never silently regenerated after that.
+  In a plain `docker compose up` with no `hostname:` set, this ends up built from
+  Docker's own opaque container id instead of anything meaningful — set `hostname:`
+  in `docker-compose.yml` per deployment if you want the auto-generated form to
+  actually be readable, or just use the override below instead.
 - `/admin` → "📊 Grafana Cloud" has an **Instance name** field to override it with
   something readable (`office-lobby`, `sarahs-wedding-oct-2026`) — much more useful
-  than a random id once you're looking at a list of instances in Grafana. Clearing the
-  field goes back to the auto-generated one rather than an empty label.
+  than the auto-generated form once you're looking at a list of instances in Grafana.
+  Clearing the field goes back to a freshly auto-generated one rather than an empty
+  label.
 - Still low-cardinality and safe under the [cardinality](#privacy) rule above — one
   label value per *deployment* (a handful, realistically), not per-event.
 

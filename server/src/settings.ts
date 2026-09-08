@@ -1,6 +1,7 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
-import { randomBytes } from 'crypto';
+import { randomInt } from 'crypto';
 import { config } from './config';
 
 export const TRANSITION_STYLES = [
@@ -232,6 +233,19 @@ export function setGrafanaPushIntervalMs(value: GrafanaPushIntervalMs): GrafanaP
 
 const MAX_INSTANCE_LABEL_LENGTH = 60;
 
+// Loki labels tolerate arbitrary UTF-8, but a raw hostname can carry dots
+// (an FQDN), underscores, or mixed case — lowercased/hyphenated here purely
+// for readability in a Grafana dropdown, matching the style of an
+// admin-chosen friendly name. Capped well under MAX_INSTANCE_LABEL_LENGTH
+// so there's always room left for the "-123456" suffix below.
+function slugifyHostname(hostname: string): string {
+  const slug = hostname
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug.slice(0, 40) || 'host';
+}
+
 // Distinguishes this g33kVault install's logs from any other one pushing to
 // the same Grafana Cloud account (see GRAFANA.md's "Running multiple
 // instances") — every Loki stream carries this as its `instance` label.
@@ -239,11 +253,19 @@ const MAX_INSTANCE_LABEL_LENGTH = 60;
 // nobody's configured this on still never silently mixes its data with
 // another instance's; an admin can override it with something more
 // readable any time via the /admin "Grafana Cloud" section.
+//
+// Built from the host's own hostname plus a random number rather than a
+// pure random id, so it's at least somewhat recognizable at a glance —
+// though note that inside a plain `docker compose up` (no explicit
+// `hostname:` set), os.hostname() resolves to Docker's own opaque
+// container id, not anything meaningful; set `hostname:` in
+// docker-compose.yml per deployment, or just use the admin-settable
+// friendly name below, if that matters to you.
 export function getGrafanaInstanceLabel(): string {
   const settings = readSettings();
   if (settings.grafanaInstanceLabel) return settings.grafanaInstanceLabel;
 
-  const generated = randomBytes(3).toString('hex');
+  const generated = `${slugifyHostname(os.hostname())}-${randomInt(100_000, 999_999)}`;
   settings.grafanaInstanceLabel = generated;
   writeSettings(settings);
   return generated;
