@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Select individual photos in Pending Uploads
+
+- Each pending thumbnail now has a small checkbox badge in its corner (a dedicated
+  button, not "click anywhere on the thumbnail" — pending items include videos with
+  native `<video controls>`, which need their own clicks to work, so keeping
+  selection to one consistent target avoids fighting that). A "Select all"/"Clear
+  selection" link sits in each batch's header for picking most-but-not-all quickly.
+- "Approve All (N)"/"Reject All (N)" switch to "Approve Selected (N)"/"Reject Selected
+  (N)" the moment 1+ items are checked (asked the user which of two designs — this
+  one, over adding separate dedicated buttons — to avoid button clutter), reverting to
+  "All" wording at zero or fully-selected. Selection is scoped per batch — batches act
+  independently, no cross-batch selection pool.
+- New backend support: `POST /pending-batches/:batchId/approve` and `.../reject` now
+  accept an optional `{ ids: [...] }` body to target a specific subset instead of
+  every pending item in the batch — recomputed against the batch's own current
+  pending items either way, never trusting a client-supplied id list wholesale (a
+  requested id that isn't actually a pending member of that batch is silently
+  dropped). Omitting `ids` (or the whole body) keeps the exact old "act on everything"
+  behavior, so nothing about the existing "Approve All"/"Reject All"/top-level
+  "Approve All Pending" buttons changed.
+- A batch with some, but not all, of its items actioned stays visible with the
+  remaining ones and an updated count — same "only disappears once empty" rule as
+  before, just now reachable via a partial action too, not only a full one.
+- Verified for real: uploaded a real 4-photo archive, selected 2 of 4 via the actual
+  browser UI, confirmed the button labels and confirmation dialog updated correctly,
+  approved just those 2 and confirmed via a fresh API fetch that exactly those 2 (not
+  the other 2) ended up `approved` while the rest correctly stayed `pending` in the
+  batch — then repeated the same real check for a partial reject.
+
 ### Running multiple g33kVault instances against one Grafana Cloud account
 
 - Every Loki stream now carries an `instance` label, so two (or twenty) g33kVault

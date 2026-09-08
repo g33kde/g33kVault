@@ -925,6 +925,15 @@ a.upload-url:focus-visible {
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
 }
+.pending-batch-select-all {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
 
 .admin-grid {
   display: grid;
@@ -939,6 +948,42 @@ a.upload-url:focus-visible {
   overflow: hidden;
   border-radius: 8px;
   background: var(--panel);
+}
+/* Only in Pending Uploads — a separate outline (not just a background
+   tint) since a selected thumbnail otherwise looks nearly identical to an
+   unselected one against the dark theme. */
+.admin-thumb.selectable.selected {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+/* A dedicated checkbox button, not "click anywhere on the thumbnail" —
+   video items already use native <video controls>, which needs its own
+   clicks to work (play/scrub); keeping selection to one small, consistent
+   target avoids fighting that on video thumbnails while behaving the same
+   way for photos too. Always visible (not hover-only) since this is used
+   from touch devices as much as a desktop. */
+.admin-thumb-select {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  background: rgba(0, 0, 0, 0.45);
+  color: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.admin-thumb-select.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #05170c;
 }
 .admin-thumb a,
 .admin-thumb-open-btn {

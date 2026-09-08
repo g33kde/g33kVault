@@ -397,6 +397,10 @@ export default function Admin() {
   const [rejectingBatchId, setRejectingBatchId] = useState<string | null>(null);
   const [approvingAll, setApprovingAll] = useState(false);
   const [batchActionError, setBatchActionError] = useState('');
+  // Which pending photo ids are checked, per batch — a batch with no entry
+  // (or an empty Set) here means "nothing hand-picked," so Approve/Reject
+  // fall back to acting on the whole batch, same as before this feature.
+  const [pendingSelection, setPendingSelection] = useState<Record<string, Set<string>>>({});
 
   // The occasional-use maintenance tools collapse into accordion rows (see
   // CHANGELOG) — collapsed by default so the page opens short; each stays
@@ -1004,13 +1008,53 @@ export default function Admin() {
     }
   }
 
+  function toggleThumbSelection(batchId: string, itemId: string) {
+    setPendingSelection((prev) => {
+      const current = prev[batchId] ?? new Set<string>();
+      const next = new Set(current);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return { ...prev, [batchId]: next };
+    });
+  }
+
+  function toggleSelectAllInBatch(batch: PendingBatch) {
+    setPendingSelection((prev) => {
+      const current = prev[batch.batchId] ?? new Set<string>();
+      const allSelected = current.size === batch.items.length;
+      return { ...prev, [batch.batchId]: allSelected ? new Set() : new Set(batch.items.map((i) => i.id)) };
+    });
+  }
+
+  // After either action removes items from a batch — whether all of it or
+  // just a selected subset — drop just those items from local state
+  // (dropping the whole batch entry once nothing's left in it, same as the
+  // old always-whole-batch behavior) and clear its now-stale selection.
+  function removeActionedItems(batchId: string, actionedIds: Set<string>) {
+    setPendingBatches((prev) =>
+      prev
+        ? prev
+            .map((b) => (b.batchId === batchId ? { ...b, items: b.items.filter((i) => !actionedIds.has(i.id)) } : b))
+            .filter((b) => b.items.length > 0)
+        : prev
+    );
+    setPendingSelection((prev) => {
+      const { [batchId]: _removed, ...rest } = prev;
+      return rest;
+    });
+  }
+
   async function handleApproveBatch(batch: PendingBatch) {
     if (!password) return;
+    const selected = pendingSelection[batch.batchId];
+    const isPartial = !!selected && selected.size > 0 && selected.size < batch.items.length;
+    const targetIds = isPartial ? [...selected] : batch.items.map((i) => i.id);
+
     if (
       !window.confirm(
-        `Approve ${batch.items.length} photo${batch.items.length === 1 ? '' : 's'} from "${
-          batch.batchLabel
-        }"? They'll start appearing in the slideshow.`
+        `Approve ${targetIds.length} photo${targetIds.length === 1 ? '' : 's'}${
+          isPartial ? ' (selected)' : ''
+        } from "${batch.batchLabel}"? They'll start appearing in the slideshow.`
       )
     ) {
       return;
@@ -1021,7 +1065,8 @@ export default function Admin() {
     try {
       const res = await fetch(`/api/admin/pending-batches/${batch.batchId}/approve`, {
         method: 'POST',
-        headers: { 'X-Admin-Password': password },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body: JSON.stringify(isPartial ? { ids: targetIds } : {}),
       });
 
       if (res.status === 401) {
@@ -1035,7 +1080,7 @@ export default function Admin() {
         return;
       }
 
-      setPendingBatches((prev) => (prev ? prev.filter((b) => b.batchId !== batch.batchId) : prev));
+      removeActionedItems(batch.batchId, new Set(targetIds));
     } catch {
       setBatchActionError('Network error');
     } finally {
@@ -1045,10 +1090,14 @@ export default function Admin() {
 
   async function handleRejectBatch(batch: PendingBatch) {
     if (!password) return;
+    const selected = pendingSelection[batch.batchId];
+    const isPartial = !!selected && selected.size > 0 && selected.size < batch.items.length;
+    const targetIds = isPartial ? [...selected] : batch.items.map((i) => i.id);
+
     if (
       !window.confirm(
-        `Reject and permanently delete ${batch.items.length} photo${
-          batch.items.length === 1 ? '' : 's'
+        `Reject and permanently delete ${targetIds.length} photo${targetIds.length === 1 ? '' : 's'}${
+          isPartial ? ' (selected)' : ''
         } from "${batch.batchLabel}"? This cannot be undone.`
       )
     ) {
@@ -1060,7 +1109,8 @@ export default function Admin() {
     try {
       const res = await fetch(`/api/admin/pending-batches/${batch.batchId}/reject`, {
         method: 'POST',
-        headers: { 'X-Admin-Password': password },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body: JSON.stringify(isPartial ? { ids: targetIds } : {}),
       });
 
       if (res.status === 401) {
@@ -1074,7 +1124,7 @@ export default function Admin() {
         return;
       }
 
-      setPendingBatches((prev) => (prev ? prev.filter((b) => b.batchId !== batch.batchId) : prev));
+      removeActionedItems(batch.batchId, new Set(targetIds));
     } catch {
       setBatchActionError('Network error');
     } finally {
@@ -1420,51 +1470,81 @@ export default function Admin() {
                       : `✅ Approve All Pending (${pendingBatches.reduce((sum, b) => sum + b.items.length, 0)})`}
                   </button>
                   <div className="pending-batches">
-                    {pendingBatches.map((batch) => (
-                    <div key={batch.batchId} className="pending-batch">
-                      <div className="pending-batch-header">
-                        <div className="pending-batch-info">
-                          <span className="pending-batch-label">{batch.batchLabel}</span>
-                          <span className="tagline">
-                            {batch.items.length} photo{batch.items.length === 1 ? '' : 's'}
-                            {batch.uploader ? ` · from ${batch.uploader}` : ''} ·{' '}
-                            {formatRelativeTime(batch.createdAt)}
-                          </span>
-                        </div>
-                        <div className="pending-batch-actions">
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => handleApproveBatch(batch)}
-                            disabled={approvingBatchId === batch.batchId || rejectingBatchId === batch.batchId}
-                          >
-                            {approvingBatchId === batch.batchId
-                              ? 'Approving…'
-                              : `✅ Approve All (${batch.items.length})`}
-                          </button>
-                          <button
-                            className="btn btn-danger"
-                            onClick={() => handleRejectBatch(batch)}
-                            disabled={approvingBatchId === batch.batchId || rejectingBatchId === batch.batchId}
-                          >
-                            {rejectingBatchId === batch.batchId
-                              ? 'Rejecting…'
-                              : `🗑 Reject All (${batch.items.length})`}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="admin-grid">
-                        {batch.items.map((item) => (
-                          <div key={item.id} className="admin-thumb">
-                            {item.kind === 'video' ? (
-                              <video src={`/media/${item.filename}`} controls muted playsInline />
-                            ) : (
-                              <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
-                            )}
+                    {pendingBatches.map((batch) => {
+                      const selected = pendingSelection[batch.batchId] ?? new Set<string>();
+                      // A selection only changes what the buttons do once it's a genuine
+                      // subset — selecting literally everything behaves the same as
+                      // selecting nothing, both mean "the whole batch."
+                      const isPartial = selected.size > 0 && selected.size < batch.items.length;
+                      const actionCount = isPartial ? selected.size : batch.items.length;
+                      const busy = approvingBatchId === batch.batchId || rejectingBatchId === batch.batchId;
+                      return (
+                        <div key={batch.batchId} className="pending-batch">
+                          <div className="pending-batch-header">
+                            <div className="pending-batch-info">
+                              <span className="pending-batch-label">{batch.batchLabel}</span>
+                              <span className="tagline">
+                                {batch.items.length} photo{batch.items.length === 1 ? '' : 's'}
+                                {batch.uploader ? ` · from ${batch.uploader}` : ''} ·{' '}
+                                {formatRelativeTime(batch.createdAt)}
+                              </span>
+                              {batch.items.length > 1 && (
+                                <button
+                                  type="button"
+                                  className="pending-batch-select-all"
+                                  onClick={() => toggleSelectAllInBatch(batch)}
+                                >
+                                  {selected.size === batch.items.length ? 'Clear selection' : 'Select all'}
+                                </button>
+                              )}
+                            </div>
+                            <div className="pending-batch-actions">
+                              <button
+                                className="btn btn-primary"
+                                onClick={() => handleApproveBatch(batch)}
+                                disabled={busy}
+                              >
+                                {approvingBatchId === batch.batchId
+                                  ? 'Approving…'
+                                  : `✅ Approve ${isPartial ? 'Selected' : 'All'} (${actionCount})`}
+                              </button>
+                              <button
+                                className="btn btn-danger"
+                                onClick={() => handleRejectBatch(batch)}
+                                disabled={busy}
+                              >
+                                {rejectingBatchId === batch.batchId
+                                  ? 'Rejecting…'
+                                  : `🗑 Reject ${isPartial ? 'Selected' : 'All'} (${actionCount})`}
+                              </button>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                          <div className="admin-grid">
+                            {batch.items.map((item) => {
+                              const itemSelected = selected.has(item.id);
+                              return (
+                                <div key={item.id} className={`admin-thumb selectable ${itemSelected ? 'selected' : ''}`}>
+                                  <button
+                                    type="button"
+                                    className={`admin-thumb-select ${itemSelected ? 'selected' : ''}`}
+                                    onClick={() => toggleThumbSelection(batch.batchId, item.id)}
+                                    aria-label={itemSelected ? 'Deselect photo' : 'Select photo'}
+                                    aria-pressed={itemSelected}
+                                  >
+                                    {itemSelected ? '✓' : ''}
+                                  </button>
+                                  {item.kind === 'video' ? (
+                                    <video src={`/media/${item.filename}`} controls muted playsInline />
+                                  ) : (
+                                    <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               )}

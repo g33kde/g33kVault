@@ -634,13 +634,31 @@ export function adminRouter(io: SocketIOServer) {
     }
   });
 
-  // Flips every photo in the batch to approved in one write, so it starts
+  // Which pending items in a batch a request actually targets — every item
+  // (the plain "Approve All"/"Reject All" case, req.body empty/omitted), or
+  // just an admin-picked subset (the "Approve Selected"/"Reject Selected"
+  // case, req.body.ids). Recomputed against the batch's own current pending
+  // items either way rather than trusting the client's list wholesale — a
+  // requested id that isn't actually a pending member of this batch (stale
+  // client state, or someone poking the API directly) is silently dropped,
+  // never lets a request reach outside the batch it named.
+  function resolveBatchTargetIds(batchId: string, requestedIds: unknown): Set<string> {
+    const batchItems = getAllMedia().filter((m) => m.status === 'pending' && m.batchId === batchId);
+    if (!Array.isArray(requestedIds) || requestedIds.length === 0) {
+      return new Set(batchItems.map((m) => m.id));
+    }
+    const batchItemIds = new Set(batchItems.map((m) => m.id));
+    return new Set(requestedIds.filter((id): id is string => typeof id === 'string' && batchItemIds.has(id)));
+  }
+
+  // Flips the targeted photo(s) to approved in one write, so they start
   // showing up in the public gallery/slideshow and the admin gallery grid.
-  // A batch of exactly one item — a single web-upload held for approval
-  // (requireApproval setting), or the rare one-photo archive — gets the
-  // normal 'media:new' treatment, the same "New Upload" highlight it would
-  // have gotten if approval had been off; a real multi-photo batch instead
-  // gets the quieter 'media:approved' per item, since dozens of disruptive
+  // Exactly one item approved — a single web-upload held for approval
+  // (requireApproval setting), the rare one-photo archive, or an admin
+  // selecting just one photo out of a bigger batch — gets the normal
+  // 'media:new' treatment, the same "New Upload" highlight it would have
+  // gotten if approval had been off; more than one instead gets the
+  // quieter 'media:approved' per item, since dozens of disruptive
   // highlights back to back for one approved archive would be worse than
   // no highlight at all.
   router.post('/pending-batches/:batchId/approve', (req, res) => {
@@ -651,11 +669,7 @@ export function adminRouter(io: SocketIOServer) {
 
     try {
       const { batchId } = req.params;
-      const ids = new Set(
-        getAllMedia()
-          .filter((m) => m.status === 'pending' && m.batchId === batchId)
-          .map((m) => m.id)
-      );
+      const ids = resolveBatchTargetIds(batchId, req.body?.ids);
 
       if (ids.size === 0) {
         res.status(404).json({ error: 'Batch not found (already reviewed?)' });
@@ -668,7 +682,10 @@ export function adminRouter(io: SocketIOServer) {
         io.emit(event, row);
       }
 
-      logEvent('moderation', 'batch_approved', { count: updated.length, via: 'single_batch' });
+      logEvent('moderation', 'batch_approved', {
+        count: updated.length,
+        via: Array.isArray(req.body?.ids) && req.body.ids.length > 0 ? 'selected' : 'single_batch',
+      });
       res.json({ approved: updated.length });
     } catch (err) {
       console.error('Approving pending batch failed:', err);
@@ -676,7 +693,7 @@ export function adminRouter(io: SocketIOServer) {
     }
   });
 
-  // Permanently deletes every photo in the batch — files and metadata rows
+  // Permanently deletes the targeted photo(s) — files and metadata rows
   // both — same as any other delete in this app: immediate, no separate
   // trash/quarantine step.
   router.post('/pending-batches/:batchId/reject', (req, res) => {
@@ -687,11 +704,7 @@ export function adminRouter(io: SocketIOServer) {
 
     try {
       const { batchId } = req.params;
-      const ids = new Set(
-        getAllMedia()
-          .filter((m) => m.status === 'pending' && m.batchId === batchId)
-          .map((m) => m.id)
-      );
+      const ids = resolveBatchTargetIds(batchId, req.body?.ids);
 
       if (ids.size === 0) {
         res.status(404).json({ error: 'Batch not found (already reviewed?)' });
@@ -703,7 +716,10 @@ export function adminRouter(io: SocketIOServer) {
         fs.unlink(path.join(config.mediaDir, row.filename), () => {});
       }
 
-      logEvent('moderation', 'batch_rejected', { count: removed.length });
+      logEvent('moderation', 'batch_rejected', {
+        count: removed.length,
+        via: Array.isArray(req.body?.ids) && req.body.ids.length > 0 ? 'selected' : 'single_batch',
+      });
       res.json({ rejected: removed.length });
     } catch (err) {
       console.error('Rejecting pending batch failed:', err);

@@ -737,6 +737,11 @@ live slideshow:
   individually — same quiet-vs-highlighted rule, just judged across everything it
   approves in one click rather than per batch, so approving a pile of individually
   pending photos this way doesn't fire off a highlight for each one.
+- Don't want the whole batch? Click the small checkbox badge on individual thumbnails
+  (a "Select all" link in the batch header picks most-but-not-all quickly) — the
+  buttons switch to **Approve Selected**/**Reject Selected** the moment anything's
+  checked, acting on just those instead of the whole batch. A batch with some, but not
+  all, of its items actioned stays in the list with whatever's left.
 - Until approved, a pending photo doesn't count toward anything public — not the
   slideshow, not the Event Statistics panel, not the admin's other review tools
   (duplicate/photo-date/low-resolution scans all work on approved photos only).
