@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+### Running multiple g33kVault instances against one Grafana Cloud account
+
+- Every Loki stream now carries an `instance` label, so two (or twenty) g33kVault
+  deployments pushing to the same Grafana Cloud account no longer produce
+  indistinguishable, silently-combined logs. Auto-generated (a short random id) and
+  persisted on first use — a VM nobody's configured this on is still permanently
+  distinguishable from every other one, never silently mixed. Overridable with a
+  friendly name (`office-lobby`, `sarahs-wedding`) via a new **Instance name** field in
+  `/admin`'s "📊 Grafana Cloud" section; clearing it falls back to a fresh
+  auto-generated id rather than an empty label.
+- `alloy/config.alloy.example` gained an `external_labels { instance = "..." }` block
+  for the same reason on the host-metrics side — without it, multiple VMs' Alloy host
+  metrics would collide in Prometheus the same way logs would have. Set to the same
+  value as that VM's g33kVault instance name to correlate a host metric with an app log
+  from the same machine.
+- `grafana/dashboard.json` gained a new **"Uploads by instance"** panel (works
+  standalone, no setup needed) for a side-by-side comparison across VMs/events. Making
+  the *rest* of the dashboard's panels instance-filterable needs one manual step in
+  Grafana Cloud's UI (adding an `instance` template variable + appending
+  `instance=~"$instance"` to each panel's query) — documented step-by-step in
+  GRAFANA.md's new "Running multiple instances" section, deliberately not hand-edited
+  into the JSON here: the dashboard's newer schema (`dashboard.grafana.app/v2`) isn't
+  something worth guessing at blindly and risking the already-tuned, working dashboard
+  over.
+- Verified for real: ran a local mock Loki server, confirmed the auto-generated label
+  appears correctly in pushed payloads, confirmed an admin-set custom label persists
+  and takes effect on the next push, confirmed clearing it falls back to a fresh
+  generated id, and confirmed the `/admin` field itself saves and survives a page
+  reload in a real browser.
+
 ### Grafana Cloud integration
 
 - Optional, off by default: ships upload/access/moderation stats to a Grafana Cloud

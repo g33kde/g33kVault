@@ -27,6 +27,17 @@ prometheus.scrape "host" {
 }
 
 prometheus.remote_write "grafana_cloud" {
+  // Only matters if more than one machine ever pushes to the same Grafana
+  // Cloud stack — without this, every VM's host metrics report under the
+  // same generic instance label and collide/overwrite each other in
+  // Prometheus. Set this to the SAME value as this VM's g33kVault
+  // "Instance name" (/admin → Grafana Cloud), so a host metric and an app
+  // log from the same machine carry matching labels. See GRAFANA.md's
+  // "Running multiple instances". Fine to leave as-is for a single VM.
+  external_labels = {
+    instance = "<same-value-as-this-vms-g33kvault-instance-name>",
+  }
+
   endpoint {
     // From Grafana Cloud: Connections > Prometheus > this instance's
     // details — a URL ending in .../api/prom/push, NOT the same as the

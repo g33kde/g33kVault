@@ -156,6 +156,7 @@ interface GrafanaStatus {
   enabled: boolean;
   categories: GrafanaCategory[];
   pushIntervalMs: number;
+  instanceLabel: string;
   lastPushAt: number | null;
   lastError: string | null;
   bufferedCount: number;
@@ -348,6 +349,7 @@ export default function Admin() {
   const [grafanaEnabled, setGrafanaEnabled] = useState(false);
   const [grafanaCategories, setGrafanaCategoriesState] = useState<GrafanaCategory[]>([...GRAFANA_CATEGORIES]);
   const [grafanaPushIntervalMs, setGrafanaPushIntervalMs] = useState<number>(60_000);
+  const [grafanaInstanceLabel, setGrafanaInstanceLabel] = useState('');
   const [grafanaSaveStatus, setGrafanaSaveStatus] = useState<SaveStatus>('idle');
   const [grafanaSaveError, setGrafanaSaveError] = useState('');
   const [grafanaTesting, setGrafanaTesting] = useState(false);
@@ -880,6 +882,7 @@ export default function Admin() {
       setGrafanaEnabled(data.enabled);
       setGrafanaCategoriesState(data.categories);
       setGrafanaPushIntervalMs(data.pushIntervalMs);
+      setGrafanaInstanceLabel(data.instanceLabel);
     } catch {
       // Non-critical background status — the card just shows nothing new
       // until the next fetch rather than surfacing a network-error banner.
@@ -898,6 +901,7 @@ export default function Admin() {
           enabled: grafanaEnabled,
           categories: grafanaCategories,
           pushIntervalMs: grafanaPushIntervalMs,
+          instanceLabel: grafanaInstanceLabel,
         }),
       });
 
@@ -913,7 +917,12 @@ export default function Admin() {
         return;
       }
 
-      setGrafanaStatus(await res.json());
+      const updated: GrafanaStatus = await res.json();
+      setGrafanaStatus(updated);
+      // The server may have substituted the auto-generated id back in if
+      // the field was cleared (see setGrafanaInstanceLabel in settings.ts)
+      // — reflect whatever it actually ended up as, not just what was sent.
+      setGrafanaInstanceLabel(updated.instanceLabel);
       setGrafanaSaveStatus('saved');
     } catch {
       setGrafanaSaveStatus('error');
@@ -1525,6 +1534,27 @@ export default function Admin() {
                 />
                 Enable Grafana Cloud reporting
               </label>
+
+              <label htmlFor="grafana-instance-input" className="admin-checkbox-label">
+                Instance name
+                <input
+                  id="grafana-instance-input"
+                  type="text"
+                  placeholder="e.g. office-lobby"
+                  value={grafanaInstanceLabel}
+                  disabled={!grafanaStatus?.configured}
+                  maxLength={60}
+                  onChange={(e) => {
+                    setGrafanaInstanceLabel(e.target.value);
+                    setGrafanaSaveStatus('idle');
+                  }}
+                />
+              </label>
+              <p className="tagline admin-settings-caption">
+                Distinguishes this g33kVault's logs from any other instance pushing to the same Grafana Cloud
+                account (see GRAFANA.md's "Running multiple instances") — starts out as an auto-generated id;
+                clearing this field goes back to that instead of an empty label.
+              </p>
 
               <p className="tagline admin-settings-caption">What to send:</p>
               {GRAFANA_CATEGORIES.map((category) => (

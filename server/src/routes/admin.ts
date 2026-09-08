@@ -35,6 +35,7 @@ import {
   setGrafanaCategories,
   getGrafanaPushIntervalMs,
   setGrafanaPushIntervalMs,
+  setGrafanaInstanceLabel,
   TRANSITION_STYLES,
   TransitionStyle,
   COLLAGE_MODES,
@@ -225,7 +226,7 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
-    const { enabled, categories, pushIntervalMs } = req.body ?? {};
+    const { enabled, categories, pushIntervalMs, instanceLabel } = req.body ?? {};
 
     if (typeof enabled !== 'boolean') {
       res.status(400).json({ error: 'enabled must be a boolean' });
@@ -246,9 +247,18 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
+    if (typeof instanceLabel !== 'string') {
+      res.status(400).json({ error: 'instanceLabel must be a string' });
+      return;
+    }
+
     setGrafanaEnabled(enabled);
     setGrafanaCategories(categories as GrafanaCategory[]);
     setGrafanaPushIntervalMs(pushIntervalMs as GrafanaPushIntervalMs);
+    // Blank clears back to the auto-generated id (see settings.ts) rather
+    // than rejecting an empty string — an admin clearing the field is a
+    // reasonable way to say "stop calling it that."
+    setGrafanaInstanceLabel(instanceLabel);
     ensureGrafanaPushLoop();
 
     res.json(getGrafanaStatus());

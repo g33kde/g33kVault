@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { randomBytes } from 'crypto';
 import { config } from './config';
 
 export const TRANSITION_STYLES = [
@@ -64,6 +65,7 @@ interface Settings {
   grafanaEnabled?: boolean;
   grafanaCategories?: GrafanaCategory[];
   grafanaPushIntervalMs?: GrafanaPushIntervalMs;
+  grafanaInstanceLabel?: string;
 }
 
 fs.mkdirSync(path.dirname(config.settingsPath), { recursive: true });
@@ -226,4 +228,39 @@ export function setGrafanaPushIntervalMs(value: GrafanaPushIntervalMs): GrafanaP
   settings.grafanaPushIntervalMs = value;
   writeSettings(settings);
   return value;
+}
+
+const MAX_INSTANCE_LABEL_LENGTH = 60;
+
+// Distinguishes this g33kVault install's logs from any other one pushing to
+// the same Grafana Cloud account (see GRAFANA.md's "Running multiple
+// instances") — every Loki stream carries this as its `instance` label.
+// Auto-generated once and persisted (never regenerated on its own) so a VM
+// nobody's configured this on still never silently mixes its data with
+// another instance's; an admin can override it with something more
+// readable any time via the /admin "Grafana Cloud" section.
+export function getGrafanaInstanceLabel(): string {
+  const settings = readSettings();
+  if (settings.grafanaInstanceLabel) return settings.grafanaInstanceLabel;
+
+  const generated = randomBytes(3).toString('hex');
+  settings.grafanaInstanceLabel = generated;
+  writeSettings(settings);
+  return generated;
+}
+
+export function setGrafanaInstanceLabel(value: string): string {
+  const trimmed = value.trim().slice(0, MAX_INSTANCE_LABEL_LENGTH);
+  // An admin clearing the field falls back to the auto-generated one rather
+  // than pushing an empty label — getGrafanaInstanceLabel() regenerates
+  // (and persists) a fresh one the next time it's read.
+  const settings = readSettings();
+  if (trimmed.length > 0) {
+    settings.grafanaInstanceLabel = trimmed;
+    writeSettings(settings);
+    return trimmed;
+  }
+  delete settings.grafanaInstanceLabel;
+  writeSettings(settings);
+  return getGrafanaInstanceLabel();
 }

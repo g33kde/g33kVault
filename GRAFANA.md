@@ -74,6 +74,10 @@ three env vars are set, you'll see:
 
 - An **Enable Grafana Cloud reporting** toggle — off by default even with everything
   configured, so setting the env vars alone never starts shipping data. You decide when.
+- An **Instance name** field — only matters if you're running more than one g33kVault
+  pointed at the same Grafana Cloud account; see
+  [Running multiple instances](#running-multiple-instances) below. Safe to ignore for
+  a single deployment.
 - Checkboxes for **what to send** — Usage & devices, Uploads, System health, Moderation
   — independently toggleable. All four are on by default once you enable it.
 - A **push interval** (30s / 1 min / 5 min) — how often buffered events actually go
@@ -225,9 +229,11 @@ available to you.
 cp alloy/config.alloy.example alloy/config.alloy
 ```
 
-Edit `alloy/config.alloy` and fill in the three placeholders (`url`, `username`,
-`password`) with what you got in step 1. This file is gitignored — it holds real
-credentials, same reasoning as never committing a `.env` file.
+Edit `alloy/config.alloy` and fill in the placeholders (`url`, `username`, `password`)
+with what you got in step 1. This file is gitignored — it holds real credentials, same
+reasoning as never committing a `.env` file. Leave the `external_labels` block's
+`instance` value as its default unless you're running more than one g33kVault VM — see
+[Running multiple instances](#running-multiple-instances) below if you are.
 
 **3. Start it:**
 
@@ -240,3 +246,52 @@ opt-in. Once running, host metrics show up in your Grafana Cloud Prometheus data
 source (standard `node_exporter`-style metric names — a normal Grafana Cloud "Linux
 Node" dashboard, importable from the Grafana dashboard library, will plot most of it
 out of the box).
+
+## Running multiple instances
+
+Point more than one g33kVault VM at the same Grafana Cloud account — different events,
+different venues, whatever — and by default their logs are indistinguishable: every
+instance reports identical `{app="g33kvault", event_group="..."}` labels, so every
+dashboard panel silently sums all of them together.
+
+**The fix is one more label: `instance`.** Every Loki stream g33kVault pushes now
+carries it automatically. Where the value comes from:
+
+- The first time anything reads it, g33kVault generates a short random id (e.g.
+  `a3f9c1`) and **persists it** in `settings.json` — so even a VM nobody's touched this
+  setting on is still permanently distinguishable from every other one. It's never
+  silently regenerated after that.
+- `/admin` → "📊 Grafana Cloud" has an **Instance name** field to override it with
+  something readable (`office-lobby`, `sarahs-wedding-oct-2026`) — much more useful
+  than a random id once you're looking at a list of instances in Grafana. Clearing the
+  field goes back to the auto-generated one rather than an empty label.
+- Still low-cardinality and safe under the [cardinality](#privacy) rule above — one
+  label value per *deployment* (a handful, realistically), not per-event.
+
+**If you're also running Alloy** (see above) on more than one VM, it has the identical
+problem independently for host metrics — fix it by setting `config.alloy`'s
+`external_labels { instance = "..." }` to the *same* value as that VM's g33kVault
+instance name, so a host metric and an app log from the same machine correlate.
+
+**Making the dashboard instance-aware** needs one manual step in Grafana Cloud's UI —
+deliberately not hand-edited into `grafana/dashboard.json` here, since its newer
+schema (`dashboard.grafana.app/v2`) isn't something worth guessing at blindly and
+risking a working, already-tuned dashboard over:
+
+1. Open the dashboard → **Settings → Variables → New variable**.
+2. Type: **Query**, data source: your Grafana Cloud **Loki** instance, query:
+   `label_values({app="g33kvault"}, instance)`. Enable **Multi-value** and
+   **Include All option**.
+3. Name it `instance`, save.
+4. For each panel you want filterable (all of them, realistically), edit its query and
+   add `, instance=~"$instance"` right after the `event_group="..."` part — e.g.
+   `{app="g33kvault", event_group="uploads", instance=~"$instance"} | json | ...`.
+5. Save the dashboard, then re-export it (**Export → Export as JSON**) over
+   `grafana/dashboard.json` in the repo, same as the last round of panel refinements —
+   worth committing so the next `git pull` (or a fresh VM's setup) starts from the
+   instance-aware version instead of redoing this by hand.
+
+Already included, no setup needed: a new **"Uploads by instance"** panel in the
+"Uploads" row — `sum by (instance) (...)`, a side-by-side comparison across
+VMs/events, useful once you're running more than one regardless of whether you've
+added the filter variable above.

@@ -5,6 +5,7 @@ import {
   getGrafanaEnabled,
   getGrafanaCategories,
   getGrafanaPushIntervalMs,
+  getGrafanaInstanceLabel,
   GrafanaCategory,
 } from '../settings';
 
@@ -74,12 +75,14 @@ export function logEvent(group: GrafanaCategory, event: string, fields: Record<s
   persistBuffer();
 }
 
-// One Loki "stream" per category keeps label cardinality low (see
-// GRAFANA.md's cardinality warning) — {app="g33kvault",
-// event_group="uploads"} etc. Everything else (event name, sizes, counts)
-// lives inside the JSON line body, queried with LogQL's `| json` at
-// dashboard time, never as a label.
+// One Loki "stream" per category (plus this install's instance label — see
+// GRAFANA.md's "Running multiple instances") keeps label cardinality low
+// (see GRAFANA.md's cardinality warning) — {app="g33kvault",
+// event_group="uploads", instance="office-lobby"} etc. Everything else
+// (event name, sizes, counts) lives inside the JSON line body, queried with
+// LogQL's `| json` at dashboard time, never as a label.
 function buildLokiPayload(lines: BufferedLine[]) {
+  const instance = getGrafanaInstanceLabel();
   const byGroup = new Map<string, [string, string][]>();
   for (const l of lines) {
     const arr = byGroup.get(l.group) ?? [];
@@ -88,7 +91,7 @@ function buildLokiPayload(lines: BufferedLine[]) {
   }
   return {
     streams: [...byGroup.entries()].map(([group, values]) => ({
-      stream: { app: 'g33kvault', event_group: group },
+      stream: { app: 'g33kvault', event_group: group, instance },
       values,
     })),
   };
@@ -178,6 +181,7 @@ export function getGrafanaStatus() {
     enabled: getGrafanaEnabled(),
     categories: getGrafanaCategories(),
     pushIntervalMs: getGrafanaPushIntervalMs(),
+    instanceLabel: getGrafanaInstanceLabel(),
     lastPushAt,
     lastError,
     bufferedCount: buffer.length,
