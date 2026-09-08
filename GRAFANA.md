@@ -162,6 +162,42 @@ max_over_time({app="g33kvault", event_group="system"} | json | event="snapshot" 
 {app="g33kvault", event_group="moderation"} | json
 ```
 
+### Building a dashboard by hand
+
+The general shape, for any panel: **Dashboards → New → New dashboard → Add visualization**,
+pick your Grafana Cloud **Loki** data source, paste a LogQL query like the ones above
+into the query editor, and pick a visualization type that fits what the query returns:
+
+- A `count_over_time`/`sum_over_time` query returns a time series → **Time series** panel.
+- The same query with **Instant** ticked (query editor's "Instant" toggle) collapses it
+  to one value per label combination for *right now* → **Pie chart** or **Bar chart**,
+  good for breakdowns like device type or browser.
+- A `snapshot` field via `| unwrap` (photos, pending, free_disk_bytes, etc.) is really a
+  gauge in log form → **Stat** panel, "Calculation: Last \*" in its options, since you
+  want the latest snapshot value, not a sum over the time range.
+- A raw `{event_group="..."} | json` with no aggregation → **Logs** panel, to just read
+  the actual events (e.g. a moderation audit trail) rather than chart them.
+
+Repeat per stat you care about, arrange panels on the grid, **Save dashboard**. This is
+exactly how the ready-made one below was put together — a reasonable way to learn the
+pattern is opening it in Grafana afterward and looking at how each panel is configured.
+
+### Ready-made dashboard
+
+[`grafana/dashboard.json`](grafana/dashboard.json) in this repo is a complete,
+importable dashboard covering every category above: uploads over time, rejection
+reasons, bytes uploaded, page views by route, device/browser/OS breakdowns, live
+stat tiles for current photo/video/pending counts and free disk space, and a raw
+moderation activity log.
+
+**Dashboards → New → Import**, paste the contents of that file (or upload it directly),
+and when prompted, point its one input ("Loki") at your Grafana Cloud Loki data source.
+
+This hasn't been test-imported against a live Grafana Cloud instance (nothing in this
+session has one) — the queries match the exact event schema above and the JSON is
+structurally valid, but if a panel looks wrong after importing, say which one and it's
+a quick fix.
+
 ## Optional: host-level metrics via Grafana Alloy
 
 Everything above is g33kVault reporting on itself. It has no way to see the actual

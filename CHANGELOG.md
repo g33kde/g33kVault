@@ -52,6 +52,14 @@
   User-Agent), the disk-persisted buffer filled and then correctly flushed on the next
   push-interval tick, and the `/admin` card's checkboxes, save, and "Send test event"
   button all worked against the real server in a real browser.
+- Added a ready-made, importable dashboard (`grafana/dashboard.json`) covering every
+  category — uploads over time, rejection reasons, bytes uploaded, page views by
+  route, device/browser/OS breakdowns, stat tiles for current photo/pending counts and
+  free disk space, and a raw moderation activity log — plus a "building one by hand"
+  walkthrough in GRAFANA.md for going beyond it. Unlike the rest of this feature, this
+  wasn't verified against a live Grafana instance (none available this session) — the
+  queries match the app's actual event schema and the JSON is structurally valid, but
+  flagged as untested-by-import in the docs.
 
 ### "Preview slideshow" link in /admin, works even while disabled
 
