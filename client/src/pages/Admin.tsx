@@ -1157,7 +1157,23 @@ export default function Admin() {
         }
 
         const updated: MediaItem = await res.json();
+        // Same handler serves both the approved Photo Gallery grid (items)
+        // and pending thumbnails awaiting review (pendingBatches) — an id
+        // only ever matches one of the two, so patching both is a no-op for
+        // whichever one doesn't contain it. Without also patching
+        // pendingBatches, a rotated *pending* photo would keep showing its
+        // old orientation until a manual refresh: its thumbnail's cache-busting
+        // `?v=size` query param wouldn't change since nothing here updates
+        // that batch's copy of the item.
         setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+        setPendingBatches((prev) =>
+          prev
+            ? prev.map((b) => ({
+                ...b,
+                items: b.items.map((i) => (i.id === updated.id ? updated : i)),
+              }))
+            : prev
+        );
       } catch {
         setRotateError('Network error');
       } finally {
@@ -1455,6 +1471,7 @@ export default function Admin() {
             <div className="admin-tool-body">
               {pendingBatchesError && <p className="error-msg">{pendingBatchesError}</p>}
               {batchActionError && <p className="error-msg">{batchActionError}</p>}
+              {rotateError && <p className="error-msg">{rotateError}</p>}
               {pendingBatches && pendingBatches.length === 0 && (
                 <p className="tagline">Nothing awaiting review.</p>
               )}
@@ -1537,6 +1554,28 @@ export default function Admin() {
                                     <video src={`/media/${item.filename}`} controls muted playsInline />
                                   ) : (
                                     <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
+                                  )}
+                                  {item.kind === 'image' && (
+                                    <>
+                                      <button
+                                        className="admin-rotate-btn admin-rotate-ccw-btn"
+                                        onClick={() => handleRotate(item.id, 'ccw')}
+                                        disabled={rotatingId === item.id}
+                                        aria-label="Rotate counter-clockwise"
+                                        title="Rotate counter-clockwise"
+                                      >
+                                        {rotatingId === item.id ? '…' : '↺'}
+                                      </button>
+                                      <button
+                                        className="admin-rotate-btn admin-rotate-cw-btn"
+                                        onClick={() => handleRotate(item.id, 'cw')}
+                                        disabled={rotatingId === item.id}
+                                        aria-label="Rotate clockwise"
+                                        title="Rotate clockwise"
+                                      >
+                                        {rotatingId === item.id ? '…' : '↻'}
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               );

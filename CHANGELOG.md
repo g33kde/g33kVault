@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Rotate photos directly from Pending Uploads
+
+- Pending thumbnails get the same ↺/↻ rotate buttons the approved Photo Gallery grid
+  already has — no need to approve a sideways photo first just to fix its orientation,
+  then find it again in the main gallery.
+- No backend changes needed: `POST /api/media/:id/rotate` already worked on any image
+  regardless of approval status (`getMediaById` looks across all media, not just
+  approved) — this was purely a client-side gap, reusing the exact same endpoint,
+  button styling, and `handleRotate` handler the Photo Gallery grid already uses.
+- The one real fix: `handleRotate`'s success handler only ever patched the approved
+  Photo Gallery's `items` state, a no-op for a pending item (it lives in a separate
+  `pendingBatches` array). Without also patching that, a rotated pending photo would
+  silently keep showing its old orientation until a manual page refresh, since its
+  thumbnail's cache-busting `?v=size` query param wouldn't change. Now patches both.
+- Verified for real: uploaded a real 300×150 test photo, rotated it clockwise through
+  the actual browser UI, and confirmed via the live DOM (not just the API response)
+  that the rendered `<img>` swapped to 150×300 and its URL's cache-busting query
+  changed — a true live re-render, not a stale cached image.
+
 ### Select individual photos in Pending Uploads
 
 - Each pending thumbnail now has a small checkbox badge in its corner (a dedicated

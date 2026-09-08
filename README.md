@@ -742,6 +742,9 @@ live slideshow:
   buttons switch to **Approve Selected**/**Reject Selected** the moment anything's
   checked, acting on just those instead of the whole batch. A batch with some, but not
   all, of its items actioned stays in the list with whatever's left.
+- Sideways photo? Each pending thumbnail has the same ↺/↻ rotate buttons as the main
+  Photo Gallery — fix the orientation before approving it, no need to approve first
+  and go find it in the gallery afterward.
 - Until approved, a pending photo doesn't count toward anything public — not the
   slideshow, not the Event Statistics panel, not the admin's other review tools
   (duplicate/photo-date/low-resolution scans all work on approved photos only).
