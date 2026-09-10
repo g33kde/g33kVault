@@ -5,8 +5,9 @@ import { randomUUID } from 'crypto';
 import type { Server as SocketIOServer } from 'socket.io';
 import { config } from './config';
 import { insertMedia, MediaRow } from './db';
-import { kindForExt, mimeForExt, isHeic } from './mediaTypes';
+import { kindForExt, mimeForExt, isHeic, isMpeg } from './mediaTypes';
 import { convertHeicToJpeg } from './heicConvert';
+import { convertMpegToMp4 } from './videoConvert';
 import { archiveKindFor, extractArchive, findArchiveVolumeParts, isJunkArchiveEntry } from './archiveExtract';
 import { computeContentHash, computePerceptualHash } from './duplicateDetect';
 import { extractPhotoTakenAt } from './photoDate';
@@ -99,6 +100,21 @@ export async function importSingleFile(
     destFilename = jpegFilename;
     destPath = jpegPath;
     mimeType = 'image/jpeg';
+  }
+
+  // Unlike routes/upload.ts's guest-facing endpoint, this always runs
+  // already off the request/response cycle (a periodic folder scan, or an
+  // archive being processed in the background) — no guest connection to
+  // time out, so this can stay a plain synchronous await, same as HEIC
+  // above, rather than needing the respond-now-convert-later split that
+  // upload.ts's isMpeg branch does.
+  if (isMpeg(ext)) {
+    const mp4Filename = destFilename.replace(/\.[^.]+$/, '.mp4');
+    const mp4Path = path.join(config.mediaDir, mp4Filename);
+    await convertMpegToMp4(destPath, mp4Path);
+    destFilename = mp4Filename;
+    destPath = mp4Path;
+    mimeType = 'video/mp4';
   }
 
   const media: MediaRow = {

@@ -6,9 +6,10 @@ import { randomUUID } from 'crypto';
 import type { Request } from 'express';
 import type { Server as SocketIOServer } from 'socket.io';
 import { config } from '../config';
-import { insertMedia } from '../db';
-import { kindForExt, mimeForExt, isHeic } from '../mediaTypes';
+import { insertMedia, MediaRow } from '../db';
+import { kindForExt, mimeForExt, isHeic, isMpeg, MediaKind } from '../mediaTypes';
 import { convertHeicToJpeg } from '../heicConvert';
+import { convertMpegToMp4 } from '../videoConvert';
 import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
 import { extractPhotoTakenAt } from '../photoDate';
 import { archiveKindFor } from '../archiveExtract';
@@ -83,6 +84,69 @@ function sanitizeSource(raw: unknown): 'upload' | 'booth' {
   return raw === 'booth' ? 'booth' : 'upload';
 }
 
+// Shared by every path that ends with one finished file already sitting at
+// its final location in MEDIA_DIR — computes hashes, inserts the DB row,
+// logs it, and broadcasts it — regardless of whether that happened
+// synchronously (a guest still waiting on the response) or after a
+// background conversion finished (MPEG transcoding — see the isMpeg branch
+// below, and importFolder.ts's importSingleFile for the watched-folder/
+// archive equivalent). Doesn't touch the HTTP response itself, since the
+// background-processing caller has usually already responded by the time
+// this runs.
+async function insertAndAnnounceMedia(params: {
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  kind: MediaKind;
+  photoTakenAt: number | null;
+  uploaderRaw: unknown;
+  source: 'upload' | 'booth';
+  deviceType: string;
+  os: string;
+  io: SocketIOServer;
+}): Promise<{ media: MediaRow; requireApproval: boolean }> {
+  const finalPath = path.join(config.mediaDir, params.filename);
+  const id = randomUUID();
+  const requireApproval = getRequireApproval();
+  const media: MediaRow = {
+    id,
+    filename: params.filename,
+    original_name: params.originalName,
+    mime_type: params.mimeType,
+    kind: params.kind,
+    size: fs.statSync(finalPath).size,
+    created_at: Date.now(),
+    uploader: sanitizeUploader(params.uploaderRaw),
+    photo_taken_at: params.photoTakenAt,
+    content_hash: await computeContentHash(finalPath),
+    phash: params.kind === 'image' ? await computePerceptualHash(finalPath) : null,
+    // requireApproval (an admin setting) holds every direct upload for
+    // review exactly like a guest-uploaded archive's contents already
+    // are — reusing the same pending-batches admin UI, one item per
+    // "batch" (batchId set to its own id, so /pending-batches/:batchId's
+    // filter on m.batchId matches it — see routes/admin.ts). Undefined
+    // status/batchId/batchLabel when the setting is off, same as before
+    // this feature existed.
+    ...(requireApproval
+      ? { status: 'pending' as const, batchId: id, batchLabel: params.originalName }
+      : {}),
+  };
+
+  insertMedia(media);
+  logEvent('uploads', 'upload_completed', {
+    kind: params.kind,
+    mime_type: params.mimeType,
+    size_bytes: media.size,
+    source: params.source,
+    device_type: params.deviceType,
+    os: params.os,
+    pending: requireApproval,
+  });
+  params.io.emit(requireApproval ? 'media:pending' : 'media:new', media);
+
+  return { media, requireApproval };
+}
+
 export function uploadRouter(io: SocketIOServer) {
   const router = Router();
 
@@ -148,6 +212,53 @@ export function uploadRouter(io: SocketIOServer) {
       return;
     }
 
+    // MPEG needs real transcoding (see videoConvert.ts), which can take far
+    // longer than anything else this route does — unlike HEIC (sub-second),
+    // making a guest's mobile upload wait on it risks a timeout. Same fix
+    // already used for archives just above: respond immediately, finish the
+    // rest in the background. The guest never learns whether it succeeded
+    // or failed beyond the initial "received" ack, same as an archive.
+    if (isMpeg(ext)) {
+      const mp4Filename = req.file.filename.replace(/\.[^.]+$/, '.mp4');
+      const mp4Path = path.join(config.mediaDir, mp4Filename);
+      const srcPath = req.file.path;
+      const originalName = req.file.originalname;
+      const uploaderRaw = req.body?.uploader;
+
+      res.status(202).json({ pending: true, converting: true });
+      logEvent('uploads', 'upload_completed', {
+        kind: 'video',
+        mime_type: 'video/mpeg',
+        size_bytes: req.file.size,
+        source,
+        device_type: deviceType,
+        os,
+        converting: true,
+      });
+
+      convertMpegToMp4(srcPath, mp4Path)
+        .then(() =>
+          insertAndAnnounceMedia({
+            filename: mp4Filename,
+            originalName,
+            mimeType: 'video/mp4',
+            kind: 'video',
+            photoTakenAt: null,
+            uploaderRaw,
+            source,
+            deviceType,
+            os,
+            io,
+          })
+        )
+        .catch((err) => {
+          console.error(`MPEG conversion failed for "${originalName}":`, err);
+          fs.unlink(srcPath, () => {});
+          logEvent('uploads', 'upload_rejected', { reason: 'mpeg_conversion_failed', source });
+        });
+      return;
+    }
+
     let filename = req.file.filename;
     let mimeType = mimeForExt(ext) ?? req.file.mimetype;
 
@@ -171,46 +282,20 @@ export function uploadRouter(io: SocketIOServer) {
       mimeType = 'image/jpeg';
     }
 
-    const finalPath = path.join(config.mediaDir, filename);
-    const id = randomUUID();
-    const requireApproval = getRequireApproval();
-    const media = {
-      id,
+    const { media, requireApproval } = await insertAndAnnounceMedia({
       filename,
-      original_name: req.file.originalname,
-      mime_type: mimeType,
+      originalName: req.file.originalname,
+      mimeType,
       kind,
-      size: fs.statSync(finalPath).size,
-      created_at: Date.now(),
-      uploader: sanitizeUploader(req.body?.uploader),
-      photo_taken_at: photoTakenAt,
-      content_hash: await computeContentHash(finalPath),
-      phash: kind === 'image' ? await computePerceptualHash(finalPath) : null,
-      // requireApproval (an admin setting) holds every direct upload for
-      // review exactly like a guest-uploaded archive's contents already
-      // are — reusing the same pending-batches admin UI, one item per
-      // "batch" (batchId set to its own id, so /pending-batches/:batchId's
-      // filter on m.batchId matches it — see routes/admin.ts). Undefined
-      // status/batchId/batchLabel when the setting is off, same as before
-      // this feature existed.
-      ...(requireApproval
-        ? { status: 'pending' as const, batchId: id, batchLabel: req.file.originalname }
-        : {}),
-    };
-
-    insertMedia(media);
-    logEvent('uploads', 'upload_completed', {
-      kind,
-      mime_type: mimeType,
-      size_bytes: media.size,
+      photoTakenAt,
+      uploaderRaw: req.body?.uploader,
       source,
-      device_type: deviceType,
+      deviceType,
       os,
-      pending: requireApproval,
+      io,
     });
-    io.emit(requireApproval ? 'media:pending' : 'media:new', media);
 
-    res.status(requireApproval ? 202 : 201).json(requireApproval ? { pending: true, batchId: id } : media);
+    res.status(requireApproval ? 202 : 201).json(requireApproval ? { pending: true, batchId: media.id } : media);
   });
 
   return router;

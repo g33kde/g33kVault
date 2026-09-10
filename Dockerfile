@@ -18,6 +18,11 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+# System binary, not an npm dependency — used by videoConvert.ts to
+# transcode guest-uploaded .mpg/.mpeg to MP4 (poor native <video> browser
+# support otherwise). Same category as this image not needing a compiler
+# toolchain for sharp/etc: a real package, not something node-gyp builds.
+RUN apk add --no-cache ffmpeg
 COPY server/package*.json ./
 RUN npm install --omit=dev
 COPY --from=server-build /app/server/dist ./dist

@@ -2,6 +2,59 @@
 
 ## [Unreleased]
 
+### Support .mpg/.mpeg uploads, transcoded to MP4
+
+- `.mpg`/`.mpeg` are now recognized upload types, transcoded server-side to MP4
+  (H.264/AAC) on the way in — same idea as the existing HEIC→JPEG conversion, since raw
+  MPEG-1/2 has poor/inconsistent native support in HTML5 `<video>` across browsers.
+- Unlike HEIC (a pure-JS/WASM library), there's no realistic pure-JS way to transcode
+  video — this shells out to the system `ffmpeg` binary instead, the same category as
+  `tar` in the backup feature (a real system binary, not an npm dependency needing a
+  node-gyp compile step — CLAUDE.md's no-native-deps rule is about the latter). Added
+  to the Docker image (`apk add ffmpeg`) and documented as an extra `apt install`
+  step for the one bare-metal ("no Docker") deployment path in the README.
+- The one genuine design decision here: transcoding takes meaningfully longer than a
+  HEIC conversion (seconds to minutes, not sub-second), so unlike HEIC's synchronous
+  handling, a guest uploading `.mpg` gets an immediate "received, being converted"
+  response and the actual transcode runs in the background — the same
+  respond-now-process-later pattern guest-uploaded archives already use, so a slow
+  conversion on a Pi's modest CPU can't time out someone's mobile upload. The watched
+  import folder and guest-uploaded archives convert synchronously instead, same as
+  HEIC there — both already run off the request/response cycle, so there's no guest
+  connection to protect from a timeout.
+- Refactored `routes/upload.ts`'s single-file path: extracted the "insert the DB row,
+  log it, broadcast it" logic (previously inline) into a shared
+  `insertAndAnnounceMedia()` helper, used both by the normal synchronous path and the
+  new MPEG background-completion callback — so the existing requireApproval/highlight
+  behavior applies identically regardless of which path a file took to get there.
+- Client: a third distinct "being converted" message in `/upload`'s post-upload
+  summary, separate from "awaiting archive extraction" and "awaiting admin approval" —
+  a video mid-transcode isn't either of those, and showing the wrong one would be
+  misleading about what's actually happening.
+- Verified for real, not just by building: built the actual Docker image and confirmed
+  Alpine's `ffmpeg` package includes working `libx264`/`aac` encoders, generated a
+  genuine MPEG-1 test video inside a real container, uploaded it through the real
+  running app, and confirmed via `ffprobe` that the resulting served file is a
+  correctly-encoded H.264/AAC MP4 at the right dimensions — then repeated the same
+  real check with "Require approval for uploads" on (correctly landed in the Pending
+  Uploads queue instead of going live) and with a corrupt/fake `.mpg` (failed
+  gracefully: server stayed up, the broken raw file was cleaned up rather than left
+  orphaned, and a clear error reached the container's own logs).
+- Caught and fixed two stale README claims along the way ("no video transcoding" under
+  both the Raspberry Pi and x86_64 hardware-guidance sections) that this feature made
+  incorrect.
+
+### Docs: how to wipe a Docker Compose instance clean before restoring
+
+- New README section, "How to rebuild g33kVault" (under Backup & migration) —
+  `restore.sh` only extracts a backup on top of what's already there (overwrites
+  matching files, doesn't delete extras), so restoring onto a non-empty instance
+  merges rather than replaces. Documents the actual clean-slate procedure
+  (`docker compose down -v` to drop just this project's two named volumes, nothing
+  else on the machine, then `restore.sh` into the now-empty volumes) for migrating an
+  existing instance without reinstalling the OS, plus the safety caveats around a
+  step that's genuinely irreversible.
+
 ### Rotate photos directly from Pending Uploads
 
 - Pending thumbnails get the same ↺/↻ rotate buttons the approved Photo Gallery grid

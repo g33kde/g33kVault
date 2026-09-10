@@ -12,10 +12,12 @@ interface UploadResult {
   // appear in the slideshow until an admin reviews and approves it — a
   // different outcome than a normal instant upload.
   pending?: boolean;
-  // Distinguishes the two reasons a result can be pending, for the correct
+  // Distinguishes the reasons a result can be pending, for the correct
   // wording below — an archive is still being extracted in the background,
+  // an .mpg/.mpeg is still being transcoded to MP4 (see videoConvert.ts),
   // while a plain photo/video held for approval is already fully processed.
   isArchive?: boolean;
+  isConverting?: boolean;
 }
 
 interface Stats {
@@ -33,6 +35,11 @@ const UPLOADER_STORAGE_KEY = 'g33kvault-uploader-name';
 function isArchiveFile(file: File): boolean {
   const name = file.name.toLowerCase();
   return name.endsWith('.zip') || name.endsWith('.tar.gz') || name.endsWith('.tgz') || name.endsWith('.rar');
+}
+
+function isMpegFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return name.endsWith('.mpg') || name.endsWith('.mpeg');
 }
 
 function formatStorage(bytes: number): string {
@@ -138,6 +145,7 @@ export default function Upload() {
             ok: true,
             pending: res.status === 202,
             isArchive: isArchiveFile(file),
+            isConverting: isMpegFile(file),
           });
         } else {
           const data = await res.json().catch(() => ({}));
@@ -164,7 +172,8 @@ export default function Upload() {
   const failed = results.filter((r) => !r.ok);
   const succeeded = results.filter((r) => r.ok && !r.pending);
   const pendingArchives = results.filter((r) => r.ok && r.pending && r.isArchive);
-  const pendingApproval = results.filter((r) => r.ok && r.pending && !r.isArchive);
+  const pendingConversion = results.filter((r) => r.ok && r.pending && r.isConverting);
+  const pendingApproval = results.filter((r) => r.ok && r.pending && !r.isArchive && !r.isConverting);
 
   return (
     <div className="page upload-page">
@@ -198,15 +207,23 @@ export default function Upload() {
               processed — your photos will appear once the event host approves them.
             </p>
           )}
+          {pendingConversion.length > 0 && (
+            <p>
+              🎞️ {pendingConversion.length} video{pendingConversion.length === 1 ? '' : 's'} received and being
+              converted — {pendingConversion.length === 1 ? 'it' : 'they'}'ll appear once ready.
+            </p>
+          )}
           {pendingApproval.length > 0 && (
             <p>
               👀 {pendingApproval.length} item{pendingApproval.length === 1 ? '' : 's'} received — waiting for the
               event host to approve before appearing in the slideshow.
             </p>
           )}
-          {succeeded.length === 0 && pendingArchives.length === 0 && pendingApproval.length === 0 && failed.length > 0 && (
-            <p>{failed.length} failed.</p>
-          )}
+          {succeeded.length === 0 &&
+            pendingArchives.length === 0 &&
+            pendingConversion.length === 0 &&
+            pendingApproval.length === 0 &&
+            failed.length > 0 && <p>{failed.length} failed.</p>}
           {failed.length > 0 && (
             <ul className="fail-list">
               {failed.map((f) => (

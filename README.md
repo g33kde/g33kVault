@@ -239,6 +239,29 @@ The conversion runs via `heic-convert`/`libheif-js`, which is WASM-based — no 
 compilation, so it works unmodified on the Pi's ARM CPU the same as on any other
 platform.
 
+## Old camcorder footage (.mpg/.mpeg)
+
+MPEG-1/2 has poor, inconsistent native support in HTML5 `<video>` across browsers —
+unlike `.mp4`/`.mov`/`.webm`, a raw `.mpg` mostly just won't play. g33kVault transcodes
+`.mpg`/`.mpeg` to MP4 (H.264/AAC) server-side on the way in, same idea as the HEIC
+conversion above, so old camcorder clips or other MPEG exports show up in the
+slideshow like any other video.
+
+Unlike HEIC (a pure-JS/WASM library), there's no realistic pure-JS way to transcode
+video — this shells out to the system `ffmpeg` binary instead, the same approach
+already used for `tar` in the backup feature, not an npm dependency (see CLAUDE.md's
+no-native-deps rule, which is about avoiding a node-gyp compile step, not system
+binaries — the Docker image installs it via `apk add ffmpeg`; the other deployment
+paths below need `apt install ffmpeg` added to their setup steps).
+
+Transcoding a video can take meaningfully longer than a HEIC photo conversion (whole
+seconds to minutes, depending on length and the machine's CPU) — a guest uploading a
+`.mpg` gets an immediate "received, being converted" response rather than waiting for
+it to finish, the same non-blocking pattern guest-uploaded archives already use, so a
+slow conversion can't time out someone's mobile upload. It appears in the
+slideshow — or the Pending Uploads queue, if "Require approval for uploads" is on —
+once conversion finishes in the background.
+
 ## Bulk import via a watched folder
 
 Besides uploading through `/upload`, g33kVault also watches a local folder and imports
@@ -340,9 +363,13 @@ up automatically within a minute; no restart needed.
 
 Hardware guidance:
 
-- A Pi 4 or 5 (2GB+ RAM) is comfortable. The server itself is lightweight — just static
-  file serving and a JSON metadata store, no video transcoding — so even a Pi 3 can run
-  the backend alone.
+- A Pi 4 or 5 (2GB+ RAM) is comfortable. The server itself is lightweight — mostly
+  static file serving and a JSON metadata store — so even a Pi 3 can run the backend
+  alone for normal uploads. The one exception is a guest uploading `.mpg`/`.mpeg`
+  footage (see "Old camcorder footage" above): that triggers a real ffmpeg transcode,
+  meaningfully more CPU-intensive than anything else this app does, and slower on an
+  older Pi — it happens in the background and won't block other uploads/the
+  slideshow while it runs, just takes longer to finish on weaker hardware.
 - If the Pi also drives the display (e.g. Chromium in kiosk mode showing `/slideshow` on
   an attached screen/TV — see [Viewing the slideshow fullscreen
   (kiosk mode)](#viewing-the-slideshow-fullscreen-kiosk-mode) above), prefer a Pi 4/5
@@ -393,8 +420,10 @@ Docker volumes, nothing platform-specific about either of those.
 
 Resource guidance: any modern x86_64 machine is comfortable, even a modest VM (1-2
 vCPUs, 1GB+ RAM) — the server itself is lightweight (static file serving + a JSON
-metadata store, no video transcoding), and x86_64 hardware is generally faster than the
-Pi hardware this project is otherwise documented against.
+metadata store), and x86_64 hardware is generally faster than the Pi hardware this
+project is otherwise documented against, including for the one CPU-intensive thing it
+does do: transcoding a guest-uploaded `.mpg`/`.mpeg` to MP4 (see "Old camcorder
+footage" above).
 
 ## Running in a Proxmox LXC container
 
@@ -427,6 +456,11 @@ runtime inside it).
 # Install Node.js 20 (Debian/Ubuntu; see nodejs.org for other distros)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
+
+# ffmpeg transcodes guest-uploaded .mpg/.mpeg to MP4 (see "Old camcorder
+# footage" above) — the Docker image installs this automatically, but
+# running Node directly needs it installed separately.
+sudo apt install -y ffmpeg
 
 git clone https://github.com/g33kde/g33kVault.git
 cd g33kVault
@@ -572,6 +606,44 @@ what the `/admin` "Download Backup" button produces (it derives those names from
 `data`), so a backup taken either way restores the same. If you've customized
 `MEDIA_DIR`/`DB_PATH` to different directory names, the button's archive will follow
 suit and these commands need adjusting to match.
+
+### How to rebuild g33kVault
+
+`restore.sh` only *extracts* a backup — it overwrites files with matching names but
+doesn't delete anything the instance already has that isn't in the backup (see the
+script's own header comment). Restoring onto an instance that already has real data on
+it merges rather than replaces. To actually wipe an existing instance clean first —
+without reinstalling the OS — then restore into it fresh:
+
+```bash
+cd g33kVault                    # repo root, same directory as docker-compose.yml
+
+# 1. Stop the app
+docker compose stop
+
+# 2. Remove its two data volumes — this is the actual "clean" step
+docker compose down -v
+```
+
+`down -v` removes exactly the named volumes declared in this project's
+`docker-compose.yml` (`media-data` and `db-data`) — nothing else on the machine, no
+other Docker projects, no OS-level anything. The volumes get recreated automatically,
+empty, the next time something references them.
+
+```bash
+# 3. Restore into the now-empty volumes
+./scripts/restore.sh /path/to/g33kvault-backup-<timestamp>.tar.gz
+
+# 4. Bring it back up
+docker compose up -d
+```
+
+**Before running this**: `docker compose down -v` is irreversible — it permanently
+deletes whatever's currently on that instance. If there's any chance the current data
+matters, take a fresh backup of *it* first (the `/admin` "Download Backup" button, or
+`./scripts/backup.sh`) before wiping. Double-check you're on the instance you actually
+mean to wipe, and that the backup file you're restoring in step 3 is the right one —
+once wiped, there's no undo.
 
 ## Configuration (env vars)
 
