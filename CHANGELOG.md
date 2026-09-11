@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Videos get their own, higher upload size limit
+
+- Videos previously shared `MAX_FILE_SIZE_MB` (100 MB default) with photos — routinely
+  too small for even a couple of minutes of phone footage. New `MAX_VIDEO_SIZE_MB` env
+  var (default 500 MB, matching the existing archive limit) applies specifically to
+  `kind === 'video'` uploads — `.mp4`/`.mov`/`.webm`/`.mpg`/`.mpeg` all count, photos
+  still enforce the original 100 MB `MAX_FILE_SIZE_MB`.
+- Verified for real: uploaded same-size test files as both a photo and a video against
+  small overridden limits (1 MB photo cap, 2 MB video cap) — a 1.5 MB photo was
+  correctly rejected while an identical-size video was correctly accepted and appeared
+  in the pending queue, and a 2.5 MB video was correctly rejected against the 2 MB
+  video cap with the right limit in the error message.
+
 ### Support .mpg/.mpeg uploads, transcoded to MP4
 
 - `.mpg`/`.mpeg` are now recognized upload types, transcoded server-side to MP4

@@ -54,13 +54,16 @@ function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCall
   }
 }
 
-// The multer-level limit has to cover the larger of the two — archives are
-// allowed to be substantially bigger than a single photo/video. Whichever
-// specific limit actually applies (maxFileSizeMb vs. maxArchiveSizeMb) is
-// enforced per-upload once the file's real kind is known, below.
+// The multer-level limit has to cover the largest of the three — archives
+// and videos are both allowed to be substantially bigger than a single
+// photo. Whichever specific limit actually applies (maxFileSizeMb vs.
+// maxArchiveSizeMb vs. maxVideoSizeMb) is enforced per-upload once the
+// file's real kind is known, below.
 const upload = multer({
   storage,
-  limits: { fileSize: Math.max(config.maxFileSizeMb, config.maxArchiveSizeMb) * 1024 * 1024 },
+  limits: {
+    fileSize: Math.max(config.maxFileSizeMb, config.maxArchiveSizeMb, config.maxVideoSizeMb) * 1024 * 1024,
+  },
   fileFilter,
 });
 
@@ -205,10 +208,11 @@ export function uploadRouter(io: SocketIOServer) {
       return;
     }
 
-    if (req.file.size > config.maxFileSizeMb * 1024 * 1024) {
+    const maxSizeMb = kind === 'video' ? config.maxVideoSizeMb : config.maxFileSizeMb;
+    if (req.file.size > maxSizeMb * 1024 * 1024) {
       fs.unlink(req.file.path, () => {});
       logEvent('uploads', 'upload_rejected', { reason: 'file_too_large', source });
-      res.status(400).json({ error: `File must be smaller than ${config.maxFileSizeMb} MB` });
+      res.status(400).json({ error: `File must be smaller than ${maxSizeMb} MB` });
       return;
     }
 

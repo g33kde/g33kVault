@@ -655,7 +655,8 @@ once wiped, there's no undo.
 | `SETTINGS_PATH`            | `./data/settings.json`   | JSON file storing admin-adjustable settings (e.g. slideshow speed) |
 | `IMPORT_DIR`               | `./import`               | Folder watched for bulk-import files           |
 | `IMPORT_SCAN_INTERVAL_MS`  | `60000`                  | How often to rescan the import folder (`0` disables periodic rescans, keeping only the startup scan) |
-| `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per photo/video                |
+| `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per photo                      |
+| `MAX_VIDEO_SIZE_MB`        | `500`                    | Max upload size per video (separate, higher ceiling — see below) |
 | `MAX_ARCHIVE_SIZE_MB`      | `500`                    | Max upload size for a `.zip`/`.tar.gz`/`.rar` (see "Guest-uploaded archives" below) |
 | `SLIDESHOW_INTERVAL_MS`    | `6000`                   | Initial slideshow image duration — see below   |
 | `ADMIN_PASSWORD`           | *(unset)*                | Password for `/admin`; unset disables it entirely |
@@ -823,10 +824,10 @@ live slideshow:
 
 Extraction reuses the exact same code as the [watched import
 folder](#bulk-import-via-a-watched-folder) — `.7z` isn't offered here, though, staying
-exclusive to that admin-only path. Archives get a separate, larger size limit
-(`MAX_ARCHIVE_SIZE_MB`, default 500 MB) than a single photo/video upload
-(`MAX_FILE_SIZE_MB`), since a compressed multi-photo dump is reasonably much bigger than
-any one file.
+exclusive to that admin-only path. Archives and videos each get their own, larger size
+limit than a single photo (`MAX_ARCHIVE_SIZE_MB`/`MAX_VIDEO_SIZE_MB`, both default
+500 MB, vs. `MAX_FILE_SIZE_MB`'s 100 MB) — a compressed multi-photo dump or a few
+minutes of phone/camcorder footage is routinely much bigger than any one photo.
 
 ### Requiring approval for every upload, not just archives
 
