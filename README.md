@@ -779,6 +779,10 @@ it sits directly on the black slideshow background as-is. Uploading again replac
 whatever was there before (old file removed, not left behind); a "Remove" button
 clears it. Optional — nothing is shown there unless you've uploaded something.
 
+Once an image is set, a **Size** slider in the same section steps through 100% /
+150% / 200% and applies instantly on the live slideshow — no need to hit Save
+anywhere else.
+
 ## Photo Collage
 
 Instead of always showing one photo at a time, the slideshow can group several into a

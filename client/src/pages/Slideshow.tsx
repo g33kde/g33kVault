@@ -36,6 +36,7 @@ interface ConfigPayload {
   collageLayout: CollageLayout;
   showQrCode: boolean;
   eventImageUrl: string | null;
+  eventImageScale: number;
 }
 
 const DEFAULT_IMAGE_DURATION_MS = 6000;
@@ -164,6 +165,7 @@ export default function Slideshow() {
   const [slideshowEnabled, setSlideshowEnabled] = useState(true);
   const [showQrCode, setShowQrCode] = useState(true);
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
+  const [eventImageScale, setEventImageScale] = useState(100);
   const [muted, setMuted] = useState(true);
   const [transitionClass, setTransitionClass] = useState('');
   const [showNewUploadBadge, setShowNewUploadBadge] = useState(false);
@@ -230,6 +232,7 @@ export default function Slideshow() {
       setSlideshowEnabled(configData.slideshowEnabled);
       setShowQrCode(configData.showQrCode);
       setEventImageUrl(configData.eventImageUrl);
+      setEventImageScale(configData.eventImageScale);
       setItems(configData.shuffle ? shuffleArray(mediaData) : mediaData);
     });
 
@@ -332,6 +335,7 @@ export default function Slideshow() {
       setSlideshowEnabled(data.slideshowEnabled);
       setShowQrCode(data.showQrCode);
       setEventImageUrl(data.eventImageUrl);
+      setEventImageScale(data.eventImageScale);
 
       if (data.shuffle !== shuffleRef.current) {
         shuffleRef.current = data.shuffle;
@@ -538,8 +542,17 @@ export default function Slideshow() {
 
   // Opposite corner from the QR code, admin-uploaded, entirely optional —
   // null whenever nothing's been uploaded (see settings.ts getEventImageUrl).
+  // Size is admin-adjustable (100/150/200%, see Admin.tsx's Event Image
+  // slider) — applied as a CSS custom property so .slideshow-event-image's
+  // base max-width/max-height (global.css) stays the single source of truth
+  // for the 100% size.
   const eventImageOverlay = eventImageUrl ? (
-    <img src={eventImageUrl} className="slideshow-event-image" alt="" />
+    <img
+      src={eventImageUrl}
+      className="slideshow-event-image"
+      alt=""
+      style={{ '--event-image-scale': eventImageScale / 100 } as React.CSSProperties}
+    />
   ) : null;
 
   if (!current) {

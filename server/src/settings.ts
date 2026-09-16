@@ -19,6 +19,13 @@ export type TransitionStyle = (typeof TRANSITION_STYLES)[number];
 export const COLLAGE_MODES = ['off', 'always', 'mixed'] as const;
 export type CollageMode = (typeof COLLAGE_MODES)[number];
 
+// Three stops, not a free-form percentage — the admin's "Event Image" size
+// control is a 3-position slider (100% = original size, then +50%/+100%),
+// see CHANGELOG for why: enough range to matter without needing arbitrary
+// precision for a single branding image.
+export const EVENT_IMAGE_SCALES = [100, 150, 200] as const;
+export type EventImageScale = (typeof EVENT_IMAGE_SCALES)[number];
+
 // What gets shipped to Grafana Cloud when the integration is on — see
 // GRAFANA.md. Each category is independently toggleable so an admin who
 // only cares about, say, upload volume can leave device/access tracking
@@ -73,6 +80,12 @@ interface Settings {
   // routes/eventImage.ts's upload/delete handlers, not by the admin
   // settings form directly, same treatment as lastBackup above.
   eventImageFilename?: string | null;
+  // Display size of the event image in the slideshow, as a percentage of
+  // its original/base size. Set via its own dedicated endpoint (routes/
+  // eventImage.ts's PUT /scale) rather than the general admin settings
+  // form, same reasoning as eventImageFilename above — it's specific to
+  // the Event Image admin section, not a Playback Settings field.
+  eventImageScale?: EventImageScale;
 }
 
 fs.mkdirSync(path.dirname(config.settingsPath), { recursive: true });
@@ -313,6 +326,17 @@ export function getEventImageFilename(): string | null {
 export function setEventImageFilename(value: string | null): string | null {
   const settings = readSettings();
   settings.eventImageFilename = value;
+  writeSettings(settings);
+  return value;
+}
+
+export function getEventImageScale(): EventImageScale {
+  return readSettings().eventImageScale ?? 100;
+}
+
+export function setEventImageScale(value: EventImageScale): EventImageScale {
+  const settings = readSettings();
+  settings.eventImageScale = value;
   writeSettings(settings);
   return value;
 }

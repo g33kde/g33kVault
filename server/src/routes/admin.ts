@@ -32,6 +32,7 @@ import {
   getShowQrCode,
   setShowQrCode,
   getEventImageUrl,
+  getEventImageScale,
   getGrafanaEnabled,
   setGrafanaEnabled,
   getGrafanaCategories,
@@ -73,6 +74,7 @@ export function currentSettings() {
     requireApproval: getRequireApproval(),
     showQrCode: getShowQrCode(),
     eventImageUrl: getEventImageUrl(),
+    eventImageScale: getEventImageScale(),
     lastBackup: getLastBackup(),
   };
 }

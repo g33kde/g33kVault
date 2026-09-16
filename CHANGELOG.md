@@ -29,6 +29,19 @@
     uploading an image and confirming it's inside.
   - Upload is admin-password-protected like every other admin action, kept in memory
     (not written to a temp file first) since it's at most one small file at a time.
+  - **Size slider** — the default size (matching the QR code's footprint) read as too
+    small in practice, so the Event Image section also has a 3-stop size slider
+    (100% / 150% / 200%). Applies instantly on drag via its own `PUT
+    /api/admin/event-image/scale` endpoint rather than the Playback Settings form's
+    Save button — deliberately kept separate so dragging the slider can't
+    accidentally persist some other unsaved/invalid value sitting in that form (e.g.
+    a half-typed slideshow-speed number). The percentage scales the image's CSS
+    `max-width`/`max-height` via a `--event-image-scale` custom property, so 100%
+    stays pixel-identical to before this change.
+- Fixed: in Playback Settings, a checkbox could end up sharing a row with whatever
+  free-flowed next to it (the settings form is `flex-wrap`, not a grid), which read
+  as visually cramped/inconsistent. Every checkbox now forces its own row
+  (`.admin-checkbox-label { width: 100% }`), matching how captions already behaved.
 
 ### QR code on the slideshow itself, so guests can add photos mid-show
 

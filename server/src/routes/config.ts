@@ -10,6 +10,7 @@ import {
   getRequireApproval,
   getShowQrCode,
   getEventImageUrl,
+  getEventImageScale,
 } from '../settings';
 
 export const configRouter = Router();
@@ -26,5 +27,6 @@ configRouter.get('/', (_req, res) => {
     requireApproval: getRequireApproval(),
     showQrCode: getShowQrCode(),
     eventImageUrl: getEventImageUrl(),
+    eventImageScale: getEventImageScale(),
   });
 });

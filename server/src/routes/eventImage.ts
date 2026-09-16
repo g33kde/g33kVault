@@ -6,7 +6,13 @@ import type { Request } from 'express';
 import type { Server as SocketIOServer } from 'socket.io';
 import { config } from '../config';
 import { checkAdminPassword } from '../adminAuth';
-import { getEventImageFilename, setEventImageFilename } from '../settings';
+import {
+  getEventImageFilename,
+  setEventImageFilename,
+  setEventImageScale,
+  EVENT_IMAGE_SCALES,
+  EventImageScale,
+} from '../settings';
 import { logEvent } from '../grafana/eventLog';
 import { currentSettings } from './admin';
 
@@ -83,6 +89,31 @@ export function eventImageRouter(io: SocketIOServer) {
     removeExistingFile();
     setEventImageFilename(null);
     logEvent('moderation', 'event_image_removed', {});
+
+    const updated = currentSettings();
+    io.emit('config:updated', updated);
+    res.json(updated);
+  });
+
+  // Separate from PUT /api/admin/settings on purpose — that endpoint's body
+  // always reflects the Playback Settings form's full local state, and this
+  // slider lives in the Event Image section instead, applied instantly on
+  // drag rather than gated behind that form's own Save button. Routing it
+  // through the general settings endpoint would risk overwriting another
+  // field with a stale/invalid value the admin hasn't saved yet.
+  router.put('/scale', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    const { scale } = req.body;
+    if (!EVENT_IMAGE_SCALES.includes(scale)) {
+      res.status(400).json({ error: `scale must be one of ${EVENT_IMAGE_SCALES.join(', ')}` });
+      return;
+    }
+
+    setEventImageScale(scale as EventImageScale);
 
     const updated = currentSettings();
     io.emit('config:updated', updated);

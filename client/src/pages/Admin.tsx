@@ -186,6 +186,7 @@ interface SettingsPayload {
   requireApproval: boolean;
   showQrCode: boolean;
   eventImageUrl: string | null;
+  eventImageScale: number;
   lastBackup: LastBackup | null;
 }
 
@@ -193,6 +194,9 @@ const STORAGE_KEY = 'g33kvault-admin-password';
 const MIN_SECONDS = 1;
 const MAX_SECONDS = 600;
 const STALE_BACKUP_MS = 7 * 24 * 60 * 60 * 1000;
+// Kept in sync with server/src/settings.ts's EVENT_IMAGE_SCALES — three
+// stops (not a free-form percentage) for the Event Image size slider.
+const EVENT_IMAGE_SCALES = [100, 150, 200];
 
 function formatBackupSize(bytes: number): string {
   return bytes < 1e9 ? `${(bytes / 1e6).toFixed(1)} MB` : `${(bytes / 1e9).toFixed(1)} GB`;
@@ -342,6 +346,7 @@ export default function Admin() {
   const [requireApproval, setRequireApproval] = useState(false);
   const [showQrCode, setShowQrCode] = useState(true);
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
+  const [eventImageScale, setEventImageScale] = useState(100);
   const [eventImageError, setEventImageError] = useState('');
   const [eventImageUploading, setEventImageUploading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -469,6 +474,7 @@ export default function Admin() {
         setRequireApproval(data.requireApproval);
         setShowQrCode(data.showQrCode);
         setEventImageUrl(data.eventImageUrl);
+        setEventImageScale(data.eventImageScale);
         setLastBackupState(data.lastBackup);
       })
       .catch((status) => {
@@ -501,6 +507,7 @@ export default function Admin() {
       setRequireApproval(data.requireApproval);
       setShowQrCode(data.showQrCode);
       setEventImageUrl(data.eventImageUrl);
+      setEventImageScale(data.eventImageScale);
       setLastBackupState(data.lastBackup);
     });
     socket.on('duplicates:progress', (data: { current: number; total: number }) => setScanProgress(data));
@@ -667,6 +674,28 @@ export default function Admin() {
       setEventImageError('Network error');
     } finally {
       setEventImageUploading(false);
+    }
+  }
+
+  // Applies instantly on drag, its own dedicated endpoint (see
+  // routes/eventImage.ts's PUT /scale) rather than going through the
+  // Playback Settings form's Save button below — optimistic local update so
+  // the slider itself feels immediate, reconciled by the config:updated
+  // broadcast either way.
+  async function handleEventImageScaleChange(value: number) {
+    setEventImageScale(value);
+    if (!password) return;
+    try {
+      const res = await fetch('/api/admin/event-image/scale', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body: JSON.stringify({ scale: value }),
+      });
+      if (res.status === 401) handleAuthFailure();
+    } catch {
+      // Best-effort — a dropped request here just means the slider's local
+      // position won't match the persisted value until the next reload;
+      // not worth a dedicated error UI for a single slider drag.
     }
   }
 
@@ -1745,6 +1774,21 @@ export default function Admin() {
                   </button>
                 )}
               </div>
+              {eventImageUrl && (
+                <div className="admin-event-image-scale">
+                  <label htmlFor="event-image-scale-input">Size</label>
+                  <input
+                    id="event-image-scale-input"
+                    type="range"
+                    min={0}
+                    max={EVENT_IMAGE_SCALES.length - 1}
+                    step={1}
+                    value={Math.max(0, EVENT_IMAGE_SCALES.indexOf(eventImageScale))}
+                    onChange={(e) => handleEventImageScaleChange(EVENT_IMAGE_SCALES[Number(e.target.value)])}
+                  />
+                  <span className="admin-event-image-scale-value">{eventImageScale}%</span>
+                </div>
+              )}
               {eventImageError && <p className="error-msg">{eventImageError}</p>}
             </div>
           )}
