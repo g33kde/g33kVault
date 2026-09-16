@@ -629,6 +629,42 @@ a.upload-url:focus-visible {
   pointer-events: none;
 }
 
+/* Top-right — the one corner nothing else in the slideshow ever occupies:
+   the New Upload badge sits top-center, the uploader tag bottom-right, the
+   date tag/unmute button bottom-center, and the admin preview badge
+   bottom-left. Persistent (not just during a highlight), since guests
+   should be able to scan and add photos at any moment, not only on
+   specific slides. In collage mode this sits on top of that corner's tile
+   rather than beside it — same trade-off the uploader tag already makes on
+   a solo video, where it overlays the video instead of squeezing beside it. */
+.slideshow-qr {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+.slideshow-qr-code {
+  display: block;
+  width: 110px;
+  height: 110px;
+  border-radius: 4px;
+}
+.slideshow-qr-caption {
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: #111;
+  text-align: center;
+  line-height: 1.2;
+}
+
 .admin-link {
   color: var(--text-dim);
   font-size: 0.85rem;

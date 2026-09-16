@@ -743,6 +743,27 @@ behavior — inserted to play in its normal turn soon, without cutting away from
 currently on screen — since a video's own length doesn't fit a fixed "shown for 10
 seconds" rule the way a photo does.
 
+**Approving a batch of pending photos at once** (see [Guest-uploaded
+archives](#guest-uploaded-archives) below — that's also where the "📦 Pending Uploads"
+review UI in `/admin` is described) is quieter than a single fresh upload — no
+highlight badge, no interruption, since dozens
+of those back to back would be disruptive rather than exciting. They do still play as
+one contiguous block in the order they were originally added, right after whatever's
+currently showing, before normal rotation continues — with shuffle on, that means the
+whole batch joins the pass already in progress rather than restarting the shuffle from
+the beginning, so every photo (old and newly approved alike) still gets shown exactly
+once before the next reshuffle.
+
+## Scan to add photos, right from the slideshow
+
+The slideshow itself shows a small QR code in the top-right corner — the same
+`/upload` link the Host page's QR encodes, so it's always correct for wherever the
+server currently is, no separate setup needed. It's there on every "the show is
+running" state, including while waiting for the very first upload, so guests don't
+need to go find the host screen or ask for the link; they can scan straight off
+whatever screen/TV is showing the slideshow. Hidden only while an admin has turned
+"Enable Slideshow" off — see [Configuration](#configuration-env-vars) above.
+
 ## Photo Collage
 
 Instead of always showing one photo at a time, the slideshow can group several into a

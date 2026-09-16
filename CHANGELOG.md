@@ -2,6 +2,64 @@
 
 ## [Unreleased]
 
+### QR code on the slideshow itself, so guests can add photos mid-show
+
+- A small "📷 Add your photos" QR code now sits in the slideshow's top-right corner —
+  the one spot nothing else there ever occupies (New Upload badge is top-center, the
+  uploader tag bottom-right, the date tag/unmute button bottom-center, the admin
+  preview badge bottom-left). Shown on every "the show is running" state, including
+  "waiting for the first upload" — arguably the single most useful moment for it —
+  but not on the admin-disabled state, which is a deliberate pause. Reuses the exact
+  same `/api/qrcode?dest=upload` endpoint the Host page's QR already uses, so it's
+  automatically correct for wherever the device currently is, same as that one — no
+  new backend work needed. Sized at 110px, small enough to stay out of the way of a
+  fullscreen photo/video, checked by eye in a real running browser for legibility.
+
+### Fixed: approving a batch of pending photos could scramble their playback order
+
+- Reported: approving several pending photos at once (via a batch, or "Approve All
+  Pending") should have them "play in the added order," continue with whatever
+  playback mode was already running afterward, and — under shuffle — not restart the
+  whole gallery from the beginning before every photo's had its turn once. Checking
+  this against the actual running slideshow surfaced two real, distinct bugs, both in
+  `Slideshow.tsx`'s `media:approved` handler and `advance()`:
+  1. The server emits one `media:approved` event per approved item, in the order they
+     were originally added — but the client recomputed the same insert position
+     (`indexRef.current + 1`) for every event in that burst, so item 2 landed *ahead*
+     of item 1 (inserted a moment earlier at that exact spot), and so on — a multi-item
+     batch played back in reverse of its added order. Fixed with a running "next
+     insert position" that advances per item in a burst instead of resetting each
+     time, and (for shuffle specifically) inserting the whole batch as one contiguous
+     in-order run right after the current slide rather than scattering each item to a
+     random position, which was the previous behavior.
+  2. `advance()`'s wraparound/reshuffle check read the plain `items` variable — a
+     fresh closure every render, but the *specific* closure sitting in an
+     already-scheduled `setTimeout` can be an older one if several photos got approved
+     and spliced in while the same slide kept showing (nothing changes `current?.id`,
+     so the effect that schedules that timer never reruns to capture a fresh closure).
+     That stale closure's `items.length` no longer matched the real, since-grown array,
+     so the wraparound math was calculated against the wrong length. Fixed by reading
+     `itemsRef.current` instead — already the established pattern in this file for
+     exactly this "always-fresh, readable from a stale closure" need (used by the
+     collage-picking and preload logic already).
+  - Caught a related, StrictMode-development-only false lead while fixing #1: an
+    early version of the fix mutated the "next insert position" ref *inside* the
+    `setItems` updater function itself — React's `<StrictMode>` (see `main.tsx`)
+    double-invokes updaters in dev builds specifically to catch impure ones, and this
+    one wasn't, silently double-advancing the ref per event. Moved the ref mutation
+    into the plain event-handler body instead, the same reasoning already documented
+    on `playNextHighlightOrAdvance` for `highlightQueueRef` a few lines below it.
+  - Verified for real, repeatedly, against an actual **production build** (not just
+    the dev server, specifically to rule out StrictMode/dev-only artifacts) — approved
+    a batch of 4 identifiable test photos mid-rotation with a real running slideshow,
+    confirmed via a gap-free `MutationObserver` (not fixed-interval polling, which
+    turned out to mask real transitions and manufacture the appearance of bugs that
+    weren't actually there) that all 4 played back in added order immediately after
+    the current slide, normal rotation resumed correctly afterward, and — under
+    shuffle — every one of 8 total photos (4 pre-existing + 4 newly approved) played
+    exactly once before the next reshuffle, with the reshuffle itself only ever
+    firing once the full pass was actually complete.
+
 ### Videos get their own, higher upload size limit
 
 - Videos previously shared `MAX_FILE_SIZE_MB` (100 MB default) with photos — routinely

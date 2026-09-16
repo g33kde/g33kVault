@@ -192,6 +192,10 @@ export default function Slideshow() {
   // instead of interrupting it, so back-to-back uploads each get their full
   // uninterrupted turn.
   const highlightQueueRef = useRef<MediaItem[]>([]);
+  // Where the next 'media:approved' item from the current batch should be
+  // inserted — see the socket handler below. null (or stale, once playback
+  // has passed it) means "start a fresh run right after the current slide."
+  const approvedInsertIndexRef = useRef<number | null>(null);
 
   const current = items.length > 0 ? items[index % items.length] : null;
 
@@ -271,14 +275,44 @@ export default function Slideshow() {
     // queued in like a video, never highlighted like a fresh single upload
     // (approving dozens of photos together would otherwise mean dozens of
     // disruptive "New Upload" badges back to back).
+    //
+    // The server emits one event per item, in the order they were
+    // originally added (see admin.ts's approve routes) — back to back,
+    // often faster than a render/commit cycle apart. Each one needs to land
+    // right after the *previous* item from this same batch, not back at
+    // indexRef.current + 1 again, or a multi-item batch plays in reverse of
+    // its added order (item 2 would otherwise get inserted ahead of item 1,
+    // which was inserted a moment earlier at that exact same position).
+    // approvedInsertIndexRef tracks that running position; reset once
+    // playback has moved past it, so a *later*, unrelated batch starts a
+    // fresh run right after wherever the slideshow actually is by then.
+    //
+    // Deliberately never scattered by shuffle (unlike a solo video below) —
+    // the whole point here is "these just got approved, play them in
+    // order," with normal shuffle/sequential rotation resuming right after.
+    // Inserting after the current index either way means these join the
+    // pass already in progress rather than forcing an early reshuffle back
+    // to the start — every item (old and new) still gets shown exactly once
+    // before the next reshuffle.
+    //
+    // The ref update happens here, in the plain handler body, NOT inside
+    // the setItems updater below — React (in StrictMode dev builds, see
+    // main.tsx) invokes a setState updater twice to check it's pure, and
+    // mutating approvedInsertIndexRef inside one would double-advance it
+    // per event (confirmed for real: it inserted every other item one slot
+    // too far out, leaving old items sandwiched between what should've
+    // been a contiguous run). Same reasoning as playNextHighlightOrAdvance
+    // below being a plain function rather than a setState updater, for
+    // highlightQueueRef.
     socket.on('media:approved', (item: MediaItem) => {
+      if (approvedInsertIndexRef.current === null || approvedInsertIndexRef.current <= indexRef.current) {
+        approvedInsertIndexRef.current = indexRef.current + 1;
+      }
+      const insertAt = approvedInsertIndexRef.current;
+      approvedInsertIndexRef.current = insertAt + 1;
       setItems((prev) => {
         const next = [...prev];
-        const lower = Math.min(indexRef.current + 1, next.length);
-        const insertAt = shuffleRef.current
-          ? lower + Math.floor(Math.random() * (next.length - lower + 1))
-          : lower;
-        next.splice(insertAt, 0, item);
+        next.splice(Math.min(insertAt, next.length), 0, item);
         return next;
       });
     });
@@ -332,17 +366,28 @@ export default function Slideshow() {
   }, []);
 
   function advance() {
+    // itemsRef, not the plain `items` variable: this function is a fresh
+    // closure every render, but the *specific* instance actually sitting in
+    // a pending setTimeout (scheduled by the render effect below, keyed on
+    // current?.id/imageDuration) can be one from an earlier render — e.g.
+    // several items got approved and spliced in while the same slide kept
+    // showing (current?.id unchanged, so the effect never re-ran to
+    // schedule a fresh one). Reading the plain `items`/`items.length` closed
+    // over back then would use a stale, too-short length here, computing
+    // the wrong modulo against an array that's since grown. itemsRef.current
+    // is always the latest, exactly per the comment on its declaration.
     setIndex((i) => {
-      if (items.length === 0) return 0;
+      const currentItems = itemsRef.current;
+      if (currentItems.length === 0) return 0;
       // A collage just shown steps forward by however many array slots it
       // actually used (see slideStepRef), not always 1.
       const step = slideStepRef.current || 1;
-      const next = (i + step) % items.length;
+      const next = (i + step) % currentItems.length;
       // Wrapping past the start is a natural point to re-shuffle, so a full
       // pass through the gallery doesn't always replay in the same random
       // order. A multi-step collage advance can jump past 0 without landing
       // on it exactly, so this checks for that instead of `next === 0`.
-      if (i + step >= items.length && shuffleRef.current) {
+      if (i + step >= currentItems.length && shuffleRef.current) {
         setItems((prev) => shuffleArray(prev));
       }
       return next;
@@ -469,6 +514,20 @@ export default function Slideshow() {
       <div className="slideshow-preview-badge">🔍 Admin preview — disabled for guests</div>
     ) : null;
 
+  // Reuses the exact same endpoint the Host page's QR does — it encodes
+  // whatever host/port *this* request came in on, so it's already correct
+  // wherever the device currently is, same as Host.tsx, no extra work
+  // needed for that. Shown on every "the show is running" state (including
+  // "waiting for the first upload," arguably the most useful moment for
+  // it) but not on the admin-disabled state above, which is a deliberate
+  // pause, not "business as usual."
+  const slideshowQr = (
+    <div className="slideshow-qr">
+      <img src="/api/qrcode?dest=upload" className="slideshow-qr-code" alt="Scan to upload photos" />
+      <span className="slideshow-qr-caption">📷 Add your photos</span>
+    </div>
+  );
+
   if (!current) {
     return (
       <div className="page slideshow-page slideshow-empty">
@@ -479,6 +538,7 @@ export default function Slideshow() {
         </h1>
         <p>Waiting for the first upload…</p>
         {previewBadge}
+        {slideshowQr}
       </div>
     );
   }
@@ -497,6 +557,7 @@ export default function Slideshow() {
           ))}
         </div>
         {previewBadge}
+        {slideshowQr}
       </div>
     );
   }
@@ -530,6 +591,7 @@ export default function Slideshow() {
       )}
       {showNewUploadBadge && <div className="new-upload-badge">🆕 New Upload</div>}
       {previewBadge}
+      {slideshowQr}
     </div>
   );
 }
