@@ -67,6 +67,12 @@ interface Settings {
   grafanaCategories?: GrafanaCategory[];
   grafanaPushIntervalMs?: GrafanaPushIntervalMs;
   grafanaInstanceLabel?: string;
+  showQrCode?: boolean;
+  // The current event-image file's name within config.eventImageDir (e.g.
+  // "event-image.png") — undefined/null means none uploaded. Set by
+  // routes/eventImage.ts's upload/delete handlers, not by the admin
+  // settings form directly, same treatment as lastBackup above.
+  eventImageFilename?: string | null;
 }
 
 fs.mkdirSync(path.dirname(config.settingsPath), { recursive: true });
@@ -285,4 +291,45 @@ export function setGrafanaInstanceLabel(value: string): string {
   delete settings.grafanaInstanceLabel;
   writeSettings(settings);
   return getGrafanaInstanceLabel();
+}
+
+// On by default — matches this project's usual "opt out, not opt in"
+// pattern for admin-controlled display settings (shuffle, collage, etc.).
+export function getShowQrCode(): boolean {
+  return readSettings().showQrCode ?? true;
+}
+
+export function setShowQrCode(value: boolean): boolean {
+  const settings = readSettings();
+  settings.showQrCode = value;
+  writeSettings(settings);
+  return value;
+}
+
+export function getEventImageFilename(): string | null {
+  return readSettings().eventImageFilename ?? null;
+}
+
+export function setEventImageFilename(value: string | null): string | null {
+  const settings = readSettings();
+  settings.eventImageFilename = value;
+  writeSettings(settings);
+  return value;
+}
+
+// The public URL Slideshow.tsx/Admin.tsx actually use — null whenever
+// nothing's uploaded, or if the recorded filename's file has somehow gone
+// missing (defensive: report "none" rather than let a stale reference
+// crash anything downstream). `?v=<size>` cache-busts the same way every
+// other media URL in this app already does, so uploading a replacement
+// image immediately shows the new one instead of a cached copy of the old.
+export function getEventImageUrl(): string | null {
+  const filename = getEventImageFilename();
+  if (!filename) return null;
+  try {
+    const stat = fs.statSync(path.join(config.eventImageDir, filename));
+    return `/event-image/${filename}?v=${stat.size}`;
+  } catch {
+    return null;
+  }
 }

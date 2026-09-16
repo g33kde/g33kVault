@@ -29,6 +29,9 @@ import {
   setCollageLayout,
   getLastBackup,
   setLastBackup,
+  getShowQrCode,
+  setShowQrCode,
+  getEventImageUrl,
   getGrafanaEnabled,
   setGrafanaEnabled,
   getGrafanaCategories,
@@ -52,7 +55,13 @@ import { getGrafanaStatus, sendGrafanaTestEvent, ensureGrafanaPushLoop, logEvent
 const MIN_INTERVAL_MS = 1000;
 const MAX_INTERVAL_MS = 10 * 60 * 1000;
 
-function currentSettings() {
+// Exported so routes/eventImage.ts can emit the exact same shape after an
+// upload/delete — every client-side 'config:updated' handler (Slideshow.tsx
+// and Admin.tsx alike) expects the full object, not just whatever fields a
+// particular action changed; Admin.tsx in particular unconditionally sets
+// its lastBackup display from whatever arrives, so a partial payload would
+// wipe that status.
+export function currentSettings() {
   return {
     slideshowIntervalMs: getSlideshowIntervalMs(),
     shuffle: getShuffle(),
@@ -62,6 +71,8 @@ function currentSettings() {
     collageMode: getCollageMode(),
     collageLayout: getCollageLayout(),
     requireApproval: getRequireApproval(),
+    showQrCode: getShowQrCode(),
+    eventImageUrl: getEventImageUrl(),
     lastBackup: getLastBackup(),
   };
 }
@@ -144,6 +155,7 @@ export function adminRouter(io: SocketIOServer) {
       collageMode,
       collageLayout,
       requireApproval,
+      showQrCode,
     } = req.body ?? {};
 
     if (
@@ -193,6 +205,11 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
+    if (typeof showQrCode !== 'boolean') {
+      res.status(400).json({ error: 'showQrCode must be a boolean' });
+      return;
+    }
+
     setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
     setShuffle(shuffle);
     setTransitionStyle(transitionStyle as TransitionStyle);
@@ -201,6 +218,7 @@ export function adminRouter(io: SocketIOServer) {
     setCollageMode(collageMode as CollageMode);
     setCollageLayout(collageLayout as CollageLayout);
     setRequireApproval(requireApproval);
+    setShowQrCode(showQrCode);
 
     const updated = currentSettings();
     logEvent('moderation', 'settings_changed', updated);

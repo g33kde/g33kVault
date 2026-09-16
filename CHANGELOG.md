@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### Admin: QR code on/off toggle, and an optional event image opposite it
+
+- **QR toggle** — a "📱 Show QR code during slideshow" checkbox in Admin's Playback
+  Settings, on by default (matches this project's usual opt-out pattern for display
+  settings). Turning it off hides the slideshow's QR overlay entirely, live, via the
+  same `config:updated` socket broadcast every other Playback Settings change already
+  uses — no page reload needed on the slideshow screen.
+- **Event image** — a new "🖼 Event Image" section in Admin (collapsible, alongside
+  Backup & Restore) lets you upload a single .jpg/.png/.gif branding image; when set,
+  it's shown in the slideshow's top-left corner — the one corner still free, directly
+  opposite the QR code. Unlike the QR code's white card background, the event image
+  sits directly on the black slideshow background with no card, since it's usually
+  already a logo/graphic rather than something that needs a light backing. A
+  "Replace"/"Remove" flow lets you swap or clear it any time; replacing removes the
+  previous file rather than leaving it orphaned on disk.
+  - Stored in its own directory (`EVENT_IMAGE_DIR`, default nested under the same
+    parent directory as `DB_PATH`/`SETTINGS_PATH`) rather than `MEDIA_DIR` — it's an
+    admin-only branding asset, not a guest photo, so it doesn't belong in the gallery
+    or any of the duplicate/photo-date/low-res scans. Deliberately nested under the
+    `db.json`/`settings.json` directory rather than a sibling top-level folder: that's
+    exactly what Docker Compose's `db-data` volume mounts and what the existing
+    backup/restore scripts and the admin "Download Backup" button already tar up, so
+    the event image persists across container recreates and is included in every
+    backup for free, verified by actually downloading a backup archive after
+    uploading an image and confirming it's inside.
+  - Upload is admin-password-protected like every other admin action, kept in memory
+    (not written to a temp file first) since it's at most one small file at a time.
+
 ### QR code on the slideshow itself, so guests can add photos mid-show
 
 - A small "📷 Add your photos" QR code now sits in the slideshow's top-right corner —

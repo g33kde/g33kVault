@@ -8,6 +8,8 @@ import {
   getCollageMode,
   getCollageLayout,
   getRequireApproval,
+  getShowQrCode,
+  getEventImageUrl,
 } from '../settings';
 
 export const configRouter = Router();
@@ -22,5 +24,7 @@ configRouter.get('/', (_req, res) => {
     collageMode: getCollageMode(),
     collageLayout: getCollageLayout(),
     requireApproval: getRequireApproval(),
+    showQrCode: getShowQrCode(),
+    eventImageUrl: getEventImageUrl(),
   });
 });

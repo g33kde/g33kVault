@@ -184,6 +184,8 @@ interface SettingsPayload {
   collageMode: CollageMode;
   collageLayout: CollageLayout;
   requireApproval: boolean;
+  showQrCode: boolean;
+  eventImageUrl: string | null;
   lastBackup: LastBackup | null;
 }
 
@@ -338,6 +340,10 @@ export default function Admin() {
   const [collageMode, setCollageMode] = useState<CollageMode>('off');
   const [collageLayout, setCollageLayout] = useState<CollageLayout>('random');
   const [requireApproval, setRequireApproval] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(true);
+  const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
+  const [eventImageError, setEventImageError] = useState('');
+  const [eventImageUploading, setEventImageUploading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState('');
 
@@ -406,6 +412,7 @@ export default function Admin() {
   // CHANGELOG) — collapsed by default so the page opens short; each stays
   // independently toggleable rather than closing the others.
   const [backupOpen, setBackupOpen] = useState(false);
+  const [eventImageOpen, setEventImageOpen] = useState(false);
   const [grafanaOpen, setGrafanaOpen] = useState(false);
   const [duplicatesToolOpen, setDuplicatesToolOpen] = useState(false);
   const [photoDatesToolOpen, setPhotoDatesToolOpen] = useState(false);
@@ -460,6 +467,8 @@ export default function Admin() {
         setCollageMode(data.collageMode);
         setCollageLayout(data.collageLayout);
         setRequireApproval(data.requireApproval);
+        setShowQrCode(data.showQrCode);
+        setEventImageUrl(data.eventImageUrl);
         setLastBackupState(data.lastBackup);
       })
       .catch((status) => {
@@ -490,6 +499,8 @@ export default function Admin() {
       setCollageMode(data.collageMode);
       setCollageLayout(data.collageLayout);
       setRequireApproval(data.requireApproval);
+      setShowQrCode(data.showQrCode);
+      setEventImageUrl(data.eventImageUrl);
       setLastBackupState(data.lastBackup);
     });
     socket.on('duplicates:progress', (data: { current: number; total: number }) => setScanProgress(data));
@@ -533,6 +544,7 @@ export default function Admin() {
           collageMode,
           collageLayout,
           requireApproval,
+          showQrCode,
         }),
       });
 
@@ -592,6 +604,69 @@ export default function Admin() {
       setBackupError('Network error');
     } finally {
       setBackingUp(false);
+    }
+  }
+
+  // config:updated (broadcast by the eventImage route on success) already
+  // updates eventImageUrl for us — these just drive the upload button's
+  // busy/error state, same division of labor as handleBackup above uses
+  // for lastBackup.
+  async function handleEventImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !password) return;
+
+    setEventImageUploading(true);
+    setEventImageError('');
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch('/api/admin/event-image', {
+        method: 'POST',
+        headers: { 'X-Admin-Password': password },
+        body,
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setEventImageError(data.error || 'Upload failed');
+      }
+    } catch {
+      setEventImageError('Network error');
+    } finally {
+      setEventImageUploading(false);
+    }
+  }
+
+  async function handleEventImageRemove() {
+    if (!password) return;
+
+    setEventImageUploading(true);
+    setEventImageError('');
+    try {
+      const res = await fetch('/api/admin/event-image', {
+        method: 'DELETE',
+        headers: { 'X-Admin-Password': password },
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setEventImageError(data.error || 'Remove failed');
+      }
+    } catch {
+      setEventImageError('Network error');
+    } finally {
+      setEventImageUploading(false);
     }
   }
 
@@ -1351,6 +1426,19 @@ export default function Admin() {
             looks right before guests can see it.
           </p>
 
+          <label htmlFor="show-qr-code-input" className="admin-checkbox-label">
+            <input
+              id="show-qr-code-input"
+              type="checkbox"
+              checked={showQrCode}
+              onChange={(e) => {
+                setShowQrCode(e.target.checked);
+                setSaveStatus('idle');
+              }}
+            />
+            📱 Show QR code during slideshow
+          </label>
+
           <label htmlFor="require-approval-input" className="admin-checkbox-label">
             <input
               id="require-approval-input"
@@ -1613,6 +1701,51 @@ export default function Admin() {
                 </button>
               </div>
               {backupError && <p className="error-msg">{backupError}</p>}
+            </div>
+          )}
+        </div>
+
+        <div className={`admin-tool ${eventImageOpen ? 'open' : ''}`}>
+          <button type="button" className="admin-tool-header" onClick={() => setEventImageOpen((o) => !o)}>
+            <span>🖼 Event Image</span>
+            <span className="admin-tool-header-right">
+              <span className="admin-tool-summary">{eventImageUrl ? 'Set' : 'Not set'}</span>
+              <Chevron open={eventImageOpen} />
+            </span>
+          </button>
+          {eventImageOpen && (
+            <div className="admin-tool-body">
+              <p className="tagline admin-settings-caption">
+                Shown in the slideshow's top-left corner, opposite the QR code. Accepts .jpg, .png, or .gif.
+              </p>
+              {eventImageUrl && (
+                <div className="admin-event-image-preview">
+                  <img src={eventImageUrl} alt="Current event image" />
+                </div>
+              )}
+              <div className="admin-event-image-actions">
+                <label className="btn btn-primary admin-file-btn">
+                  {eventImageUploading ? 'Uploading…' : eventImageUrl ? 'Replace Image' : 'Upload Image'}
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.gif"
+                    onChange={handleEventImageUpload}
+                    disabled={eventImageUploading}
+                    hidden
+                  />
+                </label>
+                {eventImageUrl && (
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={handleEventImageRemove}
+                    disabled={eventImageUploading}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {eventImageError && <p className="error-msg">{eventImageError}</p>}
             </div>
           )}
         </div>

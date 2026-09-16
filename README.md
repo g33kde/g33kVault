@@ -653,6 +653,7 @@ once wiped, there's no undo.
 | `MEDIA_DIR`                | `./media`                | Where uploaded files are stored                |
 | `DB_PATH`                  | `./data/g33kvault.json`  | JSON file storing upload metadata              |
 | `SETTINGS_PATH`            | `./data/settings.json`   | JSON file storing admin-adjustable settings (e.g. slideshow speed) |
+| `EVENT_IMAGE_DIR`          | `./data/event-image`     | Where the admin-uploaded event image (see below) is stored — nested under the same directory as `DB_PATH`/`SETTINGS_PATH` on purpose, so it's covered by the same backup/volume as those |
 | `IMPORT_DIR`               | `./import`               | Folder watched for bulk-import files           |
 | `IMPORT_SCAN_INTERVAL_MS`  | `60000`                  | How often to rescan the import folder (`0` disables periodic rescans, keeping only the startup scan) |
 | `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per photo                      |
@@ -763,6 +764,20 @@ running" state, including while waiting for the very first upload, so guests don
 need to go find the host screen or ask for the link; they can scan straight off
 whatever screen/TV is showing the slideshow. Hidden only while an admin has turned
 "Enable Slideshow" off — see [Configuration](#configuration-env-vars) above.
+
+It can also be turned off entirely from `/admin`'s Playback Settings — "📱 Show QR
+code during slideshow" (on by default) — for events where you'd rather not show it at
+all.
+
+## Event image
+
+`/admin`'s collapsible **"🖼 Event Image"** section (next to Backup & Restore) lets
+you upload a single .jpg/.png/.gif image — a logo, sponsor graphic, whatever fits your
+event — that then shows up in the slideshow's top-left corner, the corner directly
+opposite the QR code. Unlike the QR code, it's shown with no white card behind it, so
+it sits directly on the black slideshow background as-is. Uploading again replaces
+whatever was there before (old file removed, not left behind); a "Remove" button
+clears it. Optional — nothing is shown there unless you've uploaded something.
 
 ## Photo Collage
 

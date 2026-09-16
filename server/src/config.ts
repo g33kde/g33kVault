@@ -1,12 +1,28 @@
 import path from 'path';
 
+const defaultDbPath = path.join(__dirname, '..', 'data', 'g33kvault.json');
+const dbPath = process.env.DB_PATH || defaultDbPath;
+
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   mediaDir: process.env.MEDIA_DIR || path.join(__dirname, '..', 'media'),
-  dbPath: process.env.DB_PATH || path.join(__dirname, '..', 'data', 'g33kvault.json'),
+  dbPath,
   settingsPath: process.env.SETTINGS_PATH || path.join(__dirname, '..', 'data', 'settings.json'),
   importDir: process.env.IMPORT_DIR || path.join(__dirname, '..', 'import'),
   importScanIntervalMs: parseInt(process.env.IMPORT_SCAN_INTERVAL_MS || '60000', 10),
+  // Holds exactly one file at a time — the admin-uploaded event logo/graphic
+  // shown in the slideshow's corner (see routes/eventImage.ts). Deliberately
+  // not part of MEDIA_DIR/db.json: it's an admin-only branding asset, not a
+  // guest photo, so it doesn't belong in the gallery or the duplicate/
+  // photo-date/low-res scans. Nested under the *same* directory as
+  // dbPath/settingsPath rather than a sibling top-level folder, though —
+  // that directory is exactly what Docker Compose's db-data volume mounts,
+  // and what the backup/restore scripts and the admin "Download Backup"
+  // button already tar up wholesale; a sibling folder outside both
+  // media-data and db-data wouldn't persist across a container recreate at
+  // all without its own new volume, and wouldn't be covered by either
+  // backup path either.
+  eventImageDir: process.env.EVENT_IMAGE_DIR || path.join(path.dirname(dbPath), 'event-image'),
   // Applies to photos only now — see maxVideoSizeMb below for videos, which
   // need a much higher ceiling.
   maxFileSizeMb: parseInt(process.env.MAX_FILE_SIZE_MB || '100', 10),

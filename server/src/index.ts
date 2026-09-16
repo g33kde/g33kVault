@@ -9,6 +9,7 @@ import { uploadRouter } from './routes/upload';
 import { qrcodeRouter, uploadUrlRouter } from './routes/qrcode';
 import { configRouter } from './routes/config';
 import { adminRouter } from './routes/admin';
+import { eventImageRouter } from './routes/eventImage';
 import { statsRouter } from './routes/stats';
 import { scanImportFolder } from './importFolder';
 import { logEvent, ensureGrafanaPushLoop } from './grafana/eventLog';
@@ -36,12 +37,14 @@ app.use((req, _res, next) => {
 });
 
 app.use('/media', express.static(config.mediaDir));
+app.use('/event-image', express.static(config.eventImageDir));
 app.use('/api/media', mediaRouter(io));
 app.use('/api/upload', uploadRouter(io));
 app.use('/api/qrcode', qrcodeRouter);
 app.use('/api/upload-url', uploadUrlRouter);
 app.use('/api/config', configRouter);
 app.use('/api/admin', adminRouter(io));
+app.use('/api/admin/event-image', eventImageRouter(io));
 app.use('/api/stats', statsRouter);
 
 const clientDist = path.join(__dirname, '..', 'public');

@@ -34,6 +34,8 @@ interface ConfigPayload {
   slideshowEnabled: boolean;
   collageMode: CollageMode;
   collageLayout: CollageLayout;
+  showQrCode: boolean;
+  eventImageUrl: string | null;
 }
 
 const DEFAULT_IMAGE_DURATION_MS = 6000;
@@ -160,6 +162,8 @@ export default function Slideshow() {
   const [imageDuration, setImageDuration] = useState(DEFAULT_IMAGE_DURATION_MS);
   const [shuffle, setShuffle] = useState(false);
   const [slideshowEnabled, setSlideshowEnabled] = useState(true);
+  const [showQrCode, setShowQrCode] = useState(true);
+  const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
   const [muted, setMuted] = useState(true);
   const [transitionClass, setTransitionClass] = useState('');
   const [showNewUploadBadge, setShowNewUploadBadge] = useState(false);
@@ -224,6 +228,8 @@ export default function Slideshow() {
       collageModeRef.current = configData.collageMode;
       collageLayoutRef.current = configData.collageLayout;
       setSlideshowEnabled(configData.slideshowEnabled);
+      setShowQrCode(configData.showQrCode);
+      setEventImageUrl(configData.eventImageUrl);
       setItems(configData.shuffle ? shuffleArray(mediaData) : mediaData);
     });
 
@@ -324,6 +330,8 @@ export default function Slideshow() {
       collageModeRef.current = data.collageMode;
       collageLayoutRef.current = data.collageLayout;
       setSlideshowEnabled(data.slideshowEnabled);
+      setShowQrCode(data.showQrCode);
+      setEventImageUrl(data.eventImageUrl);
 
       if (data.shuffle !== shuffleRef.current) {
         shuffleRef.current = data.shuffle;
@@ -521,12 +529,18 @@ export default function Slideshow() {
   // "waiting for the first upload," arguably the most useful moment for
   // it) but not on the admin-disabled state above, which is a deliberate
   // pause, not "business as usual."
-  const slideshowQr = (
+  const slideshowQr = showQrCode ? (
     <div className="slideshow-qr">
       <img src="/api/qrcode?dest=upload" className="slideshow-qr-code" alt="Scan to upload photos" />
       <span className="slideshow-qr-caption">📷 Add your photos</span>
     </div>
-  );
+  ) : null;
+
+  // Opposite corner from the QR code, admin-uploaded, entirely optional —
+  // null whenever nothing's been uploaded (see settings.ts getEventImageUrl).
+  const eventImageOverlay = eventImageUrl ? (
+    <img src={eventImageUrl} className="slideshow-event-image" alt="" />
+  ) : null;
 
   if (!current) {
     return (
@@ -539,6 +553,7 @@ export default function Slideshow() {
         <p>Waiting for the first upload…</p>
         {previewBadge}
         {slideshowQr}
+        {eventImageOverlay}
       </div>
     );
   }
@@ -558,6 +573,7 @@ export default function Slideshow() {
         </div>
         {previewBadge}
         {slideshowQr}
+        {eventImageOverlay}
       </div>
     );
   }
@@ -592,6 +608,7 @@ export default function Slideshow() {
       {showNewUploadBadge && <div className="new-upload-badge">🆕 New Upload</div>}
       {previewBadge}
       {slideshowQr}
+      {eventImageOverlay}
     </div>
   );
 }
