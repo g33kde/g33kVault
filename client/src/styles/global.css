@@ -510,6 +510,22 @@ a.upload-url:focus-visible {
 .t-vhs .slide {
   animation: t-vhs-kf 0.7s ease-out both;
 }
+@keyframes t-vhs-scanlines-kf {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+/* Meant as a brief flicker during the transition-in only — like
+   .t-arcade::after's scanlines, which correctly fade OUT. This one used to
+   reuse t-fade-kf (fade IN, 0->1) with animation-fill-mode "both", which
+   locked the overlay at full opacity forever once the 0.7s transition
+   finished, instead of disappearing — leaving faint repeating white
+   scanlines visible over the photo for its entire display time (reported
+   as "thin horizontal white lines" on some photos, not present in the
+   original file). */
 .t-vhs::after {
   content: '';
   position: absolute;
@@ -517,7 +533,7 @@ a.upload-url:focus-visible {
   background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.06) 0px, transparent 1px, transparent 3px);
   mix-blend-mode: overlay;
   pointer-events: none;
-  animation: t-fade-kf 0.7s both;
+  animation: t-vhs-scanlines-kf 0.7s ease-out both;
 }
 
 .unmute-btn {

@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Fixed: faint horizontal white lines over photos shown with the "VHS" transition
+
+- Reported as thin horizontal white lines appearing on some slideshow photos, but
+  not present in the original uploaded file (confirmed via the admin page). Root
+  cause: the VHS transition's scanline overlay (`.t-vhs::after`, a repeating
+  1px-white/2px-transparent stripe pattern meant as a brief flicker during the 0.7s
+  transition-in) animated with the wrong keyframe — it faded **in** (`t-fade-kf`,
+  0→1 opacity) and then, thanks to `animation-fill-mode: both`, stayed locked at
+  full opacity forever instead of fading back out, leaving it composited over the
+  photo for the photo's *entire* display time, not just the transition. At normal
+  screen scaling the repeating 3px stripe pattern aliases down to just one or two
+  visible faint lines rather than a uniform stripe, matching the report. Fixed by
+  giving it its own fade-*out* keyframe (`t-vhs-scanlines-kf`), the same pattern the
+  Arcade transition's own scanline overlay already used correctly. Only affects
+  photos shown with the VHS transition specifically (selected directly, or via
+  Party Mode's random cycling) — explains why it was intermittent.
+
 ### Admin: QR code on/off toggle, and an optional event image opposite it
 
 - **QR toggle** — a "📱 Show QR code during slideshow" checkbox in Admin's Playback
