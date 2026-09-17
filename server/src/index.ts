@@ -5,6 +5,7 @@ import cors from 'cors';
 import { Server as SocketIOServer } from 'socket.io';
 import { config } from './config';
 import { mediaRouter } from './routes/media';
+import { mediaDisplayRouter } from './routes/mediaDisplay';
 import { uploadRouter } from './routes/upload';
 import { qrcodeRouter, uploadUrlRouter } from './routes/qrcode';
 import { configRouter } from './routes/config';
@@ -37,6 +38,7 @@ app.use((req, _res, next) => {
 });
 
 app.use('/media', express.static(config.mediaDir));
+app.use('/media-display', mediaDisplayRouter());
 app.use('/event-image', express.static(config.eventImageDir));
 app.use('/api/media', mediaRouter(io));
 app.use('/api/upload', uploadRouter(io));

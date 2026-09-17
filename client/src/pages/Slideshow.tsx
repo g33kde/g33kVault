@@ -490,7 +490,7 @@ export default function Slideshow() {
       const nextItem = nextItems[(indexRef.current + nextStep) % nextItems.length];
       if (nextItem && nextItem.kind === 'image') {
         const preload = new Image();
-        preload.src = `/media/${nextItem.filename}?v=${nextItem.size}`;
+        preload.src = `/media-display/${nextItem.filename}?v=${nextItem.size}`;
       }
     }
 
@@ -591,7 +591,15 @@ export default function Slideshow() {
     );
   }
 
-  const src = `/media/${current.filename}?v=${current.size}`;
+  // Images go through /media-display (a capped-resolution copy — see
+  // displayCache.ts) since this is the element every transition style
+  // animates; a full-resolution phone photo there is what triggers Chrome's
+  // GPU-tiling seam artifact. Video is untouched — sharp can't resize it and
+  // it isn't affected (nothing here CSS-animates a <video> the same way).
+  const src =
+    current.kind === 'image'
+      ? `/media-display/${current.filename}?v=${current.size}`
+      : `/media/${current.filename}?v=${current.size}`;
 
   return (
     <div className="page slideshow-page">

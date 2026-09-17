@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Fixed: horizontal banding on slideshow photos in Chrome, with any transition style
+
+- Follow-up to the VHS-specific fix below: lines persisted even after that fix, on
+  Chrome (confirmed on both macOS and Linux; not reproducible in Safari) with any
+  transition style except "none" — never in Admin, never in the original file. Root
+  cause was different from the VHS one: every transition style CSS-animates the
+  photo element (`opacity`/`transform`/`filter`), and Chrome's GPU compositor
+  rasterizes an animated layer in tiles — on a full-resolution phone photo (routinely
+  3000px+ on a side, since nothing in the upload/serve pipeline ever downscaled a
+  photo before this) that can leave faint seams at tile boundaries, baked directly
+  into the photo's own pixels. Not present with "none" (nothing gets GPU-layer-
+  promoted) or in Admin (nothing there animates a photo), and Safari's WebKit doesn't
+  tile the same way. Fixed by adding `server/src/displayCache.ts`: a capped-resolution
+  (2560px longest side) copy of each photo is generated on first request and served
+  to the slideshow from a new `/media-display/:filename` route, leaving the original
+  file in `MEDIA_DIR` completely untouched — the cache lives in its own directory
+  (`DISPLAY_CACHE_DIR`, not a backed-up volume) and regenerates automatically if lost,
+  since it's always derivable from the original. Video and collage-mode photos were
+  unaffected (neither is ever CSS-animated this way) and still serve the original.
+
 ### Fixed: faint horizontal white lines over photos shown with the "VHS" transition
 
 - Reported as thin horizontal white lines appearing on some slideshow photos, but

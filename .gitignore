@@ -5,6 +5,7 @@ server/public/
 server/media/
 server/data/
 server/import/
+server/cache/
 *.log
 .env
 .DS_Store

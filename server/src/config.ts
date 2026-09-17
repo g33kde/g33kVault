@@ -23,6 +23,12 @@ export const config = {
   // all without its own new volume, and wouldn't be covered by either
   // backup path either.
   eventImageDir: process.env.EVENT_IMAGE_DIR || path.join(path.dirname(dbPath), 'event-image'),
+  // Capped-resolution copies of photos, generated on demand for the
+  // slideshow (see displayCache.ts) — never the source of truth, always
+  // regeneratable from the untouched original in mediaDir, so it's fine for
+  // this to be plain ephemeral container storage rather than a backed-up
+  // volume like mediaDir/dbPath are.
+  displayCacheDir: process.env.DISPLAY_CACHE_DIR || path.join(__dirname, '..', 'cache', 'display'),
   // Applies to photos only now — see maxVideoSizeMb below for videos, which
   // need a much higher ceiling.
   maxFileSizeMb: parseInt(process.env.MAX_FILE_SIZE_MB || '100', 10),

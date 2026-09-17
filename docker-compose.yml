@@ -9,6 +9,10 @@ services:
       - DB_PATH=/app/data/g33kvault.json
       - IMPORT_DIR=/app/import
       - IMPORT_SCAN_INTERVAL_MS=60000
+      # Regeneratable from the untouched originals in MEDIA_DIR (see
+      # server/src/displayCache.ts) — deliberately not a named volume, so it
+      # just starts empty and refills itself after a container recreate.
+      - DISPLAY_CACHE_DIR=/app/cache/display
       - MAX_FILE_SIZE_MB=100
       - SLIDESHOW_INTERVAL_MS=6000
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
