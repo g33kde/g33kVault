@@ -3,4 +3,4 @@
 // push counter shown in the /admin footer so it's easy to confirm which
 // build is actually live. Do not hand-edit; the hook does a plain regex
 // bump of the last segment.
-export const APP_VERSION = '107.001';
+export const APP_VERSION = '107.002';
