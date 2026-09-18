@@ -313,7 +313,7 @@ export default function Slideshow() {
     // been a contiguous run). Same reasoning as playNextHighlightOrAdvance
     // below being a plain function rather than a setState updater, for
     // highlightQueueRef.
-    socket.on('media:approved', (item: MediaItem) => {
+    const insertApprovedOrRestored = (item: MediaItem) => {
       if (approvedInsertIndexRef.current === null || approvedInsertIndexRef.current <= indexRef.current) {
         approvedInsertIndexRef.current = indexRef.current + 1;
       }
@@ -324,7 +324,13 @@ export default function Slideshow() {
         next.splice(Math.min(insertAt, next.length), 0, item);
         return next;
       });
-    });
+    };
+    socket.on('media:approved', insertApprovedOrRestored);
+    // A trashed photo just got restored from /admin's Trash section — same
+    // "quietly rejoin the rotation, no disruptive highlight" treatment as
+    // an approved batch above, since the semantics are identical: an
+    // existing item is live again, not a fresh upload.
+    socket.on('media:restored', insertApprovedOrRestored);
 
     socket.on('config:updated', (data: ConfigPayload) => {
       setImageDuration(data.slideshowIntervalMs);

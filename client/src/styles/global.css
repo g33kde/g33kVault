@@ -721,6 +721,13 @@ a.upload-url:focus-visible {
   color: var(--text);
 }
 
+.admin-version-footer {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  opacity: 0.6;
+  margin: 1.5rem 0 0.5rem;
+}
+
 .admin-card {
   width: 100%;
   max-width: 900px;
@@ -1053,6 +1060,18 @@ a.upload-url:focus-visible {
   padding: 0;
 }
 
+.admin-gallery-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+.admin-gallery-select-bar .btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1186,6 +1205,46 @@ a.upload-url:focus-visible {
 }
 .admin-rotate-cw-btn {
   right: 6px;
+}
+
+.admin-restore-btn {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.65);
+  color: var(--accent);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.admin-restore-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-thumb-loading {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+}
+
+.admin-trash-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+.admin-trash-actions .btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
 }
 
 /* --- Admin on a narrow (phone) screen ---

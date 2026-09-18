@@ -34,10 +34,20 @@ uploaded or imported. This was set as an explicit standing rule by the project o
   not a bug.
 - Same reasoning for rejecting a pending archive-upload batch (`POST
   /api/admin/pending-batches/:batchId/reject`, see below): permanently deletes every
-  photo in the batch, immediately, no separate trash. That's an intentional admin
-  decision (mirroring how every other delete in this app already works), not the
-  accidental loss this rule is about — a `pending` photo was never approved into the
-  vault in the first place.
+  photo in the batch, immediately, bypassing Trash (see below). That's an intentional
+  admin decision, not the accidental loss this rule is about — a `pending` photo was
+  never approved into the vault in the first place. The Duplicates/Low-Resolution
+  "Delete All" bulk cleanup tools are the same: immediate, permanent, no Trash.
+- **Trash** (`server/src/trash.ts`, `server/src/routes/trash.ts`): the two manual,
+  admin-picks-specific-photos delete paths — single delete and the gallery's
+  batch-select delete (`server/src/routes/media.ts`) — move the file into
+  `config.trashDir` (`MEDIA_DIR/.trash`, so it's still covered by the `media-data`
+  volume/backup) and flip `status` to `'trashed'` instead of actually deleting
+  anything. This is the primary safety net this hard-constraint section is about —
+  most delete paths in this app are still immediate/permanent (see above), but the
+  two an admin uses to clean up individual photos day-to-day are not. Restoring or
+  permanently purging requires a second, separate `TRASH_PASSWORD` — never assume
+  the regular admin password grants Trash access when reasoning about this code.
 - Before any change touching storage/schema/volumes: would this make already-imported
   photos disappear from the gallery or fail to load? If yes, find a non-destructive
   path, or flag it to the user before proceeding rather than deciding alone.

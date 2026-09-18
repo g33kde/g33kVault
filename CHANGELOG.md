@@ -2,6 +2,76 @@
 
 ## [Unreleased]
 
+### Version number in the admin footer, bumped automatically on every push
+
+- `/admin`'s footer (login screen and dashboard both) now shows a running build
+  number — `ver.107.001`, `ver.107.002`, and so on — read from `client/src/version.ts`.
+  Not a semantic version; just a quick way to confirm which build is actually live.
+- Bumping it is automatic, not something to remember by hand: a Claude Code hook
+  (`.claude/settings.json`, `scripts/bump-version.cjs`) fires right before any `git
+  push`, increments the counter, and commits just that one file so the bump rides
+  along with whatever's being pushed. Never blocks or fails the push itself — if the
+  bump script hits anything unexpected, it warns and gets out of the way.
+
+### Trash: deleted photos are recoverable, gated by a second password
+
+- Deleting a photo (single ✕ or the gallery's batch-select delete) now moves it into
+  Trash instead of removing it from disk — the file relocates to a hidden
+  `MEDIA_DIR/.trash/` folder (still covered by the same Docker volume and backup
+  script as everything else in `MEDIA_DIR`) and the row's `status` becomes `'trashed'`
+  rather than being deleted from the metadata store. It disappears from the live
+  gallery/slideshow exactly as before — same `media:deleted` broadcast, no behavior
+  change there — but nothing is actually gone yet.
+- A new **"🗑 Trash"** section in `/admin` (alongside Backup, Event Image, etc.) is
+  gated by a **second, separate password** — a new `TRASH_PASSWORD` environment
+  variable, entirely independent of `ADMIN_PASSWORD`. Even viewing what's in Trash
+  requires it: someone with only the everyday admin password can delete/restore
+  photos through the normal flow, but can't see Trash's contents or permanently empty
+  it without this second secret. Leaving `TRASH_PASSWORD` unset disables the section
+  entirely, same "no default-open" treatment `ADMIN_PASSWORD` already gets.
+  - Inside: **Restore** (♻) puts an item straight back live — it reappears on an
+    already-open slideshow immediately, no refresh needed, via a new
+    `media:restored` broadcast handled the same quiet, non-highlighted way an
+    approved pending batch already is. **✕ (delete forever)** permanently removes one
+    item. **Empty Trash** permanently removes everything in it in one batch, with
+    live progress for a large clean-out.
+  - Thumbnails fetch their image bytes through an authenticated endpoint
+    (`/api/trash/:id/file`, requiring the Trash password) rather than a plain
+    `<img src>` — a plain image tag can't attach that header, and unlike regular
+    media, Trash contents are deliberately not reachable through the public,
+    unauthenticated `/media` static route at all.
+  - Found and fixed a real gap while building this: Express's static file server
+    only auto-blocks a dotfile *filename*, not a dotfile *directory* earlier in the
+    path — `/media/.trash/<file>` would otherwise have been served completely in the
+    open, bypassing the Trash password entirely. Fixed by passing `dotfiles: 'deny'`
+    explicitly to the `/media` static mount, verified against a real request before
+    and after.
+- Scope: only the two manual, admin-picks-specific-photos delete paths (single delete,
+  gallery batch-select delete) go through Trash. The Duplicates/Low-Resolution
+  "Delete All" bulk cleanup tools and rejecting a pending upload batch are unchanged —
+  still immediate, permanent deletes.
+
+### Select multiple photos in the admin Photo Gallery to delete as a batch
+
+- A new "☑ Select photos" toggle in the Photo Gallery grid switches it into selection
+  mode: each thumbnail gets a checkbox (tapping the photo itself also toggles
+  selection — a bigger, easier target than the checkbox alone), plus a "Select
+  all"/"Clear selection" link and a "🗑 Delete Selected (N)" button, all following the
+  exact same selection-UI conventions already used for partial batch approve/reject
+  in Pending Uploads. Rotate and single-item delete (✕) are hidden while in selection
+  mode (bulk delete replaces that role) and reappear once you cancel out of it.
+  Confirms with a count before deleting, same as every other destructive action here.
+- New endpoint, `POST /api/media/delete-batch` (`server/src/routes/media.ts`) — takes
+  an explicit list of ids from the client and deletes them in one batch. Unlike the
+  duplicates/low-resolution delete-all endpoints (which recompute their own id list
+  server-side, since those criteria are well-defined and re-derivable), there's no
+  server-side "correct" set to recompute here: the admin hand-picked these specific
+  photos, so trusting the client-supplied id list is actually the right call for this
+  one. Emits the same `media:deleted` broadcast per item as every other delete path
+  (so the gallery grid — and any other open admin tab — updates live) plus a
+  `media:deleteBatchProgress` event for the button's own progress display on a large
+  selection.
+
 ### Fixed: "Scan for Duplicates" progress looked stuck at 1% the entire scan
 
 - Reported as the duplicate-photo scan sitting at "1%" for the whole run (unlike the

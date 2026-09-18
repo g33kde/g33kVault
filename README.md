@@ -153,12 +153,49 @@ newest-first order — hidden, not just disabled, at either end rather than wrap
 around. Clicking the photo itself closes the window. Handy for checking a photo
 full-size before deciding whether to delete or rotate it.
 
+**Deleting several photos at once**: "☑ Select photos" switches the grid into
+selection mode — tap any thumbnail (or its checkbox) to select it, "Select all"/"Clear
+selection" to toggle everything at once, then "🗑 Delete Selected (N)" to remove them
+all in one batch, with the same confirmation prompt as a single delete. Rotate and the
+single-photo ✕ button are hidden while selecting; "Cancel" returns to normal browsing.
+
+**Deleting doesn't actually delete** — both of the above move the file into Trash
+instead of removing it from disk. See [Trash](#trash) below.
+
 `/admin` is gated by a single shared password, set via the `ADMIN_PASSWORD` environment
 variable (copy `.env.example` to `.env` and fill it in — `.env` is picked up automatically
 by `docker compose` and is gitignored). **Leaving it unset disables `/admin` entirely**
 rather than defaulting to open — deletion always returns "invalid password" until a
 password is configured. The password is entered once and kept in the browser's session
 storage (cleared when the tab closes), so it isn't re-entered on every visit.
+
+## Trash
+
+Every delete from the Photo Gallery (single ✕ or the batch-select "Delete Selected"
+above) moves the file into a hidden `.trash` folder inside `MEDIA_DIR` and marks it
+trashed in the metadata store, rather than actually removing anything. It disappears
+from the gallery and any open slideshow immediately, same as a real delete always
+has — the difference only matters once you go looking for it again.
+
+`/admin`'s **"🗑 Trash"** section is where it's waiting, gated by a **second password**
+— a separate `TRASH_PASSWORD` environment variable, entirely independent of
+`ADMIN_PASSWORD`. This is deliberate: anyone you've given the everyday admin password
+(a friend running the photo booth, say) can delete and restore photos through the
+normal flow, but can't see what's *in* Trash or permanently empty it unless they also
+have this second password. Leaving `TRASH_PASSWORD` unset disables the whole section,
+same "no default-open" treatment as `ADMIN_PASSWORD`.
+
+Once unlocked, each item in Trash shows when it was deleted, with two actions:
+**♻ Restore** puts it straight back on the live gallery/slideshow (no refresh
+needed), and **✕** permanently deletes just that one item. **Empty Trash** does the
+same for everything in there at once. Both permanent-delete actions are the actual
+point of no return — there's no second trash behind this one.
+
+Trash has no size limit and nothing is ever auto-deleted from it — it only shrinks
+when you restore or permanently delete something yourself, so it's worth checking in
+on after a big cleanup if disk space is tight (e.g. a Raspberry Pi's SD card).
+Trashed files are still real files on disk in the meantime, so they're included in
+[Backup & migration](#backup--migration) below like anything else in `MEDIA_DIR`.
 
 ## Duplicate detection
 
@@ -661,6 +698,7 @@ once wiped, there's no undo.
 | `MAX_ARCHIVE_SIZE_MB`      | `500`                    | Max upload size for a `.zip`/`.tar.gz`/`.rar` (see "Guest-uploaded archives" below) |
 | `SLIDESHOW_INTERVAL_MS`    | `6000`                   | Initial slideshow image duration — see below   |
 | `ADMIN_PASSWORD`           | *(unset)*                | Password for `/admin`; unset disables it entirely |
+| `TRASH_PASSWORD`           | *(unset)*                | Separate password for `/admin`'s Trash section (see [Trash](#trash)); unset disables it entirely |
 | `GRAFANA_CLOUD_LOKI_URL`   | *(unset)*                | Optional — see [GRAFANA.md](GRAFANA.md) |
 | `GRAFANA_CLOUD_LOKI_USER`  | *(unset)*                | Optional — see [GRAFANA.md](GRAFANA.md) |
 | `GRAFANA_CLOUD_TOKEN`      | *(unset)*                | Optional — see [GRAFANA.md](GRAFANA.md) |

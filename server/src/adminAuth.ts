@@ -5,3 +5,9 @@ import { config } from './config';
 export function checkAdminPassword(password: string | undefined): boolean {
   return config.adminPassword.length > 0 && password === config.adminPassword;
 }
+
+// Deliberately separate from checkAdminPassword — a valid admin password
+// never satisfies this, and vice versa. See config.ts's trashPassword.
+export function checkTrashPassword(password: string | undefined): boolean {
+  return config.trashPassword.length > 0 && password === config.trashPassword;
+}

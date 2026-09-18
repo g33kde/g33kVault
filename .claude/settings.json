@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/bump-version.cjs",
+            "if": "Bash(git push*)",
+            "timeout": 15,
+            "statusMessage": "Bumping app version…"
+          }
+        ]
+      }
+    ]
+  }
+}

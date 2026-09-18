@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { APP_VERSION } from '../version';
 
 interface MediaItem {
   id: string;
@@ -11,6 +12,9 @@ interface MediaItem {
   photo_taken_at?: number | null;
   width?: number;
   height?: number;
+  // Only present on items returned by GET /api/trash — when they were
+  // moved there. Absent everywhere else.
+  trashed_at?: number;
 }
 
 // Split out and memoized so a gallery of thousands of photos doesn't get
@@ -34,6 +38,15 @@ const PhotoGalleryGrid = memo(function PhotoGalleryGrid({
   onOpenViewer,
   onRotate,
   onDelete,
+  selectMode,
+  selection,
+  onToggleSelectMode,
+  onToggleItemSelection,
+  onToggleSelectAll,
+  onDeleteSelected,
+  deletingSelected,
+  deleteSelectedProgress,
+  deleteSelectedError,
 }: {
   items: MediaItem[];
   rotateError: string;
@@ -44,6 +57,15 @@ const PhotoGalleryGrid = memo(function PhotoGalleryGrid({
   onOpenViewer: (id: string) => void;
   onRotate: (id: string, direction: 'cw' | 'ccw') => void;
   onDelete: (id: string) => void;
+  selectMode: boolean;
+  selection: Set<string>;
+  onToggleSelectMode: () => void;
+  onToggleItemSelection: (id: string) => void;
+  onToggleSelectAll: () => void;
+  onDeleteSelected: () => void;
+  deletingSelected: boolean;
+  deleteSelectedProgress: { current: number; total: number } | null;
+  deleteSelectedError: string;
 }) {
   // Skipping the reverse (not just the render) while collapsed avoids an
   // O(n) array copy on every items change for a section nobody's looking at.
@@ -55,7 +77,7 @@ const PhotoGalleryGrid = memo(function PhotoGalleryGrid({
       <button type="button" className="admin-gallery-toggle" onClick={onToggle}>
         <span>
           {items.length} item{items.length === 1 ? '' : 's'}
-          {open ? ' — click ✕ to delete, ↺/↻ to rotate' : ' — tap to show'}
+          {open ? (selectMode ? ' — tap photos to select' : ' — click ✕ to delete, ↺/↻ to rotate') : ' — tap to show'}
         </span>
         <Chevron open={open} />
       </button>
@@ -63,59 +85,142 @@ const PhotoGalleryGrid = memo(function PhotoGalleryGrid({
 
       {open && items.length === 0 && <p>No photos yet.</p>}
       {open && items.length > 0 && (
-        <div className="admin-grid">
-          {reversed.map((item) => (
-            <div key={item.id} className="admin-thumb">
-              {item.kind === 'video' ? (
-                <video src={`/media/${item.filename}`} controls muted playsInline />
-              ) : (
-                <button type="button" className="admin-thumb-open-btn" onClick={() => onOpenViewer(item.id)}>
-                  <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
+        <>
+          <div className="admin-gallery-select-bar">
+            <button type="button" className="pending-batch-select-all" onClick={onToggleSelectMode}>
+              {selectMode ? 'Cancel' : '☑ Select photos'}
+            </button>
+            {selectMode && (
+              <>
+                <button type="button" className="pending-batch-select-all" onClick={onToggleSelectAll}>
+                  {selection.size === items.length ? 'Clear selection' : 'Select all'}
                 </button>
-              )}
-              {item.uploader && (
-                <span className="admin-thumb-uploader" title={item.uploader}>
-                  {item.uploader}
-                </span>
-              )}
-              {item.kind === 'image' && (
-                <>
-                  <button
-                    className="admin-rotate-btn admin-rotate-ccw-btn"
-                    onClick={() => onRotate(item.id, 'ccw')}
-                    disabled={rotatingId === item.id}
-                    aria-label="Rotate counter-clockwise"
-                    title="Rotate counter-clockwise"
-                  >
-                    {rotatingId === item.id ? '…' : '↺'}
-                  </button>
-                  <button
-                    className="admin-rotate-btn admin-rotate-cw-btn"
-                    onClick={() => onRotate(item.id, 'cw')}
-                    disabled={rotatingId === item.id}
-                    aria-label="Rotate clockwise"
-                    title="Rotate clockwise"
-                  >
-                    {rotatingId === item.id ? '…' : '↻'}
-                  </button>
-                </>
-              )}
-              <button
-                className="admin-delete-btn"
-                onClick={() => onDelete(item.id)}
-                disabled={deletingId === item.id}
-                aria-label="Delete"
-                title="Delete"
-              >
-                {deletingId === item.id ? '…' : '✕'}
-              </button>
-            </div>
-          ))}
-        </div>
+                <button
+                  className="btn btn-danger"
+                  onClick={onDeleteSelected}
+                  disabled={selection.size === 0 || deletingSelected}
+                >
+                  {deletingSelected
+                    ? deleteSelectedProgress && deleteSelectedProgress.total > 0
+                      ? `Deleting… ${deleteSelectedProgress.current} of ${deleteSelectedProgress.total}`
+                      : 'Deleting…'
+                    : `🗑 Delete Selected (${selection.size})`}
+                </button>
+              </>
+            )}
+          </div>
+          {deleteSelectedError && <p className="error-msg">{deleteSelectedError}</p>}
+          <div className="admin-grid">
+            {reversed.map((item) => {
+              const itemSelected = selection.has(item.id);
+              return (
+                <div
+                  key={item.id}
+                  className={`admin-thumb ${selectMode ? 'selectable' : ''} ${itemSelected ? 'selected' : ''}`}
+                >
+                  {selectMode && (
+                    <button
+                      type="button"
+                      className={`admin-thumb-select ${itemSelected ? 'selected' : ''}`}
+                      onClick={() => onToggleItemSelection(item.id)}
+                      aria-label={itemSelected ? 'Deselect photo' : 'Select photo'}
+                      aria-pressed={itemSelected}
+                    >
+                      {itemSelected ? '✓' : ''}
+                    </button>
+                  )}
+                  {item.kind === 'video' ? (
+                    <video src={`/media/${item.filename}`} controls muted playsInline />
+                  ) : (
+                    <button
+                      type="button"
+                      className="admin-thumb-open-btn"
+                      onClick={() => (selectMode ? onToggleItemSelection(item.id) : onOpenViewer(item.id))}
+                    >
+                      <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
+                    </button>
+                  )}
+                  {item.uploader && (
+                    <span className="admin-thumb-uploader" title={item.uploader}>
+                      {item.uploader}
+                    </span>
+                  )}
+                  {!selectMode && item.kind === 'image' && (
+                    <>
+                      <button
+                        className="admin-rotate-btn admin-rotate-ccw-btn"
+                        onClick={() => onRotate(item.id, 'ccw')}
+                        disabled={rotatingId === item.id}
+                        aria-label="Rotate counter-clockwise"
+                        title="Rotate counter-clockwise"
+                      >
+                        {rotatingId === item.id ? '…' : '↺'}
+                      </button>
+                      <button
+                        className="admin-rotate-btn admin-rotate-cw-btn"
+                        onClick={() => onRotate(item.id, 'cw')}
+                        disabled={rotatingId === item.id}
+                        aria-label="Rotate clockwise"
+                        title="Rotate clockwise"
+                      >
+                        {rotatingId === item.id ? '…' : '↻'}
+                      </button>
+                    </>
+                  )}
+                  {!selectMode && (
+                    <button
+                      className="admin-delete-btn"
+                      onClick={() => onDelete(item.id)}
+                      disabled={deletingId === item.id}
+                      aria-label="Delete"
+                      title="Delete"
+                    >
+                      {deletingId === item.id ? '…' : '✕'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
 });
+
+// A plain <img src="/api/trash/:id/file"> can't attach the X-Trash-Password
+// header that route requires (see routes/trash.ts), so this fetches the
+// bytes itself and hands the <img>/<video> an object URL instead. One
+// component per thumbnail (rather than the parent fetching all of them at
+// once) so this only runs for items actually in the DOM, same
+// lazy-loading spirit as the main gallery's loading="lazy".
+function TrashThumbImage({ id, kind, trashPassword }: { id: string; kind: 'image' | 'video'; trashPassword: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    fetch(`/api/trash/${id}/file`, { headers: { 'X-Trash-Password': trashPassword } })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [id, trashPassword]);
+
+  if (!blobUrl) return <div className="admin-thumb-loading">…</div>;
+  return kind === 'video' ? (
+    <video src={blobUrl} controls muted playsInline />
+  ) : (
+    <img src={blobUrl} alt="" />
+  );
+}
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 type TransitionStyle = 'none' | 'fade' | 'zoom' | 'polaroid' | 'glitch' | 'arcade' | 'vhs' | 'random';
@@ -191,6 +296,11 @@ interface SettingsPayload {
 }
 
 const STORAGE_KEY = 'g33kvault-admin-password';
+// Deliberately separate from STORAGE_KEY — this caches the Trash section's
+// own password (see server/src/adminAuth.ts's checkTrashPassword), not the
+// regular admin one, so restoring/emptying Trash stays gated even for
+// someone who already has the everyday admin password.
+const TRASH_STORAGE_KEY = 'g33kvault-trash-password';
 const MIN_SECONDS = 1;
 const MAX_SECONDS = 600;
 const STALE_BACKUP_MS = 7 * 24 * 60 * 60 * 1000;
@@ -335,6 +445,26 @@ export default function Admin() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rotatingId, setRotatingId] = useState<string | null>(null);
   const [rotateError, setRotateError] = useState('');
+  const [gallerySelectMode, setGallerySelectMode] = useState(false);
+  const [gallerySelection, setGallerySelection] = useState<Set<string>>(new Set());
+  const [deletingSelected, setDeletingSelected] = useState(false);
+  const [deleteSelectedProgress, setDeleteSelectedProgress] = useState<{ current: number; total: number } | null>(
+    null
+  );
+  const [deleteSelectedError, setDeleteSelectedError] = useState('');
+
+  const [trashPassword, setTrashPassword] = useState<string | null>(() => sessionStorage.getItem(TRASH_STORAGE_KEY));
+  const [trashPasswordInput, setTrashPasswordInput] = useState('');
+  const [trashAuthError, setTrashAuthError] = useState('');
+  const [verifyingTrash, setVerifyingTrash] = useState(false);
+  const [trashItems, setTrashItems] = useState<MediaItem[] | null>(null);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashError, setTrashError] = useState('');
+  const [restoringTrashId, setRestoringTrashId] = useState<string | null>(null);
+  const [purgingTrashId, setPurgingTrashId] = useState<string | null>(null);
+  const [emptyingTrash, setEmptyingTrash] = useState(false);
+  const [emptyTrashProgress, setEmptyTrashProgress] = useState<{ current: number; total: number } | null>(null);
+  const [emptyTrashError, setEmptyTrashError] = useState('');
 
   const [intervalSeconds, setIntervalSeconds] = useState('');
   const [shuffle, setShuffle] = useState(false);
@@ -418,6 +548,7 @@ export default function Admin() {
   // independently toggleable rather than closing the others.
   const [backupOpen, setBackupOpen] = useState(false);
   const [eventImageOpen, setEventImageOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const [grafanaOpen, setGrafanaOpen] = useState(false);
   const [duplicatesToolOpen, setDuplicatesToolOpen] = useState(false);
   const [photoDatesToolOpen, setPhotoDatesToolOpen] = useState(false);
@@ -493,6 +624,13 @@ export default function Admin() {
     socket.on('media:deleted', ({ id }: { id: string }) =>
       setItems((prev) => prev.filter((i) => i.id !== id))
     );
+    socket.on('media:deleteBatchProgress', (data: { current: number; total: number }) =>
+      setDeleteSelectedProgress(data)
+    );
+    // A trashed item came back live (see handleRestoreFromTrash) — same
+    // treatment as media:approved above, restoring it to the gallery grid.
+    socket.on('media:restored', (item: MediaItem) => setItems((prev) => [...prev, item]));
+    socket.on('trash:emptyProgress', (data: { current: number; total: number }) => setEmptyTrashProgress(data));
     socket.on('media:updated', (updated: MediaItem) =>
       setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
     );
@@ -736,7 +874,7 @@ export default function Admin() {
   const handleDelete = useCallback(
     async (id: string) => {
       if (!password) return;
-      if (!window.confirm('Delete this photo/video? This cannot be undone.')) return;
+      if (!window.confirm('Delete this photo/video? It moves to Trash and can be restored from there.')) return;
 
       setDeletingId(id);
       try {
@@ -747,6 +885,227 @@ export default function Admin() {
     },
     [password]
   );
+
+  const toggleGallerySelectMode = useCallback(() => {
+    setGallerySelectMode((prev) => !prev);
+    setGallerySelection(new Set());
+    setDeleteSelectedError('');
+  }, []);
+
+  const toggleGalleryItemSelection = useCallback((id: string) => {
+    setGallerySelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllGallery = useCallback(() => {
+    setGallerySelection((prev) => (prev.size === items.length ? new Set() : new Set(items.map((i) => i.id))));
+  }, [items]);
+
+  // Unlike duplicates/low-res delete-all, there's no server-side "correct"
+  // set to recompute here — the admin hand-picked these specific items in
+  // the gallery grid, so the id list this holds IS the authoritative one
+  // (see the matching comment on the server route, routes/media.ts
+  // '/delete-batch').
+  async function handleDeleteSelectedGallery() {
+    if (!password) return;
+    const count = gallerySelection.size;
+    if (count === 0) return;
+
+    if (
+      !window.confirm(
+        `Delete ${count} selected item${count === 1 ? '' : 's'}? They move to Trash and can be restored from there.`
+      )
+    ) {
+      return;
+    }
+
+    setDeletingSelected(true);
+    setDeleteSelectedError('');
+    setDeleteSelectedProgress(null);
+    try {
+      const res = await fetch('/api/media/delete-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': password },
+        body: JSON.stringify({ ids: [...gallerySelection] }),
+      });
+
+      if (res.status === 401) {
+        handleAuthFailure();
+        return;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setDeleteSelectedError(data.error || 'Delete failed');
+        return;
+      }
+
+      // Removals arrive live via the existing 'media:deleted' broadcast
+      // (already wired up above) to update the gallery grid.
+      setGallerySelection(new Set());
+      setGallerySelectMode(false);
+    } catch {
+      setDeleteSelectedError('Network error');
+    } finally {
+      setDeletingSelected(false);
+      setDeleteSelectedProgress(null);
+    }
+  }
+
+  // Mirrors verifyPassword/handleAuthFailure above, but against a
+  // completely separate secret (server/src/adminAuth.ts's
+  // checkTrashPassword) — the whole point of Trash being gated
+  // independently of the everyday admin password.
+  async function verifyTrashPassword(candidate: string) {
+    if (!candidate) return;
+    setVerifyingTrash(true);
+    setTrashAuthError('');
+    try {
+      const res = await fetch('/api/trash/verify', {
+        method: 'POST',
+        headers: { 'X-Trash-Password': candidate },
+      });
+      if (res.ok) {
+        sessionStorage.setItem(TRASH_STORAGE_KEY, candidate);
+        setTrashPassword(candidate);
+        fetchTrash(candidate);
+      } else {
+        setTrashAuthError('Wrong password');
+      }
+    } catch {
+      setTrashAuthError('Network error');
+    } finally {
+      setVerifyingTrash(false);
+    }
+  }
+
+  function handleTrashAuthFailure() {
+    sessionStorage.removeItem(TRASH_STORAGE_KEY);
+    setTrashPassword(null);
+    setTrashItems(null);
+    setTrashAuthError('Session expired — enter the Trash password again');
+  }
+
+  async function fetchTrash(withPassword: string) {
+    setTrashLoading(true);
+    setTrashError('');
+    try {
+      const res = await fetch('/api/trash', { headers: { 'X-Trash-Password': withPassword } });
+      if (res.status === 401) {
+        handleTrashAuthFailure();
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTrashError(data.error || 'Could not load Trash');
+        return;
+      }
+      setTrashItems(await res.json());
+    } catch {
+      setTrashError('Network error');
+    } finally {
+      setTrashLoading(false);
+    }
+  }
+
+  async function handleRestoreFromTrash(id: string) {
+    if (!trashPassword) return;
+    setRestoringTrashId(id);
+    setTrashError('');
+    try {
+      const res = await fetch(`/api/trash/${id}/restore`, {
+        method: 'POST',
+        headers: { 'X-Trash-Password': trashPassword },
+      });
+      if (res.status === 401) {
+        handleTrashAuthFailure();
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTrashError(data.error || 'Restore failed');
+        return;
+      }
+      // The gallery grid picks this up live via 'media:restored' (already
+      // wired up above); this list just needs to drop it locally.
+      setTrashItems((prev) => (prev ? prev.filter((i) => i.id !== id) : prev));
+    } catch {
+      setTrashError('Network error');
+    } finally {
+      setRestoringTrashId(null);
+    }
+  }
+
+  async function handlePurgeTrashItem(id: string) {
+    if (!trashPassword) return;
+    if (!window.confirm('Permanently delete this item? This cannot be undone.')) return;
+
+    setPurgingTrashId(id);
+    setTrashError('');
+    try {
+      const res = await fetch(`/api/trash/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-Trash-Password': trashPassword },
+      });
+      if (res.status === 401) {
+        handleTrashAuthFailure();
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTrashError(data.error || 'Delete failed');
+        return;
+      }
+      setTrashItems((prev) => (prev ? prev.filter((i) => i.id !== id) : prev));
+    } catch {
+      setTrashError('Network error');
+    } finally {
+      setPurgingTrashId(null);
+    }
+  }
+
+  async function handleEmptyTrash() {
+    if (!trashPassword || !trashItems) return;
+    const count = trashItems.length;
+    if (count === 0) return;
+
+    if (
+      !window.confirm(
+        `Permanently delete all ${count} item${count === 1 ? '' : 's'} in Trash? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    setEmptyingTrash(true);
+    setTrashError('');
+    setEmptyTrashProgress(null);
+    try {
+      const res = await fetch('/api/trash/empty', {
+        method: 'POST',
+        headers: { 'X-Trash-Password': trashPassword },
+      });
+      if (res.status === 401) {
+        handleTrashAuthFailure();
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTrashError(data.error || 'Empty failed');
+        return;
+      }
+      setTrashItems([]);
+    } catch {
+      setTrashError('Network error');
+    } finally {
+      setEmptyingTrash(false);
+      setEmptyTrashProgress(null);
+    }
+  }
 
   async function handleDeleteAllDuplicates() {
     if (!password || !duplicates) return;
@@ -1294,6 +1653,16 @@ export default function Admin() {
     )} · ${lastBackup.lastBackupItemCount} item${lastBackup.lastBackupItemCount === 1 ? '' : 's'}`;
   }
 
+  // Deliberately never reveals a count (or anything else) before the Trash
+  // password is entered — that's the whole point of gating this section
+  // separately from the everyday admin password.
+  function trashSummary(): string {
+    if (!trashPassword) return '🔒 Locked';
+    if (trashItems === null) return trashLoading ? 'Loading…' : 'Not loaded yet';
+    if (trashItems.length === 0) return 'Empty';
+    return `${trashItems.length} item${trashItems.length === 1 ? '' : 's'}`;
+  }
+
   function grafanaSummary(): string {
     if (!grafanaStatus) return 'Not connected';
     if (!grafanaStatus.configured) return 'Not configured (see GRAFANA.md)';
@@ -1400,6 +1769,7 @@ export default function Admin() {
           </button>
         </form>
         {authError && <p className="error-msg">{authError}</p>}
+        <p className="admin-version-footer">ver.{APP_VERSION}</p>
       </div>
     );
   }
@@ -1794,6 +2164,114 @@ export default function Admin() {
           )}
         </div>
 
+        <div className={`admin-tool ${trashOpen ? 'open' : ''}`}>
+          <button
+            type="button"
+            className="admin-tool-header"
+            onClick={() => {
+              const opening = !trashOpen;
+              setTrashOpen(opening);
+              if (opening && trashPassword && trashItems === null && !trashLoading) {
+                fetchTrash(trashPassword);
+              }
+            }}
+          >
+            <span>🗑 Trash</span>
+            <span className="admin-tool-header-right">
+              <span className="admin-tool-summary">{trashSummary()}</span>
+              <Chevron open={trashOpen} />
+            </span>
+          </button>
+          {trashOpen && (
+            <div className="admin-tool-body">
+              {!trashPassword ? (
+                <>
+                  <p className="tagline admin-settings-caption">
+                    Deleted photos land here instead of being removed from disk. A separate password protects
+                    this section (the <code>TRASH_PASSWORD</code> environment variable) — independent of the
+                    regular admin password above, so only whoever holds this one can see what's in Trash or
+                    permanently empty it.
+                  </p>
+                  <form
+                    className="admin-login"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      verifyTrashPassword(trashPasswordInput);
+                      setTrashPasswordInput('');
+                    }}
+                  >
+                    <input
+                      type="password"
+                      placeholder="Trash password"
+                      value={trashPasswordInput}
+                      onChange={(e) => setTrashPasswordInput(e.target.value)}
+                    />
+                    <button className="btn btn-primary" type="submit" disabled={verifyingTrash || !trashPasswordInput}>
+                      {verifyingTrash ? 'Checking…' : 'Unlock'}
+                    </button>
+                  </form>
+                  {trashAuthError && <p className="error-msg">{trashAuthError}</p>}
+                </>
+              ) : (
+                <>
+                  <div className="admin-trash-actions">
+                    <button
+                      type="button"
+                      className="pending-batch-select-all"
+                      onClick={() => fetchTrash(trashPassword)}
+                      disabled={trashLoading}
+                    >
+                      ↻ Refresh
+                    </button>
+                    {trashItems && trashItems.length > 0 && (
+                      <button className="btn btn-danger" onClick={handleEmptyTrash} disabled={emptyingTrash}>
+                        {emptyingTrash
+                          ? emptyTrashProgress && emptyTrashProgress.total > 0
+                            ? `Emptying… ${emptyTrashProgress.current} of ${emptyTrashProgress.total}`
+                            : 'Emptying…'
+                          : `🗑 Empty Trash (${trashItems.length})`}
+                      </button>
+                    )}
+                  </div>
+                  {trashError && <p className="error-msg">{trashError}</p>}
+                  {trashLoading && trashItems === null && <p className="tagline">Loading…</p>}
+                  {trashItems && trashItems.length === 0 && <p className="tagline">Trash is empty.</p>}
+                  {trashItems && trashItems.length > 0 && (
+                    <div className="admin-grid">
+                      {trashItems.map((item) => (
+                        <div key={item.id} className="admin-thumb">
+                          <TrashThumbImage id={item.id} kind={item.kind} trashPassword={trashPassword} />
+                          {item.trashed_at != null && (
+                            <span className="admin-thumb-uploader">{formatRelativeTime(item.trashed_at)}</span>
+                          )}
+                          <button
+                            className="admin-restore-btn"
+                            onClick={() => handleRestoreFromTrash(item.id)}
+                            disabled={restoringTrashId === item.id}
+                            aria-label="Restore"
+                            title="Restore"
+                          >
+                            {restoringTrashId === item.id ? '…' : '♻'}
+                          </button>
+                          <button
+                            className="admin-delete-btn"
+                            onClick={() => handlePurgeTrashItem(item.id)}
+                            disabled={purgingTrashId === item.id}
+                            aria-label="Delete forever"
+                            title="Delete forever"
+                          >
+                            {purgingTrashId === item.id ? '…' : '✕'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className={`admin-tool ${grafanaOpen ? 'open' : ''}`}>
           <button type="button" className="admin-tool-header" onClick={() => setGrafanaOpen((o) => !o)}>
             <span>📊 Grafana Cloud</span>
@@ -2155,7 +2633,17 @@ export default function Admin() {
         onOpenViewer={openPhotoViewer}
         onRotate={handleRotate}
         onDelete={handleDelete}
+        selectMode={gallerySelectMode}
+        selection={gallerySelection}
+        onToggleSelectMode={toggleGallerySelectMode}
+        onToggleItemSelection={toggleGalleryItemSelection}
+        onToggleSelectAll={toggleSelectAllGallery}
+        onDeleteSelected={handleDeleteSelectedGallery}
+        deletingSelected={deletingSelected}
+        deleteSelectedProgress={deleteSelectedProgress}
+        deleteSelectedError={deleteSelectedError}
       />
+      <p className="admin-version-footer">ver.{APP_VERSION}</p>
     </div>
   );
 }

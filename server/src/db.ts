@@ -28,7 +28,17 @@ export interface MediaRow {
   // (routes/upload.ts, pendingUploads.ts) and awaiting admin review — never
   // returned by the public /api/media, never triggers a live-slideshow
   // highlight, until an admin approves the whole batch it belongs to.
-  status?: 'pending' | 'approved';
+  // 'trashed' = deleted from the admin gallery (single or batch-select
+  // delete — see routes/media.ts) but not actually removed from disk; the
+  // file moves into config.trashDir (see trash.ts) and sits there until an
+  // admin with the separate trash password restores or permanently purges
+  // it (routes/trash.ts). Same as 'pending', never returned by the public
+  // /api/media or any of the other admin scan tools.
+  status?: 'pending' | 'approved' | 'trashed';
+  // When this row's status last became 'trashed' — unset (not touched) by
+  // anything else, so restoring and re-trashing an item always reflects its
+  // most recent trip through Trash, not its first.
+  trashed_at?: number;
   // Only set on rows created from one uploaded archive, so admin review can
   // group and act on them together. batchLabel is the archive's original
   // filename, for a human-readable review list.
@@ -61,14 +71,24 @@ export function getAllMedia(): MediaRow[] {
   return readAll().sort((a, b) => a.created_at - b.created_at);
 }
 
-// Excludes anything still awaiting admin review (see the 'pending' status
-// doc comment above) — used everywhere media is shown or scanned outside
-// the dedicated pending-batches review flow itself, so an unreviewed photo
-// can't leak into the public gallery, the slideshow, or any of the other
-// admin tools (duplicates, photo dates, low-resolution) before it's
-// approved.
+// Excludes anything still awaiting admin review or sitting in Trash (see
+// the 'pending'/'trashed' status doc comments above) — used everywhere
+// media is shown or scanned outside the dedicated pending-batches/trash
+// review flows themselves, so neither an unreviewed nor a trashed photo can
+// leak into the public gallery, the slideshow, or any of the other admin
+// tools (duplicates, photo dates, low-resolution) before it's approved (or
+// after it's been deleted).
 export function getApprovedMedia(): MediaRow[] {
-  return getAllMedia().filter((m) => m.status !== 'pending');
+  return getAllMedia().filter((m) => m.status !== 'pending' && m.status !== 'trashed');
+}
+
+// Newest-trashed first, matching the main gallery's newest-first
+// convention — an admin checking Trash almost always cares about what they
+// (or someone else) *just* deleted, not what's been sitting there longest.
+export function getTrashedMedia(): MediaRow[] {
+  return getAllMedia()
+    .filter((m) => m.status === 'trashed')
+    .sort((a, b) => (b.trashed_at ?? 0) - (a.trashed_at ?? 0));
 }
 
 export function deleteMedia(id: string): MediaRow | null {

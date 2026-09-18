@@ -11,6 +11,7 @@ import { qrcodeRouter, uploadUrlRouter } from './routes/qrcode';
 import { configRouter } from './routes/config';
 import { adminRouter } from './routes/admin';
 import { eventImageRouter } from './routes/eventImage';
+import { trashRouter } from './routes/trash';
 import { statsRouter } from './routes/stats';
 import { scanImportFolder } from './importFolder';
 import { logEvent, ensureGrafanaPushLoop } from './grafana/eventLog';
@@ -37,7 +38,15 @@ app.use((req, _res, next) => {
   next();
 });
 
-app.use('/media', express.static(config.mediaDir));
+// dotfiles: 'deny' is NOT the implicit default here despite appearances —
+// express.static's underlying `send` library only auto-denies a dotfile
+// when the *last* path segment starts with a dot; config.trashDir being a
+// dotfile *directory* (.trash) nested inside mediaDir means a request like
+// /media/.trash/<filename> has a perfectly normal-looking last segment and
+// would otherwise be served wide open, completely bypassing the Trash
+// section's separate password (see routes/trash.ts) — verified this the
+// hard way against a real request before adding the option below.
+app.use('/media', express.static(config.mediaDir, { dotfiles: 'deny' }));
 app.use('/media-display', mediaDisplayRouter());
 app.use('/event-image', express.static(config.eventImageDir));
 app.use('/api/media', mediaRouter(io));
@@ -47,6 +56,7 @@ app.use('/api/upload-url', uploadUrlRouter);
 app.use('/api/config', configRouter);
 app.use('/api/admin', adminRouter(io));
 app.use('/api/admin/event-image', eventImageRouter(io));
+app.use('/api/trash', trashRouter(io));
 app.use('/api/stats', statsRouter);
 
 const clientDist = path.join(__dirname, '..', 'public');

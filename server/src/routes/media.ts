@@ -4,10 +4,11 @@ import path from 'path';
 import sharp from 'sharp';
 import type { Server as SocketIOServer } from 'socket.io';
 import { config } from '../config';
-import { getApprovedMedia, getMediaById, deleteMedia, updateMedia } from '../db';
+import { getApprovedMedia, getMediaById, updateMedia, updateManyMedia } from '../db';
 import { checkAdminPassword } from '../adminAuth';
 import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
 import { logEvent } from '../grafana/eventLog';
+import { moveToTrash } from '../trash';
 
 // Formats sharp can re-encode losslessly-ish on this project's own terms.
 // GIF is deliberately excluded — animated-GIF rotation needs per-frame
@@ -91,22 +92,62 @@ export function mediaRouter(io: SocketIOServer) {
     }
   });
 
+  // Moves the file into Trash (config.trashDir) rather than deleting it —
+  // see trash.ts and routes/trash.ts. Still broadcasts the same
+  // 'media:deleted' event as a real delete: every existing listener
+  // (Slideshow.tsx, Admin.tsx's own gallery/duplicates/low-res lists) just
+  // needs "this id is gone from the live view," which is exactly as true
+  // for a trashed item as a permanently deleted one.
   router.delete('/:id', (req, res) => {
     if (!checkAdminPassword(req.header('x-admin-password'))) {
       res.status(401).json({ error: 'Invalid password' });
       return;
     }
 
-    const removed = deleteMedia(req.params.id);
-    if (!removed) {
+    const trashed = updateMedia(req.params.id, { status: 'trashed', trashed_at: Date.now() });
+    if (!trashed) {
       res.status(404).json({ error: 'Not found' });
       return;
     }
 
-    fs.unlink(path.join(config.mediaDir, removed.filename), () => {});
-    logEvent('moderation', 'photo_deleted', { kind: removed.kind });
-    io.emit('media:deleted', { id: removed.id });
+    moveToTrash(trashed.filename);
+    logEvent('moderation', 'photo_trashed', { kind: trashed.kind });
+    io.emit('media:deleted', { id: trashed.id });
     res.status(204).end();
+  });
+
+  // Bulk trash for the admin gallery's "Select photos" mode — unlike
+  // duplicates/low-resolution delete-all (which recompute their own id list
+  // server-side, since those criteria are well-defined and re-derivable),
+  // there's no server-side "correct" set to recompute here: the admin
+  // explicitly hand-picked these specific items, so the client-supplied id
+  // list IS the authoritative one. One read + one write for the whole
+  // batch (updateManyMedia) rather than looping updateMedia() per id, same
+  // reasoning as the other bulk-action routes.
+  router.post('/delete-batch', (req, res) => {
+    if (!checkAdminPassword(req.header('x-admin-password'))) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    const { ids } = req.body ?? {};
+    if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) {
+      res.status(400).json({ error: 'ids must be a non-empty array of strings' });
+      return;
+    }
+
+    const trashedAt = Date.now();
+    const trashed = updateManyMedia(new Set(ids), { status: 'trashed', trashed_at: trashedAt });
+
+    for (let i = 0; i < trashed.length; i++) {
+      const row = trashed[i];
+      moveToTrash(row.filename);
+      io.emit('media:deleted', { id: row.id });
+      io.emit('media:deleteBatchProgress', { current: i + 1, total: trashed.length });
+    }
+
+    logEvent('moderation', 'photos_trashed_batch', { count: trashed.length });
+    res.json({ deleted: trashed.length });
   });
 
   return router;

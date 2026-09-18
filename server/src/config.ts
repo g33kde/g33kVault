@@ -2,11 +2,19 @@ import path from 'path';
 
 const defaultDbPath = path.join(__dirname, '..', 'data', 'g33kvault.json');
 const dbPath = process.env.DB_PATH || defaultDbPath;
+const mediaDir = process.env.MEDIA_DIR || path.join(__dirname, '..', 'media');
 
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
-  mediaDir: process.env.MEDIA_DIR || path.join(__dirname, '..', 'media'),
+  mediaDir,
   dbPath,
+  // Nested *inside* mediaDir (not a sibling directory) so a trashed file is
+  // automatically covered by the exact same Docker volume and backup/
+  // restore tooling as every other file in mediaDir — no separate volume
+  // or backup-script change needed, same reasoning as eventImageDir below
+  // but the other direction (this one wants to inherit mediaDir's coverage,
+  // eventImageDir deliberately doesn't belong in mediaDir at all).
+  trashDir: path.join(mediaDir, '.trash'),
   settingsPath: process.env.SETTINGS_PATH || path.join(__dirname, '..', 'data', 'settings.json'),
   importDir: process.env.IMPORT_DIR || path.join(__dirname, '..', 'import'),
   importScanIntervalMs: parseInt(process.env.IMPORT_SCAN_INTERVAL_MS || '60000', 10),
@@ -45,6 +53,13 @@ export const config = {
   slideshowIntervalMs: parseInt(process.env.SLIDESHOW_INTERVAL_MS || '6000', 10),
   // Empty/unset disables the admin view entirely rather than defaulting open.
   adminPassword: process.env.ADMIN_PASSWORD || '',
+  // A second, separate secret gating the Trash section specifically (see
+  // routes/trash.ts) — deliberately independent of adminPassword, so
+  // whoever holds the everyday admin password (e.g. a helper running the
+  // event) can delete/restore photos but can't view what's in Trash or
+  // permanently empty it. Empty/unset disables the Trash section entirely,
+  // same "no default-open" reasoning as adminPassword above.
+  trashPassword: process.env.TRASH_PASSWORD || '',
   // Grafana Cloud Loki push credentials — env vars only, never written to
   // settingsPath, same reasoning as adminPassword above: a secret shouldn't
   // live in a file the admin UI's settings form round-trips through. All
