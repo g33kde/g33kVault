@@ -147,6 +147,13 @@ function applyEventWatermark(source: HTMLCanvasElement, logo: HTMLImageElement):
   const logoScale = Math.min(maxLogoWidth / logo.naturalWidth, maxLogoHeight / logo.naturalHeight, 1);
 
   ctx.save();
+  // Chrome's canvas 2D default is imageSmoothingQuality: 'low' — a cheap,
+  // fast resampling filter that's fine for a mild reduction but visibly
+  // aliased/soft for a large one (Boomerang's 480px-wide frame can mean a
+  // 10x+ reduction from a typical logo file's native resolution). This is
+  // the actual fix for that, not a source-resolution problem.
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
   ctx.shadowBlur = Math.round(source.width * 0.012);
   ctx.shadowOffsetY = Math.round(source.width * 0.004);
@@ -311,6 +318,16 @@ export default function Booth() {
       for (let i = 0; i < BOOMERANG_FRAME_COUNT; i++) {
         if (!videoRef.current) break;
         let canvas = grabFrame(videoRef.current, facingMode);
+        // Downscale BEFORE watermarking, not after — sizing the logo
+        // relative to the already-downscaled canvas is what makes the 18%
+        // target actually land at 18% of the final output. Doing it the
+        // other way (watermark on the full-res frame, then shrink
+        // everything together) sounds like it should preserve more detail,
+        // but does the opposite: the logo ends up passing through the
+        // downscale a second time on top of its own sizing, so it comes
+        // out smaller than intended — worse the higher the camera's native
+        // resolution is relative to the logo file (confirmed with real
+        // numbers before settling on this order, not just reasoned about).
         canvas = downscaleCanvas(canvas, BOOMERANG_MAX_WIDTH);
         // Every mode, always — not gated behind a setting, per how this
         // was asked for. Silently skipped when no event image is set.

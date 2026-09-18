@@ -40,6 +40,36 @@
     34-frame `GIF89a` file (18 forward + 16 reverse), correctly downscaled, with the
     watermark visible in the decoded output.
 
+### Fixed: event-image watermark looked worse than its resolution should allow
+
+- Reported after shipping the above: the watermark (on all modes, worst on
+  Boomerang) looked lower quality than expected. Root cause — `applyEventWatermark`
+  never set `imageSmoothingQuality` on the canvas, so it was scaling the logo down
+  with the browser's *default* quality, which in Chrome is `'low'` (a cheap, fast
+  resampling filter). Barely matters for a mild reduction, but Boomerang's
+  480px-wide frame can mean crushing a normal logo file down by 10x or more (a
+  1254×1254 source down to an ~86px watermark is a 14.5:1 reduction) — at that
+  ratio, `'low'` produces visible aliasing that reads as "poor quality" even though
+  every pixel is technically at the right resolution.
+  - Considered and ruled out: reordering the watermark step to run before
+    Boomerang's frame downscale (draw on the full-res frame, then shrink
+    everything together) — checked the actual numbers first and confirmed it makes
+    the final watermark *smaller*, not sharper, and gets worse the higher the
+    camera's native resolution is relative to the logo file. Reverted before
+    committing to it.
+  - Considered and ruled out: removing the "never upscale past native resolution"
+    cap entirely — that only matters when the logo is *smaller* than its target
+    size (already unscaled today), not when it's larger, which is what Boomerang's
+    extreme reduction actually is. Removing it would let an oversized logo file
+    render larger than the entire photo.
+  - Actual fix: explicitly set `imageSmoothingEnabled = true` and
+    `imageSmoothingQuality = 'high'` before drawing the logo. Verified with a real
+    before/after render at the exact 14.5:1 ratio using a test logo with thin
+    strokes (the kind of detail real logos often have): the old default measurably
+    faded/lost one of two identical thin lines to aliasing; the fix rendered both
+    consistently solid, at the same final pixel size — confirming this was a
+    resampling-quality bug, not a resolution or scaling-order problem.
+
 ### Booth photos always get the event image watermarked in the corner
 
 - Every photo taken through `/booth` — in all four modes (Normal, Burst, Frame,
