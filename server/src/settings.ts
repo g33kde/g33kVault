@@ -75,6 +75,13 @@ interface Settings {
   grafanaPushIntervalMs?: GrafanaPushIntervalMs;
   grafanaInstanceLabel?: string;
   showQrCode?: boolean;
+  // When on, a photo smaller than the available slideshow frame is scaled
+  // up (never more than 1.5x its own native size, and never past what the
+  // frame can actually hold) instead of displaying at its tiny native size
+  // surrounded by black. Off by default — an upscaled low-res photo looks
+  // softer than a genuinely full-resolution one, so this is a deliberate
+  // trade-off the admin opts into rather than something applied by default.
+  scaleSmallPhotos?: boolean;
   // The current event-image file's name within config.eventImageDir (e.g.
   // "event-image.png") — undefined/null means none uploaded. Set by
   // routes/eventImage.ts's upload/delete handlers, not by the admin
@@ -315,6 +322,18 @@ export function getShowQrCode(): boolean {
 export function setShowQrCode(value: boolean): boolean {
   const settings = readSettings();
   settings.showQrCode = value;
+  writeSettings(settings);
+  return value;
+}
+
+// Off by default — see the doc comment on Settings.scaleSmallPhotos above.
+export function getScaleSmallPhotos(): boolean {
+  return readSettings().scaleSmallPhotos ?? false;
+}
+
+export function setScaleSmallPhotos(value: boolean): boolean {
+  const settings = readSettings();
+  settings.scaleSmallPhotos = value;
   writeSettings(settings);
   return value;
 }

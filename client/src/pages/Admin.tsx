@@ -290,6 +290,7 @@ interface SettingsPayload {
   collageLayout: CollageLayout;
   requireApproval: boolean;
   showQrCode: boolean;
+  scaleSmallPhotos: boolean;
   eventImageUrl: string | null;
   eventImageScale: number;
   lastBackup: LastBackup | null;
@@ -478,6 +479,7 @@ export default function Admin() {
   const [collageLayout, setCollageLayout] = useState<CollageLayout>('random');
   const [requireApproval, setRequireApproval] = useState(false);
   const [showQrCode, setShowQrCode] = useState(true);
+  const [scaleSmallPhotos, setScaleSmallPhotos] = useState(false);
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
   const [eventImageScale, setEventImageScale] = useState(100);
   const [eventImageError, setEventImageError] = useState('');
@@ -614,6 +616,7 @@ export default function Admin() {
         setCollageLayout(data.collageLayout);
         setRequireApproval(data.requireApproval);
         setShowQrCode(data.showQrCode);
+        setScaleSmallPhotos(data.scaleSmallPhotos);
         setEventImageUrl(data.eventImageUrl);
         setEventImageScale(data.eventImageScale);
         setLastBackupState(data.lastBackup);
@@ -654,6 +657,7 @@ export default function Admin() {
       setCollageLayout(data.collageLayout);
       setRequireApproval(data.requireApproval);
       setShowQrCode(data.showQrCode);
+      setScaleSmallPhotos(data.scaleSmallPhotos);
       setEventImageUrl(data.eventImageUrl);
       setEventImageScale(data.eventImageScale);
       setLastBackupState(data.lastBackup);
@@ -700,6 +704,7 @@ export default function Admin() {
           collageLayout,
           requireApproval,
           showQrCode,
+          scaleSmallPhotos,
         }),
       });
 
@@ -1854,6 +1859,25 @@ export default function Admin() {
             />
             📱 Show QR code during slideshow
           </label>
+
+          <label htmlFor="scale-small-photos-input" className="admin-checkbox-label">
+            <input
+              id="scale-small-photos-input"
+              type="checkbox"
+              checked={scaleSmallPhotos}
+              onChange={(e) => {
+                setScaleSmallPhotos(e.target.checked);
+                setSaveStatus('idle');
+              }}
+            />
+            🔍 Scale small photos
+          </label>
+          <p className="tagline admin-settings-caption">
+            A photo smaller than the screen is scaled up to fill more of it (up to 1.5×
+            its own resolution, never larger than the screen) instead of showing tiny in
+            the middle of a black background. Off by default — an upscaled low-res photo
+            looks a bit softer than a full-resolution one.
+          </p>
 
           <label htmlFor="require-approval-input" className="admin-checkbox-label">
             <input

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
 interface MediaItem {
@@ -35,11 +35,17 @@ interface ConfigPayload {
   collageMode: CollageMode;
   collageLayout: CollageLayout;
   showQrCode: boolean;
+  scaleSmallPhotos: boolean;
   eventImageUrl: string | null;
   eventImageScale: number;
 }
 
 const DEFAULT_IMAGE_DURATION_MS = 6000;
+// "Scale small photos" (Playback Settings) never grows a photo past this
+// multiple of its own native pixel size, even when there's plenty of empty
+// frame left to fill — an upscaled low-res photo gets visibly softer the
+// more it's stretched, and 1.5x is a fairly gentle ceiling on that.
+const MAX_SMALL_PHOTO_SCALE = 1.5;
 
 // A freshly-uploaded image jumps the queue and plays immediately, overriding
 // the normal per-image duration for this one slide — with a "New Upload"
@@ -164,6 +170,7 @@ export default function Slideshow() {
   const [shuffle, setShuffle] = useState(false);
   const [slideshowEnabled, setSlideshowEnabled] = useState(true);
   const [showQrCode, setShowQrCode] = useState(true);
+  const [scaleSmallPhotos, setScaleSmallPhotos] = useState(false);
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
   const [eventImageScale, setEventImageScale] = useState(100);
   const [muted, setMuted] = useState(true);
@@ -205,6 +212,51 @@ export default function Slideshow() {
 
   const current = items.length > 0 ? items[index % items.length] : null;
 
+  // "Scale small photos": CSS alone can't express "1.5x this specific
+  // photo's own native pixel size" (nothing to reference an <img>'s
+  // intrinsic dimensions as a percentage basis), so this reads the loaded
+  // image's real naturalWidth/naturalHeight and computes an explicit pixel
+  // size instead — recomputed per photo and on resize. slideFrameInnerRef
+  // measures the actual available space rather than duplicating the 72px
+  // inset math baked into .slide-frame-inner/.slide-photo-frame's CSS.
+  const slideFrameInnerRef = useRef<HTMLDivElement | null>(null);
+  const photoImgRef = useRef<HTMLImageElement | null>(null);
+  const [photoSizeStyle, setPhotoSizeStyle] = useState<React.CSSProperties | undefined>(undefined);
+
+  const recomputePhotoSize = useCallback(() => {
+    if (!scaleSmallPhotos) {
+      setPhotoSizeStyle(undefined);
+      return;
+    }
+    const img = photoImgRef.current;
+    const frame = slideFrameInnerRef.current;
+    if (!img || !frame || !img.naturalWidth || !img.naturalHeight) {
+      setPhotoSizeStyle(undefined);
+      return;
+    }
+    // 24px = .slide-photo-frame's own 12px padding on each side — the space
+    // between the photo's own pixels and frame's already-measured edges.
+    const availWidth = frame.clientWidth - 24;
+    const availHeight = frame.clientHeight - 24;
+    const fitScale = Math.min(availWidth / img.naturalWidth, availHeight / img.naturalHeight);
+    // Never shrinks more than fitScale already would (same as today's
+    // default for a photo bigger than the frame), never grows past
+    // MAX_SMALL_PHOTO_SCALE, never grows past what the frame can hold.
+    const scale = Math.min(MAX_SMALL_PHOTO_SCALE, fitScale);
+    setPhotoSizeStyle({
+      width: img.naturalWidth * scale,
+      height: img.naturalHeight * scale,
+      maxWidth: 'none',
+      maxHeight: 'none',
+    });
+  }, [scaleSmallPhotos]);
+
+  useEffect(() => {
+    recomputePhotoSize();
+    window.addEventListener('resize', recomputePhotoSize);
+    return () => window.removeEventListener('resize', recomputePhotoSize);
+  }, [recomputePhotoSize, current?.id]);
+
   useEffect(() => {
     indexRef.current = index;
   }, [index]);
@@ -231,6 +283,7 @@ export default function Slideshow() {
       collageLayoutRef.current = configData.collageLayout;
       setSlideshowEnabled(configData.slideshowEnabled);
       setShowQrCode(configData.showQrCode);
+      setScaleSmallPhotos(configData.scaleSmallPhotos);
       setEventImageUrl(configData.eventImageUrl);
       setEventImageScale(configData.eventImageScale);
       setItems(configData.shuffle ? shuffleArray(mediaData) : mediaData);
@@ -340,6 +393,7 @@ export default function Slideshow() {
       collageLayoutRef.current = data.collageLayout;
       setSlideshowEnabled(data.slideshowEnabled);
       setShowQrCode(data.showQrCode);
+      setScaleSmallPhotos(data.scaleSmallPhotos);
       setEventImageUrl(data.eventImageUrl);
       setEventImageScale(data.eventImageScale);
 
@@ -611,9 +665,16 @@ export default function Slideshow() {
     <div className="page slideshow-page">
       <div key={current.id} className={`slide-frame ${transitionClass}`}>
         {current.kind === 'image' ? (
-          <div className="slide-frame-inner">
+          <div className="slide-frame-inner" ref={slideFrameInnerRef}>
             <div className="slide-photo-frame">
-              <img src={src} className="slide slide-framed" alt="" />
+              <img
+                ref={photoImgRef}
+                src={src}
+                className="slide slide-framed"
+                alt=""
+                style={photoSizeStyle}
+                onLoad={recomputePhotoSize}
+              />
               {current.uploader && <div className="slide-uploader-tag">{current.uploader}</div>}
               {current.photo_taken_at != null && (
                 <div className="slide-photo-date-tag">{formatPhotoDate(current.photo_taken_at)}</div>

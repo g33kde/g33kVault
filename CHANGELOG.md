@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### "Scale small photos" — fills more of the screen for lower-resolution photos
+
+- Reported: some slideshow photos looked noticeably smaller than others. Root cause —
+  the single-photo view's `max-width`/`max-height` CSS only ever scales a photo
+  *down* to fit the screen, never *up*, so a photo with fewer native pixels than the
+  screen (a screenshot, something re-saved from WhatsApp/social media, an old
+  low-res upload) rendered at its own tiny native size, surrounded by black, while a
+  full-resolution phone photo filled nearly the whole frame.
+- New "🔍 Scale small photos" checkbox in Playback Settings (off by default — preserves
+  today's behavior). When on, a photo smaller than the available frame is scaled up —
+  by at most 1.5× its own native resolution, and never past what the frame can
+  actually hold — instead of showing at native size. One formula handles both rules
+  at once: `scale = min(1.5, fitScale)`, where `fitScale` is whatever a photo would
+  need to shrink (or could grow) to exactly fill the frame — a large photo's
+  `fitScale` is already below 1, so it's shrunk exactly as before; a small photo picks
+  whichever is smaller, 1.5× or the screen's own limit.
+  - CSS alone can't express "1.5× this specific photo's own pixel size" (nothing
+    references an `<img>`'s intrinsic dimensions as a percentage basis), so this
+    reads the loaded image's real `naturalWidth`/`naturalHeight` and sets an explicit
+    pixel size instead — recomputed per photo and on window resize.
+  - Only affects the single-photo view. Videos and Photo Collage tiles already scale
+    their content to fill their box (via `object-fit`), growing or shrinking as
+    needed, so neither shows this "small photo" problem in the first place.
+  - Verified against both a genuinely small (200×150) and a genuinely large
+    (3000×2000) test photo: the small one renders at exactly 1.5× (300×225) with the
+    setting on and its native size with it off; the large one renders identically
+    either way, confirming large photos are unaffected.
+
 ### A separate password for downloading backups
 
 - `/admin`'s **⬇ Download Backup** action now needs its own password — a new

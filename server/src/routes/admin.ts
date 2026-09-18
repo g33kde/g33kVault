@@ -31,6 +31,8 @@ import {
   setLastBackup,
   getShowQrCode,
   setShowQrCode,
+  getScaleSmallPhotos,
+  setScaleSmallPhotos,
   getEventImageUrl,
   getEventImageScale,
   getGrafanaEnabled,
@@ -73,6 +75,7 @@ export function currentSettings() {
     collageLayout: getCollageLayout(),
     requireApproval: getRequireApproval(),
     showQrCode: getShowQrCode(),
+    scaleSmallPhotos: getScaleSmallPhotos(),
     eventImageUrl: getEventImageUrl(),
     eventImageScale: getEventImageScale(),
     lastBackup: getLastBackup(),
@@ -158,6 +161,7 @@ export function adminRouter(io: SocketIOServer) {
       collageLayout,
       requireApproval,
       showQrCode,
+      scaleSmallPhotos,
     } = req.body ?? {};
 
     if (
@@ -212,6 +216,11 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
+    if (typeof scaleSmallPhotos !== 'boolean') {
+      res.status(400).json({ error: 'scaleSmallPhotos must be a boolean' });
+      return;
+    }
+
     setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
     setShuffle(shuffle);
     setTransitionStyle(transitionStyle as TransitionStyle);
@@ -221,6 +230,7 @@ export function adminRouter(io: SocketIOServer) {
     setCollageLayout(collageLayout as CollageLayout);
     setRequireApproval(requireApproval);
     setShowQrCode(showQrCode);
+    setScaleSmallPhotos(scaleSmallPhotos);
 
     const updated = currentSettings();
     logEvent('moderation', 'settings_changed', updated);

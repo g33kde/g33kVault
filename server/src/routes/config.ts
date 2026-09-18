@@ -9,6 +9,7 @@ import {
   getCollageLayout,
   getRequireApproval,
   getShowQrCode,
+  getScaleSmallPhotos,
   getEventImageUrl,
   getEventImageScale,
 } from '../settings';
@@ -26,6 +27,7 @@ configRouter.get('/', (_req, res) => {
     collageLayout: getCollageLayout(),
     requireApproval: getRequireApproval(),
     showQrCode: getShowQrCode(),
+    scaleSmallPhotos: getScaleSmallPhotos(),
     eventImageUrl: getEventImageUrl(),
     eventImageScale: getEventImageScale(),
   });

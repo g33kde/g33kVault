@@ -827,6 +827,21 @@ Once an image is set, a **Size** slider in the same section steps through 100% /
 150% / 200% and applies instantly on the live slideshow — no need to hit Save
 anywhere else.
 
+## Scaling small photos
+
+By default, a photo with fewer pixels than the screen (a screenshot, something
+re-saved from WhatsApp/social media, an old low-resolution upload) shows at its own
+native size in the slideshow — small, surrounded by black — since the frame only ever
+shrinks an oversized photo to fit, never grows an undersized one. `/admin`'s Playback
+Settings has a **"🔍 Scale small photos"** checkbox (off by default) that fixes this:
+when on, a photo smaller than the available frame is scaled up to fill more of it —
+by at most 1.5× its own resolution, and never larger than the screen itself — instead
+of showing tiny. A full-resolution photo is completely unaffected either way, since
+it's already being shrunk to fit rather than grown. The trade-off: an upscaled
+low-resolution photo looks a little softer than a genuinely full-resolution one —
+turn this on if you'd rather have a consistently-sized wall of photos than perfectly
+crisp low-res ones.
+
 ## Photo Collage
 
 Instead of always showing one photo at a time, the slideshow can group several into a
