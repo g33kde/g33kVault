@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Fixed: "Scan for Duplicates" progress looked stuck at 1% the entire scan
+
+- Reported as the duplicate-photo scan sitting at "1%" for the whole run (unlike the
+  Low-Resolution scan, which visibly climbs) before eventually finishing normally. Not
+  actually stuck — duplicate scanning backfills a perceptual hash for every photo that
+  doesn't have one yet, which needs a full image decode via `sharp` (much more
+  expensive than Low-Resolution's dimensions-only read), and the percent display
+  rounds to a whole number with a floor of 1% (so it never shows a misleading "0%").
+  On a large gallery's first-ever scan, that combination meant dozens of photos could
+  finish while the rounded percentage stayed pinned at "1%" the entire time — genuine
+  progress, just below what a rounded whole-number percentage could show. Fixed by
+  showing the raw counts alongside the percentage everywhere this pattern appears
+  (Duplicate/Low-Resolution scan and delete-all, Photo Dates scan) — e.g. "Scanning…
+  4 of 312 (1%)" — so progress is visible even while the percent digit doesn't move.
+
 ### Fixed: horizontal banding on slideshow photos in Chrome, with any transition style
 
 - Follow-up to the VHS-specific fix below: lines persisted even after that fix, on

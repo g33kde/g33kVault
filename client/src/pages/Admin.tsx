@@ -1934,7 +1934,7 @@ export default function Admin() {
                 <button className="btn btn-primary" onClick={handleScanDuplicates} disabled={scanningDuplicates}>
                   {scanningDuplicates
                     ? scanProgress && scanProgress.total > 0
-                      ? `Scanning… ${formatScanPercent(scanProgress.current, scanProgress.total)}%`
+                      ? `Scanning… ${scanProgress.current} of ${scanProgress.total} (${formatScanPercent(scanProgress.current, scanProgress.total)}%)`
                       : 'Scanning…'
                     : '🔍 Scan for Duplicates'}
                 </button>
@@ -1953,7 +1953,7 @@ export default function Admin() {
                         >
                           {deletingAllDuplicates
                             ? deleteAllProgress && deleteAllProgress.total > 0
-                              ? `Deleting… ${formatScanPercent(deleteAllProgress.current, deleteAllProgress.total)}%`
+                              ? `Deleting… ${deleteAllProgress.current} of ${deleteAllProgress.total} (${formatScanPercent(deleteAllProgress.current, deleteAllProgress.total)}%)`
                               : 'Deleting…'
                             : '🗑 Delete All Duplicates (keep one of each)'}
                         </button>
@@ -2003,7 +2003,7 @@ export default function Admin() {
                 <button className="btn btn-primary" onClick={handleScanPhotoDates} disabled={scanningPhotoDates}>
                   {scanningPhotoDates
                     ? photoDatesProgress && photoDatesProgress.total > 0
-                      ? `Scanning… ${formatScanPercent(photoDatesProgress.current, photoDatesProgress.total)}%`
+                      ? `Scanning… ${photoDatesProgress.current} of ${photoDatesProgress.total} (${formatScanPercent(photoDatesProgress.current, photoDatesProgress.total)}%)`
                       : 'Scanning…'
                     : '📅 Scan Photo Dates'}
                 </button>
@@ -2085,7 +2085,7 @@ export default function Admin() {
                 <button className="btn btn-primary" onClick={handleScanLowRes} disabled={scanningLowRes}>
                   {scanningLowRes
                     ? lowResProgress && lowResProgress.total > 0
-                      ? `Scanning… ${formatScanPercent(lowResProgress.current, lowResProgress.total)}%`
+                      ? `Scanning… ${lowResProgress.current} of ${lowResProgress.total} (${formatScanPercent(lowResProgress.current, lowResProgress.total)}%)`
                       : 'Scanning…'
                     : '🖼 Scan for Low-Resolution Photos'}
                 </button>
@@ -2104,10 +2104,10 @@ export default function Admin() {
                         >
                           {deletingAllLowRes
                             ? deleteAllLowResProgress && deleteAllLowResProgress.total > 0
-                              ? `Deleting… ${formatScanPercent(
+                              ? `Deleting… ${deleteAllLowResProgress.current} of ${deleteAllLowResProgress.total} (${formatScanPercent(
                                   deleteAllLowResProgress.current,
                                   deleteAllLowResProgress.total
-                                )}%`
+                                )}%)`
                               : 'Deleting…'
                             : `🗑 Delete All Low-Resolution Photos (${lowResItems.length})`}
                         </button>
