@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### A separate password for downloading backups
+
+- `/admin`'s **⬇ Download Backup** action now needs its own password — a new
+  `BACKUP_PASSWORD` environment variable, independent of both `ADMIN_PASSWORD` and
+  `TRASH_PASSWORD`. A full backup contains every photo/video in the vault, so it gets
+  its own single-purpose credential rather than reusing either existing one. The
+  status line next to the button (last backup time/size) stays visible to any regular
+  admin regardless — only the download itself is gated. Entered once, it's cached for
+  the rest of the browser session like the other passwords. There's no separate
+  "restore" password to add alongside it: restoring a backup (`scripts/restore.sh`)
+  is a manual CLI operation run directly against Docker volumes, with no web/password
+  layer to gate in the first place — whoever runs it already has shell access to the
+  server. Leaving `BACKUP_PASSWORD` unset disables downloading entirely, same
+  no-default-open treatment as the other two passwords.
+
 ### Version number in the admin footer, bumped automatically on every push
 
 - `/admin`'s footer (login screen and dashboard both) now shows a running build

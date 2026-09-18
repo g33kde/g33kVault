@@ -4,7 +4,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { PassThrough } from 'stream';
 import type { Server as SocketIOServer } from 'socket.io';
-import { checkAdminPassword } from '../adminAuth';
+import { checkAdminPassword, checkBackupPassword } from '../adminAuth';
 import { config } from '../config';
 import { getAllMedia, getApprovedMedia, updateMedia, updateManyMedia, deleteManyMedia, MediaRow } from '../db';
 import { computeContentHash, computePerceptualHash, findDuplicateGroups, planDuplicateDeletions } from '../duplicateDetect';
@@ -306,8 +306,15 @@ export function adminRouter(io: SocketIOServer) {
   // since this runs with direct filesystem access to both already. Uses the
   // system `tar` binary (present on every platform this project targets)
   // rather than adding a new npm dependency just for this.
+  //
+  // Gated by BACKUP_PASSWORD, not the regular admin password — a full
+  // backup contains every photo/video in the vault, so this is deliberately
+  // its own credential (see config.ts/adminAuth.ts). The Backup section's
+  // status (GET /settings, below) stays behind the regular admin password
+  // like everything else in /admin; only this download itself needs the
+  // extra secret.
   router.get('/backup', (req, res) => {
-    if (!checkAdminPassword(req.header('x-admin-password'))) {
+    if (!checkBackupPassword(req.header('x-backup-password'))) {
       res.status(401).json({ error: 'Invalid password' });
       return;
     }

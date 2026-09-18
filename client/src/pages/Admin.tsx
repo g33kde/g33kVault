@@ -301,6 +301,9 @@ const STORAGE_KEY = 'g33kvault-admin-password';
 // regular admin one, so restoring/emptying Trash stays gated even for
 // someone who already has the everyday admin password.
 const TRASH_STORAGE_KEY = 'g33kvault-trash-password';
+// Same independence, gating just "Download Backup" — see
+// server/src/adminAuth.ts's checkBackupPassword.
+const BACKUP_STORAGE_KEY = 'g33kvault-backup-password';
 const MIN_SECONDS = 1;
 const MAX_SECONDS = 600;
 const STALE_BACKUP_MS = 7 * 24 * 60 * 60 * 1000;
@@ -485,6 +488,13 @@ export default function Admin() {
   const [lastBackup, setLastBackupState] = useState<LastBackup | null>(null);
   const [backingUp, setBackingUp] = useState(false);
   const [backupError, setBackupError] = useState('');
+  // Cached once a download succeeds with it, same sessionStorage pattern as
+  // the admin/trash passwords — the status above (lastBackup) stays visible
+  // regardless of this; only the download itself needs it.
+  const [backupPassword, setBackupPassword] = useState<string | null>(() =>
+    sessionStorage.getItem(BACKUP_STORAGE_KEY)
+  );
+  const [backupPasswordInput, setBackupPasswordInput] = useState('');
 
   const [grafanaStatus, setGrafanaStatus] = useState<GrafanaStatus | null>(null);
   const [grafanaEnabled, setGrafanaEnabled] = useState(false);
@@ -714,18 +724,22 @@ export default function Admin() {
 
   async function handleBackup() {
     if (!password) return;
+    // Whatever's cached from a previous successful download this session,
+    // else whatever's currently typed in the (only-shown-until-cached)
+    // password field below.
+    const candidate = backupPassword ?? backupPasswordInput;
+    if (!candidate) return;
 
     setBackingUp(true);
     setBackupError('');
     try {
-      const res = await fetch('/api/admin/backup', { headers: { 'X-Admin-Password': password } });
-
-      if (res.status === 401) {
-        handleAuthFailure();
-        return;
-      }
+      const res = await fetch('/api/admin/backup', { headers: { 'X-Backup-Password': candidate } });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          setBackupError('Wrong password');
+          return;
+        }
         const data = await res.json().catch(() => ({}));
         setBackupError(data.error || 'Backup failed');
         return;
@@ -745,6 +759,9 @@ export default function Admin() {
       URL.revokeObjectURL(url);
       // lastBackup status updates via the 'config:updated' broadcast the
       // server sends once the backup completes server-side.
+      sessionStorage.setItem(BACKUP_STORAGE_KEY, candidate);
+      setBackupPassword(candidate);
+      setBackupPasswordInput('');
     } catch {
       setBackupError('Network error');
     } finally {
@@ -2094,8 +2111,29 @@ export default function Admin() {
           </button>
           {backupOpen && (
             <div className="admin-tool-body">
+              {!backupPassword && (
+                <p className="tagline admin-settings-caption">
+                  Downloading a backup needs a separate password (the <code>BACKUP_PASSWORD</code>{' '}
+                  environment variable) — independent of the regular admin password above.
+                </p>
+              )}
               <div className="admin-backup">
-                <button className="btn btn-primary" onClick={handleBackup} disabled={backingUp}>
+                {!backupPassword && (
+                  <input
+                    type="password"
+                    placeholder="Backup password"
+                    value={backupPasswordInput}
+                    onChange={(e) => {
+                      setBackupPasswordInput(e.target.value);
+                      setBackupError('');
+                    }}
+                  />
+                )}
+                <button
+                  className="btn btn-primary"
+                  onClick={handleBackup}
+                  disabled={backingUp || (!backupPassword && !backupPasswordInput)}
+                >
                   {backingUp ? 'Preparing backup…' : '⬇ Download Backup'}
                 </button>
               </div>

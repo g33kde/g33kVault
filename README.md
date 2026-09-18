@@ -580,7 +580,12 @@ the metadata straight to your browser, same format the CLI scripts use (`media/`
 direct filesystem access to both, so it just shells out to `tar` locally rather than
 going through Docker volumes. Next to the button, a status line shows when the last
 backup was taken, its size, and how many items it covered — turning amber if it's more
-than 7 days old, or reading "⚠ No backup taken yet" if you've never used it.
+than 7 days old, or reading "⚠ No backup taken yet" if you've never used it. That status
+line is visible to any regular admin; actually clicking **Download Backup** needs a
+**separate password** — a `BACKUP_PASSWORD` environment variable, independent of both
+`ADMIN_PASSWORD` and `TRASH_PASSWORD` — since a backup contains every photo/video in the
+vault. Enter it once and it's remembered for the rest of the browser session, same as
+the other passwords. Leaving `BACKUP_PASSWORD` unset disables downloading entirely.
 
 ### Automated, for migrating to a new machine (`scripts/backup.sh` / `scripts/restore.sh`)
 
@@ -699,6 +704,7 @@ once wiped, there's no undo.
 | `SLIDESHOW_INTERVAL_MS`    | `6000`                   | Initial slideshow image duration — see below   |
 | `ADMIN_PASSWORD`           | *(unset)*                | Password for `/admin`; unset disables it entirely |
 | `TRASH_PASSWORD`           | *(unset)*                | Separate password for `/admin`'s Trash section (see [Trash](#trash)); unset disables it entirely |
+| `BACKUP_PASSWORD`          | *(unset)*                | Separate password for `/admin`'s "Download Backup" action (see [Backup & migration](#backup--migration)); unset disables it entirely |
 | `GRAFANA_CLOUD_LOKI_URL`   | *(unset)*                | Optional — see [GRAFANA.md](GRAFANA.md) |
 | `GRAFANA_CLOUD_LOKI_USER`  | *(unset)*                | Optional — see [GRAFANA.md](GRAFANA.md) |
 | `GRAFANA_CLOUD_TOKEN`      | *(unset)*                | Optional — see [GRAFANA.md](GRAFANA.md) |

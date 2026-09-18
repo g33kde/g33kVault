@@ -18,6 +18,8 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       # Separate secret gating /admin's Trash section — see .env.example.
       - TRASH_PASSWORD=${TRASH_PASSWORD:-}
+      # Separate secret gating /admin's "Download Backup" action — see .env.example.
+      - BACKUP_PASSWORD=${BACKUP_PASSWORD:-}
       # Optional — Grafana Cloud Loki push (app-level stats: uploads,
       # access, moderation). Empty/unset leaves the integration fully off
       # regardless of what's toggled in /admin. See GRAFANA.md.

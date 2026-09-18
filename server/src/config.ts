@@ -60,6 +60,14 @@ export const config = {
   // permanently empty it. Empty/unset disables the Trash section entirely,
   // same "no default-open" reasoning as adminPassword above.
   trashPassword: process.env.TRASH_PASSWORD || '',
+  // A third, separate secret gating just the "Download Backup" action
+  // (routes/admin.ts's GET /backup) — a full backup contains every photo
+  // and video in the vault, so this is deliberately its own credential
+  // rather than reusing adminPassword or trashPassword. The Backup section's
+  // *status* (last backup time/size) is still visible to any regular admin;
+  // only the download itself needs this. Empty/unset disables downloading
+  // entirely, same "no default-open" reasoning as the other two passwords.
+  backupPassword: process.env.BACKUP_PASSWORD || '',
   // Grafana Cloud Loki push credentials — env vars only, never written to
   // settingsPath, same reasoning as adminPassword above: a secret shouldn't
   // live in a file the admin UI's settings form round-trips through. All

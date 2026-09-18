@@ -11,3 +11,9 @@ export function checkAdminPassword(password: string | undefined): boolean {
 export function checkTrashPassword(password: string | undefined): boolean {
   return config.trashPassword.length > 0 && password === config.trashPassword;
 }
+
+// Same independence as checkTrashPassword, gating GET /backup specifically.
+// See config.ts's backupPassword.
+export function checkBackupPassword(password: string | undefined): boolean {
+  return config.backupPassword.length > 0 && password === config.backupPassword;
+}
