@@ -2,6 +2,68 @@
 
 ## [Unreleased]
 
+### Booth: replaced Burst/Event with a new Boomerang mode; 3 modes total
+
+- `/booth` now offers **Normal**, **Frame**, and **Boomerang** — Burst (4 separate
+  stills) and Event (the hardcoded g33kVault banner) are gone. All three remaining
+  modes still always get the event-image watermark (see below/previous entry).
+- **Boomerang** (🪃) is the classic "plays forward then backward on a loop" effect:
+  captures 18 live frames over about 1.1 seconds (~15fps), then assembles them into a
+  single looping animated GIF — forward frames, then the reverse of everything
+  *except* the first and last frame (repeating those two would visibly pause at each
+  turnaround instead of reading as one continuous back-and-forth motion). Uploaded as
+  one `image/gif` file through the same `/api/upload` endpoint everything else uses,
+  so it shows up in the gallery/slideshow exactly like a photo — a plain `<img>`
+  already animates a GIF automatically, and it turns out the slideshow's
+  display-resolution cache (added earlier for the Chrome tiling-artifact fix) already
+  deliberately excludes `.gif` from its resize step for exactly this reason (`sharp`
+  would otherwise flatten the animation to its first frame) — so no slideshow-side
+  changes were needed at all.
+  - Started at 10 frames/~9fps, which read as a visibly choppy "flipbook" next to
+    Instagram's own smooth, video-sourced Boomerang loop — bumped to 18 frames/~15fps
+    (same ~1.1s window) to close that gap, at the cost of proportionally more
+    client-side GIF-encoding time and a bigger file (confirmed: 146KB vs. the
+    original 99KB for the same test capture). Still comfortably fast enough to run on
+    a guest's own phone.
+  - Frames are downscaled to a 480px-wide cap before encoding (GIF's per-frame
+    compression cost scales with pixel count, and this all runs client-side, often on
+    a guest's own phone) — a boomerang is a fun loop, not a keepsake print, so this
+    doesn't need full camera resolution the way Normal/Frame do.
+  - The event-image watermark is applied to every captured frame before encoding, so
+    it's baked into the whole loop, not just a single still.
+  - New dependency: `gif.js` (pure JS, runs its LZW encoding in a Web Worker — no
+    native compilation, consistent with this project's dependency philosophy). Its
+    worker script is a plain static file at `client/public/gif.worker.js` since
+    gif.js loads it via a bare `new Worker(url)` call it can't resolve as a bundled
+    module itself.
+  - Verified against a real capture with a fake camera device: confirmed a valid
+    34-frame `GIF89a` file (18 forward + 16 reverse), correctly downscaled, with the
+    watermark visible in the decoded output.
+
+### Booth photos always get the event image watermarked in the corner
+
+- Every photo taken through `/booth` — in all four modes (Normal, Burst, Frame,
+  Event) — now gets the admin's uploaded Event Image (see the "🖼 Event Image" admin
+  section) stamped into the upper-left corner as a watermark, drawn directly into the
+  captured photo (not just an on-screen overlay). Silently skipped if no event image
+  is set; nothing changes in that case.
+  - In Event mode specifically, this stacks with — doesn't replace — that mode's
+    existing hardcoded "g33kVault" banner across the bottom; the two are independent.
+  - Applied *last*, after any mode-specific processing (Frame's polaroid border,
+    Event's banner), so it always lands in the true upper-left corner of the final
+    exported image rather than getting shifted by a border Frame mode added around
+    the photo.
+  - Sized relative to the photo itself (up to 18% of its width/height, never
+    upscaled past the logo file's own resolution) rather than reusing the
+    slideshow's 100%/150%/200% Event Image size setting — a captured photo and a
+    slideshow screen are very different reference sizes for what "100%" should mean.
+  - No backing card behind the logo, just a drop-shadow — same treatment as the
+    slideshow's own event-image overlay, which also sits directly on its background
+    rather than a white/dark card.
+  - Verified against a real capture (fake camera + Playwright) in all four modes and
+    with no event image set — the watermark shows correctly, stacks correctly with
+    Frame/Event's own effects, and is cleanly absent when nothing's configured.
+
 ### "Scale small photos" — fills more of the screen for lower-resolution photos
 
 - Reported: some slideshow photos looked noticeably smaller than others. Root cause —

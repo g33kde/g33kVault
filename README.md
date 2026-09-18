@@ -951,17 +951,23 @@ upload QR).
 - **Countdown** — 3…2…1 before each capture.
 - **Front/back camera** — a flip button switches between them (falls back gracefully on
   devices/browsers that only expose one).
-- **Burst** — captures 4 shots in quick succession instead of one, each uploaded as its
-  own gallery item.
-- **Frame** — adds a Polaroid-style white border with a randomly picked funny caption.
-- **Event overlay** — adds a branded lower-third bar (the g33kVault wordmark + accent
-  underline) instead of a full frame.
 - **Normal** — just the photo, no decoration.
+- **Frame** — adds a Polaroid-style white border with a randomly picked funny caption.
+- **Boomerang** — captures about a second of live frames and turns them into a single
+  looping GIF that plays forward then backward, the classic "Boomerang" effect —
+  uploaded as one gallery item, animating automatically wherever it's shown (gallery
+  grid, slideshow) since that's just how a `<img>` displaying a GIF already behaves.
+
+If an [event image](#event-image) is set, it's stamped into the upper-left corner of
+every capture, in every mode above — a real watermark burned into the image pixels
+(every frame, for Boomerang), not just an on-screen overlay, drawn in last so it
+always ends up in the actual corner even when Frame's border changes the canvas size.
+Nothing changes if no event image is set.
 
 Captured photos upload automatically through the same `/api/upload` endpoint the regular
 upload page uses, so they show up on the slideshow the same way. All of the image
-processing (countdown, capture, frame/overlay compositing) happens client-side via
-`<canvas>` — no new server dependencies.
+processing (countdown, capture, frame/overlay compositing, the event-image watermark)
+happens client-side via `<canvas>` — no new server dependencies.
 
 ## Uploader name
 
@@ -1069,9 +1075,6 @@ list of what gets sent, and the privacy/cardinality design behind it.
 - File type is validated by file extension on upload (browsers report inconsistent
   MIME types for HEIC in particular) — images: jpg/jpeg/png/gif/webp/heic/heif,
   videos: mp4/mov/webm.
-- The photo booth's "Burst" mode uploads 4 separate stills rather than compositing an
-  animated GIF — avoids pulling in a client-side GIF encoder. Could revisit if an actual
-  animated-GIF export is wanted later.
 - Photo rotation (see [Moderation](#moderation)) doesn't support GIFs — only
   jpg/jpeg/png/webp. Rotating a GIF returns an error rather than corrupting it.
 - Only images can be rotated, not videos — rotating a video would need re-encoding it
