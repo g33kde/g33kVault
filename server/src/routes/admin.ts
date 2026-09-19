@@ -29,8 +29,10 @@ import {
   setCollageLayout,
   getLastBackup,
   setLastBackup,
-  getShowQrCode,
-  setShowQrCode,
+  getShowUploadQr,
+  setShowUploadQr,
+  getShowBoothQr,
+  setShowBoothQr,
   getScaleSmallPhotos,
   setScaleSmallPhotos,
   getEventImageUrl,
@@ -74,7 +76,8 @@ export function currentSettings() {
     collageMode: getCollageMode(),
     collageLayout: getCollageLayout(),
     requireApproval: getRequireApproval(),
-    showQrCode: getShowQrCode(),
+    showUploadQr: getShowUploadQr(),
+    showBoothQr: getShowBoothQr(),
     scaleSmallPhotos: getScaleSmallPhotos(),
     eventImageUrl: getEventImageUrl(),
     eventImageScale: getEventImageScale(),
@@ -160,7 +163,8 @@ export function adminRouter(io: SocketIOServer) {
       collageMode,
       collageLayout,
       requireApproval,
-      showQrCode,
+      showUploadQr,
+      showBoothQr,
       scaleSmallPhotos,
     } = req.body ?? {};
 
@@ -211,8 +215,13 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
-    if (typeof showQrCode !== 'boolean') {
-      res.status(400).json({ error: 'showQrCode must be a boolean' });
+    if (typeof showUploadQr !== 'boolean') {
+      res.status(400).json({ error: 'showUploadQr must be a boolean' });
+      return;
+    }
+
+    if (typeof showBoothQr !== 'boolean') {
+      res.status(400).json({ error: 'showBoothQr must be a boolean' });
       return;
     }
 
@@ -229,7 +238,8 @@ export function adminRouter(io: SocketIOServer) {
     setCollageMode(collageMode as CollageMode);
     setCollageLayout(collageLayout as CollageLayout);
     setRequireApproval(requireApproval);
-    setShowQrCode(showQrCode);
+    setShowUploadQr(showUploadQr);
+    setShowBoothQr(showBoothQr);
     setScaleSmallPhotos(scaleSmallPhotos);
 
     const updated = currentSettings();

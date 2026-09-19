@@ -681,6 +681,43 @@ a.upload-url:focus-visible {
   line-height: 1.2;
 }
 
+/* Used only when both showUploadQr and showBoothQr are on — same top-right
+   spot .slideshow-qr already owns, but as a 3D flip-card cycling between
+   the two rather than trying to fit two QR boxes into one corner (every
+   other corner is already claimed — event image, preview badge, uploader
+   tag). Classic two-sided flip-card technique: the front face lays out
+   normally (so the card's own size comes from its content, same as a
+   single .slideshow-qr always has), the back face sits absolutely
+   pre-rotated 180deg directly on top of it, and backface-visibility hides
+   whichever face is edge-on at any given moment — so rotating the shared
+   inner element by 180deg is enough to swap which one's actually visible,
+   no separate content-swap logic needed. */
+.slideshow-qr-flip {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  perspective: 1200px;
+}
+.slideshow-qr-flip-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+.slideshow-qr-flip-inner.flipped {
+  transform: rotateY(180deg);
+}
+.slideshow-qr-flip-inner .slideshow-qr {
+  position: relative;
+  top: auto;
+  right: auto;
+  backface-visibility: hidden;
+}
+.slideshow-qr-flip-inner .slideshow-qr-face-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}
+
 /* Top-left — the corner opposite the QR code, reserved for an optional
    admin-uploaded event logo/graphic (see routes/eventImage.ts). No white
    card behind it, unlike .slideshow-qr — a logo (often already on a

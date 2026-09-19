@@ -809,9 +809,12 @@ need to go find the host screen or ask for the link; they can scan straight off
 whatever screen/TV is showing the slideshow. Hidden only while an admin has turned
 "Enable Slideshow" off — see [Configuration](#configuration-env-vars) above.
 
-It can also be turned off entirely from `/admin`'s Playback Settings — "📱 Show QR
-code during slideshow" (on by default) — for events where you'd rather not show it at
-all.
+`/admin`'s Playback Settings has two independent checkboxes controlling this: **"📱
+Show Upload QR"** (on by default, points at `/upload`) and **"📸 Show Booth QR"** (off
+by default, points at `/booth` — see [Photo booth](#photo-booth)). Turn off both for
+events where you'd rather not show one at all. Turn on **both** and the slideshow
+shows a single QR code that flips between the two destinations every 7 seconds,
+instead of trying to fit two side by side in the same corner.
 
 ## Event image
 
@@ -1085,3 +1088,17 @@ list of what gets sent, and the privacy/cardinality design behind it.
   (no RAR-creation tool was available in that environment). The extraction library
   itself was confirmed to load and run correctly; only a real end-to-end `.rar` drop
   hasn't been. Worth an explicit test with a real `.rar` file before relying on it.
+- **Photo Dates scan found 0 of 813 on a real gallery** — surprising enough to be
+  worth revisiting, though not necessarily a bug: `exifr` itself was verified working
+  correctly against a real EXIF-bearing test JPEG, and the ingestion-time extraction
+  order (extract, *then* HEIC→JPEG convert) was confirmed correct in both
+  `upload.ts` and `importFolder.ts`. "Scan Photo Dates" only ever attempts extraction
+  for photos where `photo_taken_at` is still `undefined` — i.e. ones that predate
+  ingestion-time extraction entirely — so 0/813 most likely means the whole gallery
+  was bulk-imported (watched folder / migrated from elsewhere) before that feature
+  existed, and if those were originally iPhone HEIC photos, the conversion back then
+  already permanently stripped their EXIF (see the HEIC caveat in `CLAUDE.md`) —
+  consistent with existing documented behavior, not a new bug. Worth confirming
+  directly next time: check one specific photo's actual on-disk EXIF (`exiftool`)
+  to rule out something more systemic before accepting "no recoverable dates" as
+  the final answer for this gallery.

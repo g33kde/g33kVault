@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Admin toggle for which QR code(s) show during the slideshow
+
+- Playback Settings' single "Show QR code during slideshow" checkbox is now two
+  independent ones: **"📱 Show Upload QR"** and **"📸 Show Booth QR"** — covering all
+  four combinations (neither/either/both) rather than one on/off switch pointing only
+  at `/upload`. Existing installs migrate cleanly: an install that already had the old
+  toggle on keeps showing the Upload QR (off keeps it off) without needing to
+  reconfigure anything, since the new Upload-QR setting falls back to the old field's
+  value whenever it hasn't been explicitly set itself.
+- With **both** on, the slideshow doesn't try to cram two QR codes into one corner —
+  every other corner is already claimed (event image top-left, admin preview badge
+  bottom-left, uploader tag bottom-right). Instead it shows a single 3D flip-card in
+  the same top-right spot, rotating between the two every 7 seconds. Classic two-sided
+  flip-card CSS: the front face lays out normally, the back face sits absolutely
+  pre-rotated 180° directly on top of it, and `backface-visibility` hides whichever
+  face is edge-on — so rotating the shared wrapper 180° is all a swap takes, no
+  separate content-swap logic. With only one enabled, it's the exact same static QR
+  box as before (no animation, no flip-card machinery).
+  - Verified against a real running server: fresh installs default to Upload-QR-on/
+    Booth-QR-off (matching the old default); a legacy `settings.json` with only the
+    old `showQrCode: false` field correctly migrates to Upload QR off; and all three
+    render states (0 QR / 1 QR either destination / 2 QR flip-card, including a
+    screenshot of each face after the real 7-second timer) were checked directly
+    against the actual rendered page, not just the underlying state.
+
 ### Booth: replaced Burst/Event with a new Boomerang mode; 3 modes total
 
 - `/booth` now offers **Normal**, **Frame**, and **Boomerang** — Burst (4 separate

@@ -289,7 +289,8 @@ interface SettingsPayload {
   collageMode: CollageMode;
   collageLayout: CollageLayout;
   requireApproval: boolean;
-  showQrCode: boolean;
+  showUploadQr: boolean;
+  showBoothQr: boolean;
   scaleSmallPhotos: boolean;
   eventImageUrl: string | null;
   eventImageScale: number;
@@ -478,7 +479,8 @@ export default function Admin() {
   const [collageMode, setCollageMode] = useState<CollageMode>('off');
   const [collageLayout, setCollageLayout] = useState<CollageLayout>('random');
   const [requireApproval, setRequireApproval] = useState(false);
-  const [showQrCode, setShowQrCode] = useState(true);
+  const [showUploadQr, setShowUploadQr] = useState(true);
+  const [showBoothQr, setShowBoothQr] = useState(false);
   const [scaleSmallPhotos, setScaleSmallPhotos] = useState(false);
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
   const [eventImageScale, setEventImageScale] = useState(100);
@@ -615,7 +617,8 @@ export default function Admin() {
         setCollageMode(data.collageMode);
         setCollageLayout(data.collageLayout);
         setRequireApproval(data.requireApproval);
-        setShowQrCode(data.showQrCode);
+        setShowUploadQr(data.showUploadQr);
+        setShowBoothQr(data.showBoothQr);
         setScaleSmallPhotos(data.scaleSmallPhotos);
         setEventImageUrl(data.eventImageUrl);
         setEventImageScale(data.eventImageScale);
@@ -656,7 +659,8 @@ export default function Admin() {
       setCollageMode(data.collageMode);
       setCollageLayout(data.collageLayout);
       setRequireApproval(data.requireApproval);
-      setShowQrCode(data.showQrCode);
+      setShowUploadQr(data.showUploadQr);
+      setShowBoothQr(data.showBoothQr);
       setScaleSmallPhotos(data.scaleSmallPhotos);
       setEventImageUrl(data.eventImageUrl);
       setEventImageScale(data.eventImageScale);
@@ -703,7 +707,8 @@ export default function Admin() {
           collageMode,
           collageLayout,
           requireApproval,
-          showQrCode,
+          showUploadQr,
+          showBoothQr,
           scaleSmallPhotos,
         }),
       });
@@ -1847,18 +1852,35 @@ export default function Admin() {
             looks right before guests can see it.
           </p>
 
-          <label htmlFor="show-qr-code-input" className="admin-checkbox-label">
+          <label htmlFor="show-upload-qr-input" className="admin-checkbox-label">
             <input
-              id="show-qr-code-input"
+              id="show-upload-qr-input"
               type="checkbox"
-              checked={showQrCode}
+              checked={showUploadQr}
               onChange={(e) => {
-                setShowQrCode(e.target.checked);
+                setShowUploadQr(e.target.checked);
                 setSaveStatus('idle');
               }}
             />
-            📱 Show QR code during slideshow
+            📱 Show Upload QR during slideshow
           </label>
+
+          <label htmlFor="show-booth-qr-input" className="admin-checkbox-label">
+            <input
+              id="show-booth-qr-input"
+              type="checkbox"
+              checked={showBoothQr}
+              onChange={(e) => {
+                setShowBoothQr(e.target.checked);
+                setSaveStatus('idle');
+              }}
+            />
+            📸 Show Booth QR during slideshow
+          </label>
+          <p className="tagline admin-settings-caption">
+            With both on, the slideshow shows a single QR code that flips between the
+            two every 7 seconds instead of showing them side by side.
+          </p>
 
           <label htmlFor="scale-small-photos-input" className="admin-checkbox-label">
             <input

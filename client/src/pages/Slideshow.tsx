@@ -34,7 +34,8 @@ interface ConfigPayload {
   slideshowEnabled: boolean;
   collageMode: CollageMode;
   collageLayout: CollageLayout;
-  showQrCode: boolean;
+  showUploadQr: boolean;
+  showBoothQr: boolean;
   scaleSmallPhotos: boolean;
   eventImageUrl: string | null;
   eventImageScale: number;
@@ -46,6 +47,9 @@ const DEFAULT_IMAGE_DURATION_MS = 6000;
 // frame left to fill — an upscaled low-res photo gets visibly softer the
 // more it's stretched, and 1.5x is a fairly gentle ceiling on that.
 const MAX_SMALL_PHOTO_SCALE = 1.5;
+// How often the top-right QR flips between Upload and Booth when an admin
+// has both turned on — see the "Scan to add photos" QR section below.
+const QR_FLIP_INTERVAL_MS = 7000;
 
 // A freshly-uploaded image jumps the queue and plays immediately, overriding
 // the normal per-image duration for this one slide — with a "New Upload"
@@ -169,7 +173,12 @@ export default function Slideshow() {
   const [imageDuration, setImageDuration] = useState(DEFAULT_IMAGE_DURATION_MS);
   const [shuffle, setShuffle] = useState(false);
   const [slideshowEnabled, setSlideshowEnabled] = useState(true);
-  const [showQrCode, setShowQrCode] = useState(true);
+  const [showUploadQr, setShowUploadQr] = useState(true);
+  const [showBoothQr, setShowBoothQr] = useState(false);
+  // Only relevant when both QRs above are on — which face the flip-card is
+  // currently showing. Toggled by the interval below; irrelevant/unused
+  // otherwise (the single-QR and no-QR render paths don't read it).
+  const [qrFace, setQrFace] = useState<'upload' | 'booth'>('upload');
   const [scaleSmallPhotos, setScaleSmallPhotos] = useState(false);
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
   const [eventImageScale, setEventImageScale] = useState(100);
@@ -269,6 +278,19 @@ export default function Slideshow() {
     shuffleRef.current = shuffle;
   }, [shuffle]);
 
+  // Only rotates the QR flip-card when BOTH are actually on — a single one
+  // (or neither) just renders statically, no timer needed. Resets to
+  // 'upload' whenever either toggle changes so turning one off and back on
+  // doesn't leave the card stuck mid-rotation on the wrong face.
+  useEffect(() => {
+    setQrFace('upload');
+    if (!(showUploadQr && showBoothQr)) return;
+    const id = setInterval(() => {
+      setQrFace((face) => (face === 'upload' ? 'booth' : 'upload'));
+    }, QR_FLIP_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [showUploadQr, showBoothQr]);
+
   useEffect(() => {
     Promise.all([
       fetch('/api/media').then((r) => r.json()),
@@ -282,7 +304,8 @@ export default function Slideshow() {
       collageModeRef.current = configData.collageMode;
       collageLayoutRef.current = configData.collageLayout;
       setSlideshowEnabled(configData.slideshowEnabled);
-      setShowQrCode(configData.showQrCode);
+      setShowUploadQr(configData.showUploadQr);
+      setShowBoothQr(configData.showBoothQr);
       setScaleSmallPhotos(configData.scaleSmallPhotos);
       setEventImageUrl(configData.eventImageUrl);
       setEventImageScale(configData.eventImageScale);
@@ -392,7 +415,8 @@ export default function Slideshow() {
       collageModeRef.current = data.collageMode;
       collageLayoutRef.current = data.collageLayout;
       setSlideshowEnabled(data.slideshowEnabled);
-      setShowQrCode(data.showQrCode);
+      setShowUploadQr(data.showUploadQr);
+      setShowBoothQr(data.showBoothQr);
       setScaleSmallPhotos(data.scaleSmallPhotos);
       setEventImageUrl(data.eventImageUrl);
       setEventImageScale(data.eventImageScale);
@@ -593,12 +617,44 @@ export default function Slideshow() {
   // "waiting for the first upload," arguably the most useful moment for
   // it) but not on the admin-disabled state above, which is a deliberate
   // pause, not "business as usual."
-  const slideshowQr = showQrCode ? (
-    <div className="slideshow-qr">
-      <img src="/api/qrcode?dest=upload" className="slideshow-qr-code" alt="Scan to upload photos" />
-      <span className="slideshow-qr-caption">📷 Add your photos</span>
-    </div>
-  ) : null;
+  //
+  // Three shapes depending on how many of showUploadQr/showBoothQr are on:
+  // neither -> nothing; exactly one -> that one, static, same as this
+  // always worked before Booth QR existed; both -> a single flip-card that
+  // rotates between them every QR_FLIP_INTERVAL_MS (see the effect above),
+  // rather than trying to fit two QR boxes in one corner alongside the
+  // event image/preview badge/uploader tag already claiming the others.
+  let slideshowQr: React.ReactNode = null;
+  if (showUploadQr && showBoothQr) {
+    slideshowQr = (
+      <div className="slideshow-qr-flip">
+        <div className={`slideshow-qr-flip-inner ${qrFace === 'booth' ? 'flipped' : ''}`}>
+          <div className="slideshow-qr slideshow-qr-face-front">
+            <img src="/api/qrcode?dest=upload" className="slideshow-qr-code" alt="Scan to upload photos" />
+            <span className="slideshow-qr-caption">📷 Add your photos</span>
+          </div>
+          <div className="slideshow-qr slideshow-qr-face-back">
+            <img src="/api/qrcode?dest=booth" className="slideshow-qr-code" alt="Scan to open the photo booth" />
+            <span className="slideshow-qr-caption">📸 Take a photo</span>
+          </div>
+        </div>
+      </div>
+    );
+  } else if (showUploadQr) {
+    slideshowQr = (
+      <div className="slideshow-qr">
+        <img src="/api/qrcode?dest=upload" className="slideshow-qr-code" alt="Scan to upload photos" />
+        <span className="slideshow-qr-caption">📷 Add your photos</span>
+      </div>
+    );
+  } else if (showBoothQr) {
+    slideshowQr = (
+      <div className="slideshow-qr">
+        <img src="/api/qrcode?dest=booth" className="slideshow-qr-code" alt="Scan to open the photo booth" />
+        <span className="slideshow-qr-caption">📸 Take a photo</span>
+      </div>
+    );
+  }
 
   // Opposite corner from the QR code, admin-uploaded, entirely optional —
   // null whenever nothing's been uploaded (see settings.ts getEventImageUrl).

@@ -74,7 +74,12 @@ interface Settings {
   grafanaCategories?: GrafanaCategory[];
   grafanaPushIntervalMs?: GrafanaPushIntervalMs;
   grafanaInstanceLabel?: string;
+  // Superseded by showUploadQr/showBoothQr below — kept in the type (and
+  // still read, never written) purely so an existing settings.json's
+  // pre-upgrade value migrates instead of silently resetting.
   showQrCode?: boolean;
+  showUploadQr?: boolean;
+  showBoothQr?: boolean;
   // When on, a photo smaller than the available slideshow frame is scaled
   // up (never more than 1.5x its own native size, and never past what the
   // frame can actually hold) instead of displaying at its tiny native size
@@ -315,13 +320,32 @@ export function setGrafanaInstanceLabel(value: string): string {
 
 // On by default — matches this project's usual "opt out, not opt in"
 // pattern for admin-controlled display settings (shuffle, collage, etc.).
-export function getShowQrCode(): boolean {
-  return readSettings().showQrCode ?? true;
+// Falls back to the old showQrCode field when showUploadQr itself has never
+// been set, so an existing install's choice carries over on upgrade instead
+// of silently resetting to the new default.
+export function getShowUploadQr(): boolean {
+  const settings = readSettings();
+  if (settings.showUploadQr !== undefined) return settings.showUploadQr;
+  return settings.showQrCode ?? true;
 }
 
-export function setShowQrCode(value: boolean): boolean {
+export function setShowUploadQr(value: boolean): boolean {
   const settings = readSettings();
-  settings.showQrCode = value;
+  settings.showUploadQr = value;
+  writeSettings(settings);
+  return value;
+}
+
+// Off by default — the Booth QR is new, and showing a "take a photo" QR
+// during the slideshow wasn't previously offered at all, unlike the upload
+// one above.
+export function getShowBoothQr(): boolean {
+  return readSettings().showBoothQr ?? false;
+}
+
+export function setShowBoothQr(value: boolean): boolean {
+  const settings = readSettings();
+  settings.showBoothQr = value;
   writeSettings(settings);
   return value;
 }
