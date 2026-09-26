@@ -735,6 +735,35 @@ a.upload-url:focus-visible {
   filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.6));
 }
 
+/* /webpage's header image — same admin-uploaded event image as
+   .slideshow-event-image, but this page has no fixed frame to overlay a
+   corner on, so it renders in-flow above the heading instead of absolutely
+   positioned. Capped height (rather than reusing the slideshow's
+   --event-image-scale multiplier verbatim) keeps a large source image from
+   dominating an otherwise scrolling gallery page. */
+.webpage-event-image {
+  --event-image-scale: 1;
+  max-width: min(90vw, calc(280px * var(--event-image-scale)));
+  max-height: calc(180px * var(--event-image-scale));
+  object-fit: contain;
+}
+
+/* Unlike .slideshow-preview-badge, /webpage is a normal scrolling page (not
+   a fixed viewport-height one), so this sits in-flow at the top instead of
+   position:absolute — an absolute bottom-anchored badge would end up
+   pinned to the bottom of the whole document, not the viewport. */
+.webpage-preview-badge {
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 0.85rem;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  border: 1px solid #ffb84d;
+  background: rgba(40, 26, 5, 0.85);
+  color: #ffb84d;
+}
+
 .admin-link {
   color: var(--text-dim);
   font-size: 0.85rem;

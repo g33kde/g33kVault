@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### New public `/webpage` gallery, off by default
+
+- A new route, `/webpage`, shows a read-only version of admin's Photo Gallery grid —
+  same approved photos/videos, same grid layout and click-to-open full-view popup
+  (reusing `/photo-viewer`, unauthenticated already) — but with none of the admin
+  actions: no rotate, no delete, no select mode. Meant for sharing a browsable link
+  with guests after (or during) the event, separate from the live `/slideshow`.
+- Gated behind a new Playback Settings checkbox, **"🌐 Enable public /webpage
+  gallery"** — off by default. Unlike this app's other display toggles (which only
+  ever adjust something already shown, like the QR/scale-photos checkboxes above),
+  this exposes a brand-new page, so a fresh install doesn't suddenly make it public
+  until an admin deliberately turns it on. A `?preview=1` link (shown next to the
+  checkbox, same convention as "🔍 Preview slideshow") lets an admin check it looks
+  right before flipping the toggle on for real.
+- If the admin has an event image configured, it renders in-flow at the top of the
+  page, above the heading — a different treatment than the slideshow's absolutely
+  positioned corner overlay, since `/webpage` is a normal scrolling page with no fixed
+  frame to overlay a corner on.
+- Live via the same socket events the admin gallery and slideshow already use: new/
+  approved/restored/deleted/updated media, and the toggle itself flipping on/off, all
+  update the page without a refresh.
+  - Verified against a real running server: `webpageEnabled` defaults to `false`;
+    toggling it via `PUT /api/admin/settings` takes effect immediately; `/webpage`
+    serves the SPA shell at 200 regardless of the toggle (the enabled/disabled check
+    happens client-side against `/api/config`, matching every other public page); the
+    event image and its scale round-trip correctly through `/api/config` after
+    uploading one via the existing admin endpoint.
+
 ### Admin toggle for which QR code(s) show during the slideshow
 
 - Playback Settings' single "Show QR code during slideshow" checkbox is now two

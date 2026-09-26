@@ -11,6 +11,7 @@ import {
   getShowUploadQr,
   getShowBoothQr,
   getScaleSmallPhotos,
+  getWebpageEnabled,
   getEventImageUrl,
   getEventImageScale,
 } from '../settings';
@@ -30,6 +31,7 @@ configRouter.get('/', (_req, res) => {
     showUploadQr: getShowUploadQr(),
     showBoothQr: getShowBoothQr(),
     scaleSmallPhotos: getScaleSmallPhotos(),
+    webpageEnabled: getWebpageEnabled(),
     eventImageUrl: getEventImageUrl(),
     eventImageScale: getEventImageScale(),
   });

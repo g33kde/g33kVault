@@ -6,6 +6,7 @@ import Booth from './pages/Booth';
 import Slideshow from './pages/Slideshow';
 import Admin from './pages/Admin';
 import PhotoViewer from './pages/PhotoViewer';
+import Webpage from './pages/Webpage';
 import './styles/global.css';
 
 function App() {
@@ -20,6 +21,8 @@ function App() {
       return <Admin />;
     case '/photo-viewer':
       return <PhotoViewer />;
+    case '/webpage':
+      return <Webpage />;
     default:
       return <Host />;
   }

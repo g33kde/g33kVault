@@ -292,6 +292,7 @@ interface SettingsPayload {
   showUploadQr: boolean;
   showBoothQr: boolean;
   scaleSmallPhotos: boolean;
+  webpageEnabled: boolean;
   eventImageUrl: string | null;
   eventImageScale: number;
   lastBackup: LastBackup | null;
@@ -482,6 +483,7 @@ export default function Admin() {
   const [showUploadQr, setShowUploadQr] = useState(true);
   const [showBoothQr, setShowBoothQr] = useState(false);
   const [scaleSmallPhotos, setScaleSmallPhotos] = useState(false);
+  const [webpageEnabled, setWebpageEnabled] = useState(false);
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
   const [eventImageScale, setEventImageScale] = useState(100);
   const [eventImageError, setEventImageError] = useState('');
@@ -620,6 +622,7 @@ export default function Admin() {
         setShowUploadQr(data.showUploadQr);
         setShowBoothQr(data.showBoothQr);
         setScaleSmallPhotos(data.scaleSmallPhotos);
+        setWebpageEnabled(data.webpageEnabled);
         setEventImageUrl(data.eventImageUrl);
         setEventImageScale(data.eventImageScale);
         setLastBackupState(data.lastBackup);
@@ -662,6 +665,7 @@ export default function Admin() {
       setShowUploadQr(data.showUploadQr);
       setShowBoothQr(data.showBoothQr);
       setScaleSmallPhotos(data.scaleSmallPhotos);
+      setWebpageEnabled(data.webpageEnabled);
       setEventImageUrl(data.eventImageUrl);
       setEventImageScale(data.eventImageScale);
       setLastBackupState(data.lastBackup);
@@ -710,6 +714,7 @@ export default function Admin() {
           showUploadQr,
           showBoothQr,
           scaleSmallPhotos,
+          webpageEnabled,
         }),
       });
 
@@ -1899,6 +1904,30 @@ export default function Admin() {
             its own resolution, never larger than the screen) instead of showing tiny in
             the middle of a black background. Off by default — an upscaled low-res photo
             looks a bit softer than a full-resolution one.
+          </p>
+
+          <label htmlFor="webpage-enabled-input" className="admin-checkbox-label">
+            <input
+              id="webpage-enabled-input"
+              type="checkbox"
+              checked={webpageEnabled}
+              onChange={(e) => {
+                setWebpageEnabled(e.target.checked);
+                setSaveStatus('idle');
+              }}
+            />
+            🌐 Enable public /webpage gallery
+          </label>
+          <p className="tagline admin-settings-caption">
+            A read-only version of the Photo Gallery above, at /webpage, that anyone
+            with the link can browse — no rotate/delete/select actions. Off by
+            default — this is a brand-new page a fresh install shouldn't suddenly
+            expose until you turn it on.{' '}
+            <a href="/webpage" target="_blank" rel="noopener noreferrer">
+              🔍 Preview /webpage
+            </a>{' '}
+            — opens the real page even while disabled above, so you can check it looks
+            right before guests can see it.
           </p>
 
           <label htmlFor="require-approval-input" className="admin-checkbox-label">

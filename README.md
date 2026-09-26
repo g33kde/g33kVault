@@ -845,6 +845,23 @@ low-resolution photo looks a little softer than a genuinely full-resolution one 
 turn this on if you'd rather have a consistently-sized wall of photos than perfectly
 crisp low-res ones.
 
+## Public gallery webpage
+
+`/webpage` is a public, read-only gallery page — the same grid of approved photos/
+videos as `/admin`'s Photo Gallery, with click-to-open full-view (reusing the same
+popup viewer the admin gallery uses), but none of the admin actions: no rotate, no
+delete, no select mode. It's meant for sharing a browsable link with guests, separate
+from the live, fullscreen `/slideshow`.
+
+It's off by default — `/admin`'s Playback Settings has a **"🌐 Enable public /webpage
+gallery"** checkbox to turn it on. A "🔍 Preview /webpage" link next to it opens the
+real page even while the toggle is off, so you can check it looks right first. If
+you've set an [Event image](#event-image), it shows at the top of the page.
+
+This is a simpler, earlier feature than the bigger "recap webpage" idea in
+[Notes / ideas for later](#notes--ideas-for-later) — just the existing gallery made
+public, not the proposed sections/highlights/grouping-by-time-gap structure.
+
 ## Photo Collage
 
 Instead of always showing one photo at a time, the slideshow can group several into a

@@ -87,6 +87,13 @@ interface Settings {
   // softer than a genuinely full-resolution one, so this is a deliberate
   // trade-off the admin opts into rather than something applied by default.
   scaleSmallPhotos?: boolean;
+  // Gates the public /webpage route — a read-only gallery view, same
+  // approved photos/videos as /admin's Photo Gallery grid but with no
+  // admin actions (no rotate/delete/select). Off by default: unlike the
+  // display toggles above (which only ever adjust something already
+  // shown), this is a brand-new page a fresh install shouldn't suddenly
+  // expose until an admin deliberately turns it on.
+  webpageEnabled?: boolean;
   // The current event-image file's name within config.eventImageDir (e.g.
   // "event-image.png") — undefined/null means none uploaded. Set by
   // routes/eventImage.ts's upload/delete handlers, not by the admin
@@ -358,6 +365,18 @@ export function getScaleSmallPhotos(): boolean {
 export function setScaleSmallPhotos(value: boolean): boolean {
   const settings = readSettings();
   settings.scaleSmallPhotos = value;
+  writeSettings(settings);
+  return value;
+}
+
+// Off by default — see the doc comment on Settings.webpageEnabled above.
+export function getWebpageEnabled(): boolean {
+  return readSettings().webpageEnabled ?? false;
+}
+
+export function setWebpageEnabled(value: boolean): boolean {
+  const settings = readSettings();
+  settings.webpageEnabled = value;
   writeSettings(settings);
   return value;
 }

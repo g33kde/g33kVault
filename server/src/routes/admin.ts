@@ -35,6 +35,8 @@ import {
   setShowBoothQr,
   getScaleSmallPhotos,
   setScaleSmallPhotos,
+  getWebpageEnabled,
+  setWebpageEnabled,
   getEventImageUrl,
   getEventImageScale,
   getGrafanaEnabled,
@@ -79,6 +81,7 @@ export function currentSettings() {
     showUploadQr: getShowUploadQr(),
     showBoothQr: getShowBoothQr(),
     scaleSmallPhotos: getScaleSmallPhotos(),
+    webpageEnabled: getWebpageEnabled(),
     eventImageUrl: getEventImageUrl(),
     eventImageScale: getEventImageScale(),
     lastBackup: getLastBackup(),
@@ -166,6 +169,7 @@ export function adminRouter(io: SocketIOServer) {
       showUploadQr,
       showBoothQr,
       scaleSmallPhotos,
+      webpageEnabled,
     } = req.body ?? {};
 
     if (
@@ -230,6 +234,11 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
+    if (typeof webpageEnabled !== 'boolean') {
+      res.status(400).json({ error: 'webpageEnabled must be a boolean' });
+      return;
+    }
+
     setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
     setShuffle(shuffle);
     setTransitionStyle(transitionStyle as TransitionStyle);
@@ -241,6 +250,7 @@ export function adminRouter(io: SocketIOServer) {
     setShowUploadQr(showUploadQr);
     setShowBoothQr(showBoothQr);
     setScaleSmallPhotos(scaleSmallPhotos);
+    setWebpageEnabled(webpageEnabled);
 
     const updated = currentSettings();
     logEvent('moderation', 'settings_changed', updated);
