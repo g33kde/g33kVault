@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Photo viewer arrows fade out when the mouse (or touch) is idle
+
+- The full-screen photo popup (`/photo-viewer` — opened from both `/admin`'s Photo
+  Gallery and the new `/webpage` gallery) now fades its left/right navigation arrows
+  out after ~2 seconds of no mouse movement, and back in on the next movement — less
+  clutter over the photo while it's just being looked at. Applies everywhere this
+  popup is used, not just from `/webpage`, since there's no existing signal
+  distinguishing which page opened it and the behavior is a reasonable improvement
+  either way.
+- Also listens for `touchstart`, not just `mousemove` — most `/webpage` guests are on
+  phones, which never fire `mousemove`, so a mouse-only idle timer would leave the
+  arrows permanently hidden after the first timeout on a touch device.
+
 ### Admin-configurable upload size limits, and a fix for a confusing archive error
 
 - Playback Settings gets three new fields — **"📷 Max photo size"**, **"🎬 Max video

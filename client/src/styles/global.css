@@ -1747,6 +1747,16 @@ a.upload-url:focus-visible {
   align-items: center;
   justify-content: center;
   backdrop-filter: blur(4px);
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+/* Hidden while the mouse is idle (see PhotoViewer.tsx) — kept mounted
+   rather than unmounted so the fade is smooth and a still-in-flight click
+   isn't interrupted; pointer-events off so an invisible arrow can't eat
+   clicks meant for the photo underneath it. */
+.photo-viewer-arrow.photo-viewer-arrow-idle {
+  opacity: 0;
+  pointer-events: none;
 }
 .photo-viewer-arrow:hover {
   background: rgba(0, 0, 0, 0.8);
