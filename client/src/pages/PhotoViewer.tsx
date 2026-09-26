@@ -10,7 +10,7 @@ interface MediaItem {
 // How long the mouse can sit still before the arrows fade out — long enough
 // to read/click comfortably, short enough that they're out of the way for
 // someone just looking at the photo.
-const ARROW_IDLE_MS = 2000;
+const ARROW_IDLE_MS = 800;
 
 // Opened by Admin.tsx (and Webpage.tsx) via window.open() as a separate
 // popup window — click the photo to close it (window.close() only works
