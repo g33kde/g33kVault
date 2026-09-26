@@ -1119,3 +1119,91 @@ list of what gets sent, and the privacy/cardinality design behind it.
   directly next time: check one specific photo's actual on-disk EXIF (`exiftool`)
   to rule out something more systemic before accepting "no recoverable dates" as
   the final answer for this gallery.
+- **A public "recap" webpage generated from the whole gallery after the event** —
+  raised as an idea, not started. Three open questions, worked through below so
+  there's somewhere to pick this up from later rather than starting cold.
+
+  **How to group photos, given EXIF is unreliable here** (see the Photo Dates item
+  above — this gallery specifically has ~0% usable `photo_taken_at`, so any grouping
+  that depends on EXIF capture time is a non-starter for it, even though that's the
+  textbook approach for general photo libraries):
+  - **`created_at` (upload time) instead of EXIF time** — this app's core use case is
+    a *live* event wall, where guests upload during or moments after the event, not
+    months later — so unlike a general photo library, upload time is already a
+    reasonable proxy for capture time here. The well-established technique for this
+    (used by Google/Apple Photos-style "Memories"/trip clustering — confirmed via a
+    literature search, not assumed) is **adaptive time-gap clustering**: sort by
+    timestamp, split into a new group wherever the gap to the next photo is much
+    larger than the local average gap (not a fixed threshold — a lull during a slow
+    afternoon shouldn't split a group the same way an overnight gap should). Every
+    row already has `created_at`; this needs no new data, just a clustering pass
+    (could run once on demand for the recap page, no new schema).
+  - **Perceptual hash (`phash`) as a secondary signal** — already computed for every
+    photo (duplicate detection, `duplicateDetect.ts`). Near-identical `phash` values
+    close together in time are almost certainly the same moment/scene (e.g. several
+    guests photographing the same toast) — could help split or merge clusters that
+    timestamp-gap alone gets wrong.
+  - **Existing `batchId`** (archive-uploaded photos, `db.ts`) is a free, already-there
+    grouping signal for anything uploaded as one zip — often "one guest's whole
+    camera roll from the event," a natural section on its own.
+  - **`uploader`** (free-text name) enables a "photos by [name]" view for the guests
+    who did enter one — imperfect (optional, no real identity system by design) but
+    free.
+  - **Manual/admin curation as the pragmatic fallback** — full automation has real
+    limits with unreliable metadata; auto-suggested cluster boundaries that an admin
+    can rename/merge/split afterward (rather than either fully automatic or fully
+    manual) is probably the actual sweet spot, not a consolation prize.
+  - **Deliberately not proposing face recognition**, even though it's the dominant
+    approach in the commercial market for this exact category (see below) — matching
+    faces to group/personalize photos is a real pivot from this project's existing
+    stance (anonymous uploads, no login, no per-guest identity data — see
+    [Uploader name](#uploader-name) and the Grafana "aggregate-only" design in
+    `GRAFANA.md`). Worth an explicit decision if this is ever built, not something to
+    default into.
+
+  **Proposed structure / menu** for the recap page (a new, separate, read-only route —
+  not `/admin`, not the live `/slideshow`):
+  - **Timeline** — the default view, chronological, reusing the same ordering the
+    gallery/slideshow already use.
+  - **Sections/chapters** — the time-gap clusters above, admin-labeled (e.g.
+    "Arrival," "Dinner," "Dancing") rather than auto-named, since inferring a good
+    label from photo content is a much harder, separate problem.
+  - **Highlights** — an admin-curated "best of" reel; this app already has an
+    admin-moderation mindset (rotate/delete/approve), so hand-picking favorites fits
+    the existing workflow rather than introducing a new paradigm.
+  - **By contributor** — filtered by `uploader`, for the guests who gave a name.
+  - **Boomerangs** as their own strip — already a distinct, easy-to-detect content
+    type (`kind: 'image'` + `.gif`), and visually different enough from stills to
+    deserve separate treatment rather than blending into the timeline.
+  - Reusing the **existing collage layout system** (`COLLAGE_LAYOUTS` — big-plus-2,
+    grid-4, scatter-6, etc., already built for the slideshow) for section previews
+    rather than inventing a new layout engine from scratch.
+
+  **Competitive landscape** (a live web search, not assumed from memory): the
+  dominant pattern among commercial event-photo products
+  ([FotoOwl](https://fotoowl.ai/), [Samaro](https://samaro.ai/weddings),
+  [Eventara](https://eventara.in/), [Kwikpic](https://www.kwikpic.in/blog/ai-photo-sharing-for-events/),
+  [AuraFrame](https://auraframe.io/), [PartySnap](https://partysnap.app/)) is **face
+  recognition** — guests scan a QR code, take a selfie once, and get a personalized
+  gallery of just the photos they appear in. That solves a different problem than
+  what's proposed above (finding *your own* photos among thousands, vs. organizing
+  *the whole event* into a browsable recap) and comes with real privacy/complexity
+  costs this project has deliberately avoided so far — worth knowing this is the
+  market-standard approach, without treating it as the only valid one for a
+  self-hosted, privacy-conscious tool like this.
+
+  **Other ideas that fell out of thinking through this**:
+  - A **static export** of the finished recap page (flat HTML/JSON + copied media,
+    no server needed to view it) — pairs naturally with the existing backup story:
+    "the event's over, here's a page you can host anywhere, even after the Pi comes
+    down."
+  - An **auto-picked cover photo per section** (e.g. sharpest/most-central shot in a
+    cluster, or just its first/last photo) rather than requiring the admin to choose
+    one for every section.
+  - A **QR code on the recap page itself** linking back to `/upload`/`/booth`,
+    closing the loop for anyone still adding late photos — reuses the exact
+    `/api/qrcode` endpoint this app already has.
+  - Some form of **link-based sharing** (an unlisted URL, or a lighter share-token
+    rather than a full password) rather than reusing `ADMIN_PASSWORD` — this page is
+    meant for casual guest browsing, not admin-level access, so it probably wants a
+    different, lighter trust model than the passwords this app already has.
