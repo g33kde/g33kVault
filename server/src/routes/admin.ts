@@ -37,6 +37,12 @@ import {
   setScaleSmallPhotos,
   getWebpageEnabled,
   setWebpageEnabled,
+  getMaxFileSizeMb,
+  setMaxFileSizeMb,
+  getMaxArchiveSizeMb,
+  setMaxArchiveSizeMb,
+  getMaxVideoSizeMb,
+  setMaxVideoSizeMb,
   getEventImageUrl,
   getEventImageScale,
   getGrafanaEnabled,
@@ -61,6 +67,8 @@ import { getGrafanaStatus, sendGrafanaTestEvent, ensureGrafanaPushLoop, logEvent
 
 const MIN_INTERVAL_MS = 1000;
 const MAX_INTERVAL_MS = 10 * 60 * 1000;
+const MIN_UPLOAD_SIZE_MB = 1;
+const MAX_UPLOAD_SIZE_MB = 5000;
 
 // Exported so routes/eventImage.ts can emit the exact same shape after an
 // upload/delete — every client-side 'config:updated' handler (Slideshow.tsx
@@ -82,6 +90,9 @@ export function currentSettings() {
     showBoothQr: getShowBoothQr(),
     scaleSmallPhotos: getScaleSmallPhotos(),
     webpageEnabled: getWebpageEnabled(),
+    maxFileSizeMb: getMaxFileSizeMb(),
+    maxArchiveSizeMb: getMaxArchiveSizeMb(),
+    maxVideoSizeMb: getMaxVideoSizeMb(),
     eventImageUrl: getEventImageUrl(),
     eventImageScale: getEventImageScale(),
     lastBackup: getLastBackup(),
@@ -170,6 +181,9 @@ export function adminRouter(io: SocketIOServer) {
       showBoothQr,
       scaleSmallPhotos,
       webpageEnabled,
+      maxFileSizeMb,
+      maxArchiveSizeMb,
+      maxVideoSizeMb,
     } = req.body ?? {};
 
     if (
@@ -239,6 +253,24 @@ export function adminRouter(io: SocketIOServer) {
       return;
     }
 
+    for (const [name, value] of [
+      ['maxFileSizeMb', maxFileSizeMb],
+      ['maxArchiveSizeMb', maxArchiveSizeMb],
+      ['maxVideoSizeMb', maxVideoSizeMb],
+    ] as const) {
+      if (
+        typeof value !== 'number' ||
+        !Number.isFinite(value) ||
+        value < MIN_UPLOAD_SIZE_MB ||
+        value > MAX_UPLOAD_SIZE_MB
+      ) {
+        res.status(400).json({
+          error: `${name} must be a number between ${MIN_UPLOAD_SIZE_MB} and ${MAX_UPLOAD_SIZE_MB}`,
+        });
+        return;
+      }
+    }
+
     setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
     setShuffle(shuffle);
     setTransitionStyle(transitionStyle as TransitionStyle);
@@ -251,6 +283,9 @@ export function adminRouter(io: SocketIOServer) {
     setShowBoothQr(showBoothQr);
     setScaleSmallPhotos(scaleSmallPhotos);
     setWebpageEnabled(webpageEnabled);
+    setMaxFileSizeMb(Math.round(maxFileSizeMb));
+    setMaxArchiveSizeMb(Math.round(maxArchiveSizeMb));
+    setMaxVideoSizeMb(Math.round(maxVideoSizeMb));
 
     const updated = currentSettings();
     logEvent('moderation', 'settings_changed', updated);

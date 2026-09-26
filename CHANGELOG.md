@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Admin-configurable upload size limits, and a fix for a confusing archive error
+
+- Playback Settings gets three new fields — **"📷 Max photo size"**, **"🎬 Max video
+  size"**, **"📦 Max archive size"** — for the per-kind upload ceilings that were
+  previously env-var-only (`MAX_FILE_SIZE_MB`/`MAX_VIDEO_SIZE_MB`/
+  `MAX_ARCHIVE_SIZE_MB`). Each still defaults to its env var's value on a fresh
+  install/upgrade; saving a new number from `/admin` overrides it live, no restart
+  needed. Same fallback pattern `slideshowIntervalMs` already uses.
+- Fixed the underlying bug that prompted this: a guest uploading an archive (or video)
+  over the size limit could get Multer's generic, unhelpful **"File too large"**
+  instead of the app's own friendlier **"Archive must be smaller than X MB"** message.
+  This happened whenever a kind's own limit was tied with the largest of the three —
+  the default config (archive and video both at 500MB) hit this on every single
+  oversized archive/video upload, not just an edge case. The multer-level cap (which
+  has to be generous enough to admit the largest of the three kinds before the app's
+  own per-kind check can even run) now pads 1MB past that ceiling, and is rebuilt per
+  request from the live settings rather than fixed at startup — so the friendly,
+  specific message is always what a guest actually sees, and it stays correct even
+  after an admin changes a limit without restarting the server.
+  - Verified against a real running server: a 3MB archive against a 1MB
+    `MAX_ARCHIVE_SIZE_MB` correctly returned "Archive must be smaller than 1 MB" (not
+    Multer's generic error); raising the limit to 10MB via `PUT /api/admin/settings`
+    let the same file upload immediately, no restart; out-of-range values (0, 99999)
+    were correctly rejected with a clear validation error.
+
 ### New public `/webpage` gallery, off by default
 
 - A new route, `/webpage`, shows a read-only version of admin's Photo Gallery grid —

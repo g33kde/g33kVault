@@ -94,6 +94,15 @@ interface Settings {
   // shown), this is a brand-new page a fresh install shouldn't suddenly
   // expose until an admin deliberately turns it on.
   webpageEnabled?: boolean;
+  // Per-upload-kind size ceilings, in MB. Undefined means "use the
+  // MAX_FILE_SIZE_MB/MAX_ARCHIVE_SIZE_MB/MAX_VIDEO_SIZE_MB env var" (see
+  // config.ts) — same fallback pattern as slideshowIntervalMs above, so an
+  // admin who's never touched this keeps getting the env-configured value,
+  // and one who saves a new number here overrides it live, no restart
+  // needed.
+  maxFileSizeMb?: number;
+  maxArchiveSizeMb?: number;
+  maxVideoSizeMb?: number;
   // The current event-image file's name within config.eventImageDir (e.g.
   // "event-image.png") — undefined/null means none uploaded. Set by
   // routes/eventImage.ts's upload/delete handlers, not by the admin
@@ -377,6 +386,41 @@ export function getWebpageEnabled(): boolean {
 export function setWebpageEnabled(value: boolean): boolean {
   const settings = readSettings();
   settings.webpageEnabled = value;
+  writeSettings(settings);
+  return value;
+}
+
+// See the doc comment on Settings.maxFileSizeMb above for the fallback
+// pattern (falls back to the MAX_*_SIZE_MB env var via config.ts).
+export function getMaxFileSizeMb(): number {
+  return readSettings().maxFileSizeMb ?? config.maxFileSizeMb;
+}
+
+export function setMaxFileSizeMb(value: number): number {
+  const settings = readSettings();
+  settings.maxFileSizeMb = value;
+  writeSettings(settings);
+  return value;
+}
+
+export function getMaxArchiveSizeMb(): number {
+  return readSettings().maxArchiveSizeMb ?? config.maxArchiveSizeMb;
+}
+
+export function setMaxArchiveSizeMb(value: number): number {
+  const settings = readSettings();
+  settings.maxArchiveSizeMb = value;
+  writeSettings(settings);
+  return value;
+}
+
+export function getMaxVideoSizeMb(): number {
+  return readSettings().maxVideoSizeMb ?? config.maxVideoSizeMb;
+}
+
+export function setMaxVideoSizeMb(value: number): number {
+  const settings = readSettings();
+  settings.maxVideoSizeMb = value;
   writeSettings(settings);
   return value;
 }

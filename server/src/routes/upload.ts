@@ -14,7 +14,7 @@ import { computeContentHash, computePerceptualHash } from '../duplicateDetect';
 import { extractPhotoTakenAt } from '../photoDate';
 import { archiveKindFor } from '../archiveExtract';
 import { importArchive } from '../importFolder';
-import { getRequireApproval } from '../settings';
+import { getRequireApproval, getMaxFileSizeMb, getMaxArchiveSizeMb, getMaxVideoSizeMb } from '../settings';
 import { logEvent } from '../grafana/eventLog';
 import { classifyUserAgent } from '../grafana/userAgent';
 
@@ -58,14 +58,25 @@ function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCall
 // and videos are both allowed to be substantially bigger than a single
 // photo. Whichever specific limit actually applies (maxFileSizeMb vs.
 // maxArchiveSizeMb vs. maxVideoSizeMb) is enforced per-upload once the
-// file's real kind is known, below.
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: Math.max(config.maxFileSizeMb, config.maxArchiveSizeMb, config.maxVideoSizeMb) * 1024 * 1024,
-  },
-  fileFilter,
-});
+// file's real kind is known, below — that per-kind check is what produces
+// the friendly "Archive must be smaller than X MB" style message. Rebuilt
+// fresh per request (cheap — no I/O, just an options object) rather than
+// once at startup, since all three limits are now live-adjustable from
+// /admin: a static instance built at import time would keep enforcing
+// whatever was configured at boot. The +1MB pads just past the largest of
+// the three so that limit's own per-kind check — not multer's generic,
+// unfriendly "File too large" — is always what actually rejects it; without
+// the pad, whichever setting happens to be the largest can never reach its
+// own friendly message, since multer would already have rejected the
+// request at that exact byte count.
+function buildUpload() {
+  const maxMb = Math.max(getMaxFileSizeMb(), getMaxArchiveSizeMb(), getMaxVideoSizeMb()) + 1;
+  return multer({
+    storage,
+    limits: { fileSize: maxMb * 1024 * 1024 },
+    fileFilter,
+  });
+}
 
 const MAX_UPLOADER_LENGTH = 40;
 
@@ -153,7 +164,7 @@ async function insertAndAnnounceMedia(params: {
 export function uploadRouter(io: SocketIOServer) {
   const router = Router();
 
-  router.post('/', upload.single('file'), async (req, res) => {
+  router.post('/', (req, res, next) => buildUpload().single('file')(req, res, next), async (req, res) => {
     if (!req.file) {
       res.status(400).json({ error: 'No file uploaded' });
       return;
@@ -163,10 +174,11 @@ export function uploadRouter(io: SocketIOServer) {
     const { deviceType, os } = classifyUserAgent(req.header('user-agent'));
 
     if (isAllowedArchiveUpload(req.file.originalname)) {
-      if (req.file.size > config.maxArchiveSizeMb * 1024 * 1024) {
+      const maxArchiveSizeMb = getMaxArchiveSizeMb();
+      if (req.file.size > maxArchiveSizeMb * 1024 * 1024) {
         fs.unlink(req.file.path, () => {});
         logEvent('uploads', 'upload_rejected', { reason: 'archive_too_large', source });
-        res.status(400).json({ error: `Archive must be smaller than ${config.maxArchiveSizeMb} MB` });
+        res.status(400).json({ error: `Archive must be smaller than ${maxArchiveSizeMb} MB` });
         return;
       }
 
@@ -208,7 +220,7 @@ export function uploadRouter(io: SocketIOServer) {
       return;
     }
 
-    const maxSizeMb = kind === 'video' ? config.maxVideoSizeMb : config.maxFileSizeMb;
+    const maxSizeMb = kind === 'video' ? getMaxVideoSizeMb() : getMaxFileSizeMb();
     if (req.file.size > maxSizeMb * 1024 * 1024) {
       fs.unlink(req.file.path, () => {});
       logEvent('uploads', 'upload_rejected', { reason: 'file_too_large', source });

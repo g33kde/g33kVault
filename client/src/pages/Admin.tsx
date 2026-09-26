@@ -293,6 +293,9 @@ interface SettingsPayload {
   showBoothQr: boolean;
   scaleSmallPhotos: boolean;
   webpageEnabled: boolean;
+  maxFileSizeMb: number;
+  maxArchiveSizeMb: number;
+  maxVideoSizeMb: number;
   eventImageUrl: string | null;
   eventImageScale: number;
   lastBackup: LastBackup | null;
@@ -309,6 +312,8 @@ const TRASH_STORAGE_KEY = 'g33kvault-trash-password';
 const BACKUP_STORAGE_KEY = 'g33kvault-backup-password';
 const MIN_SECONDS = 1;
 const MAX_SECONDS = 600;
+const MIN_UPLOAD_SIZE_MB = 1;
+const MAX_UPLOAD_SIZE_MB = 5000;
 const STALE_BACKUP_MS = 7 * 24 * 60 * 60 * 1000;
 // Kept in sync with server/src/settings.ts's EVENT_IMAGE_SCALES — three
 // stops (not a free-form percentage) for the Event Image size slider.
@@ -484,6 +489,11 @@ export default function Admin() {
   const [showBoothQr, setShowBoothQr] = useState(false);
   const [scaleSmallPhotos, setScaleSmallPhotos] = useState(false);
   const [webpageEnabled, setWebpageEnabled] = useState(false);
+  // Text-input state (like intervalSeconds above), not number — same reason:
+  // lets the field sit empty/mid-edit without fighting a numeric useState.
+  const [maxFileSizeMbInput, setMaxFileSizeMbInput] = useState('');
+  const [maxArchiveSizeMbInput, setMaxArchiveSizeMbInput] = useState('');
+  const [maxVideoSizeMbInput, setMaxVideoSizeMbInput] = useState('');
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
   const [eventImageScale, setEventImageScale] = useState(100);
   const [eventImageError, setEventImageError] = useState('');
@@ -623,6 +633,9 @@ export default function Admin() {
         setShowBoothQr(data.showBoothQr);
         setScaleSmallPhotos(data.scaleSmallPhotos);
         setWebpageEnabled(data.webpageEnabled);
+        setMaxFileSizeMbInput(String(data.maxFileSizeMb));
+        setMaxArchiveSizeMbInput(String(data.maxArchiveSizeMb));
+        setMaxVideoSizeMbInput(String(data.maxVideoSizeMb));
         setEventImageUrl(data.eventImageUrl);
         setEventImageScale(data.eventImageScale);
         setLastBackupState(data.lastBackup);
@@ -666,6 +679,9 @@ export default function Admin() {
       setShowBoothQr(data.showBoothQr);
       setScaleSmallPhotos(data.scaleSmallPhotos);
       setWebpageEnabled(data.webpageEnabled);
+      setMaxFileSizeMbInput(String(data.maxFileSizeMb));
+      setMaxArchiveSizeMbInput(String(data.maxArchiveSizeMb));
+      setMaxVideoSizeMbInput(String(data.maxVideoSizeMb));
       setEventImageUrl(data.eventImageUrl);
       setEventImageScale(data.eventImageScale);
       setLastBackupState(data.lastBackup);
@@ -696,6 +712,21 @@ export default function Admin() {
       return;
     }
 
+    const maxFileSizeMb = Number(maxFileSizeMbInput);
+    const maxArchiveSizeMb = Number(maxArchiveSizeMbInput);
+    const maxVideoSizeMb = Number(maxVideoSizeMbInput);
+    for (const [label, value] of [
+      ['Max photo size', maxFileSizeMb],
+      ['Max archive size', maxArchiveSizeMb],
+      ['Max video size', maxVideoSizeMb],
+    ] as const) {
+      if (!Number.isFinite(value) || value < MIN_UPLOAD_SIZE_MB || value > MAX_UPLOAD_SIZE_MB) {
+        setSaveStatus('error');
+        setSaveError(`${label} must be a number between ${MIN_UPLOAD_SIZE_MB} and ${MAX_UPLOAD_SIZE_MB} MB`);
+        return;
+      }
+    }
+
     setSaveStatus('saving');
     setSaveError('');
     try {
@@ -715,6 +746,9 @@ export default function Admin() {
           showBoothQr,
           scaleSmallPhotos,
           webpageEnabled,
+          maxFileSizeMb: Math.round(maxFileSizeMb),
+          maxArchiveSizeMb: Math.round(maxArchiveSizeMb),
+          maxVideoSizeMb: Math.round(maxVideoSizeMb),
         }),
       });
 
@@ -1945,6 +1979,57 @@ export default function Admin() {
           <p className="tagline admin-settings-caption">
             When on, every photo/video from /upload or /booth waits for review in{' '}
             <strong>📦 Pending Uploads</strong> below, same as a guest-uploaded archive already does.
+          </p>
+
+          <label htmlFor="max-file-size-input">📷 Max photo size</label>
+          <input
+            id="max-file-size-input"
+            type="number"
+            min={MIN_UPLOAD_SIZE_MB}
+            max={MAX_UPLOAD_SIZE_MB}
+            step="1"
+            value={maxFileSizeMbInput}
+            onChange={(e) => {
+              setMaxFileSizeMbInput(e.target.value);
+              setSaveStatus('idle');
+            }}
+          />
+          <span>MB</span>
+
+          <label htmlFor="max-video-size-input">🎬 Max video size</label>
+          <input
+            id="max-video-size-input"
+            type="number"
+            min={MIN_UPLOAD_SIZE_MB}
+            max={MAX_UPLOAD_SIZE_MB}
+            step="1"
+            value={maxVideoSizeMbInput}
+            onChange={(e) => {
+              setMaxVideoSizeMbInput(e.target.value);
+              setSaveStatus('idle');
+            }}
+          />
+          <span>MB</span>
+
+          <label htmlFor="max-archive-size-input">📦 Max archive size</label>
+          <input
+            id="max-archive-size-input"
+            type="number"
+            min={MIN_UPLOAD_SIZE_MB}
+            max={MAX_UPLOAD_SIZE_MB}
+            step="1"
+            value={maxArchiveSizeMbInput}
+            onChange={(e) => {
+              setMaxArchiveSizeMbInput(e.target.value);
+              setSaveStatus('idle');
+            }}
+          />
+          <span>MB</span>
+          <p className="tagline admin-settings-caption">
+            Per-upload size ceilings for guest uploads from /upload and /booth (the
+            watched import folder has no size limit — that's an admin-only trusted
+            path). A guest uploading over the relevant limit gets a clear "must be
+            smaller than X MB" message rather than a generic upload failure.
           </p>
 
           <label htmlFor="shuffle-input" className="admin-checkbox-label">

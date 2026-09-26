@@ -698,9 +698,9 @@ once wiped, there's no undo.
 | `EVENT_IMAGE_DIR`          | `./data/event-image`     | Where the admin-uploaded event image (see below) is stored — nested under the same directory as `DB_PATH`/`SETTINGS_PATH` on purpose, so it's covered by the same backup/volume as those |
 | `IMPORT_DIR`               | `./import`               | Folder watched for bulk-import files           |
 | `IMPORT_SCAN_INTERVAL_MS`  | `60000`                  | How often to rescan the import folder (`0` disables periodic rescans, keeping only the startup scan) |
-| `MAX_FILE_SIZE_MB`         | `100`                    | Max upload size per photo                      |
-| `MAX_VIDEO_SIZE_MB`        | `500`                    | Max upload size per video (separate, higher ceiling — see below) |
-| `MAX_ARCHIVE_SIZE_MB`      | `500`                    | Max upload size for a `.zip`/`.tar.gz`/`.rar` (see "Guest-uploaded archives" below) |
+| `MAX_FILE_SIZE_MB`         | `100`                    | Initial max upload size per photo — admin-overridable, see below |
+| `MAX_VIDEO_SIZE_MB`        | `500`                    | Initial max upload size per video (separate, higher ceiling) — admin-overridable, see below |
+| `MAX_ARCHIVE_SIZE_MB`      | `500`                    | Initial max upload size for a `.zip`/`.tar.gz`/`.rar` (see "Guest-uploaded archives" below) — admin-overridable, see below |
 | `SLIDESHOW_INTERVAL_MS`    | `6000`                   | Initial slideshow image duration — see below   |
 | `ADMIN_PASSWORD`           | *(unset)*                | Password for `/admin`; unset disables it entirely |
 | `TRASH_PASSWORD`           | *(unset)*                | Separate password for `/admin`'s Trash section (see [Trash](#trash)); unset disables it entirely |
@@ -960,6 +960,15 @@ were off, since the "quiet, no badge" behavior above exists specifically to avoi
 of back-to-back highlights for one big archive, which doesn't apply to a single photo.
 `/upload` tells the guest their photo is pending review, the same way it already does
 for an archive.
+
+### Upload size limits
+
+`/admin`'s Playback Settings also has **"📷 Max photo size"**, **"🎬 Max video size"**,
+and **"📦 Max archive size"** — live-adjustable versions of the `MAX_FILE_SIZE_MB`/
+`MAX_VIDEO_SIZE_MB`/`MAX_ARCHIVE_SIZE_MB` env vars above. Each starts at its env var's
+value; saving a new number from `/admin` takes effect immediately, no restart needed.
+Applies to `/upload` and `/booth` only — the watched import folder has no size limit,
+since that's an admin-only trusted path, not guest-facing.
 
 ## Photo booth
 
