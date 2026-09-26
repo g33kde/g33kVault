@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Swipe left/right in the photo viewer, on iOS and Android
+
+- `/photo-viewer` now responds to a horizontal swipe the same way as the left/right
+  arrows: swipe left for the next photo, right for the previous one. Requires the drag
+  to clear a small threshold (50px) and dominate any vertical movement, so an ordinary
+  attempt to scroll doesn't get misread as a swipe — not that there's anything to
+  scroll in this fullscreen popup, but touch gestures can be sloppy. A real swipe's
+  `touchmove` naturally suppresses the browser's synthetic click on release, so this
+  doesn't fight with tapping the photo to close the popup.
+
 ### Photo viewer arrows fade out when the mouse (or touch) is idle
 
 - The full-screen photo popup (`/photo-viewer` — opened from both `/admin`'s Photo

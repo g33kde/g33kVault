@@ -12,6 +12,11 @@ interface MediaItem {
 // someone just looking at the photo.
 const ARROW_IDLE_MS = 800;
 
+// Minimum horizontal drag, in px, before a touch gesture counts as a swipe
+// rather than a tap/scroll — well above accidental-finger-wobble territory,
+// well below "clearly means to change photos."
+const SWIPE_THRESHOLD_PX = 50;
+
 // Opened by Admin.tsx (and Webpage.tsx) via window.open() as a separate
 // popup window — click the photo to close it (window.close() only works
 // reliably on a window opened by script, which is exactly what this is), or
@@ -27,6 +32,7 @@ export default function PhotoViewer() {
   );
   const [arrowsIdle, setArrowsIdle] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     fetch('/api/media')
@@ -88,8 +94,34 @@ export default function PhotoViewer() {
   const prev = index > 0 ? items[index - 1] : null;
   const next = index < items.length - 1 ? items[index + 1] : null;
 
+  // Swipe left (finger moves left, dx negative) goes to the next photo,
+  // same direction as the right arrow; swipe right goes to the previous
+  // one. Requires the horizontal drag to both clear SWIPE_THRESHOLD_PX and
+  // dominate the vertical movement, so an ordinary vertical scroll attempt
+  // doesn't get misread as a swipe. A real swipe's touchmove naturally
+  // suppresses the browser's synthetic click on release, so this doesn't
+  // fight with the image's tap-to-close handler below.
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX || Math.abs(dx) < Math.abs(dy)) return;
+
+    if (dx < 0 && next) go(next);
+    else if (dx > 0 && prev) go(prev);
+  }
+
   return (
-    <div className="photo-viewer-page">
+    <div className="photo-viewer-page" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {prev && (
         <button
           type="button"
