@@ -4,10 +4,10 @@
 
 ### /webpage: pagination + real thumbnails, for mobile performance
 
-- `/webpage`'s gallery now shows 500 items per page instead of the whole approved
+- `/webpage`'s gallery now shows 150 items per page instead of the whole approved
   library at once, with **"‹ Prev"** / **"Next ›"** buttons and a "Page X of Y"
   indicator (above and below the grid). Newest-first, same order as before — page 1 is
-  always the most recent 500. The current page is reflected in the URL (`?page=2`), so
+  always the most recent 150. The current page is reflected in the URL (`?page=2`), so
   a specific page is shareable/bookmarkable and survives a refresh; an out-of-range
   page (stale link, or photos deleted since) clamps to the nearest valid one instead
   of erroring.

@@ -22,7 +22,7 @@ function isPreviewMode(): boolean {
 // page slow on mobile — not just each image's weight (see the thumbnail
 // route below), but sheer DOM/layout cost. Paginating caps how many
 // `.admin-thumb` cells exist at a time.
-const PAGE_SIZE = 500;
+const PAGE_SIZE = 150;
 
 // Mirrors PhotoViewer.tsx's ?id= pattern — keeps the current page
 // shareable/bookmarkable and surviving a refresh, via history.replaceState

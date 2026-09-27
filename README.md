@@ -858,7 +858,7 @@ gallery"** checkbox to turn it on. A "🔍 Preview /webpage" link next to it ope
 real page even while the toggle is off, so you can check it looks right first. If
 you've set an [Event image](#event-image), it shows at the top of the page.
 
-Shows 500 items per page (newest first), with Prev/Next navigation — kept for
+Shows 150 items per page (newest first), with Prev/Next navigation — kept for
 performance, since rendering an entire large gallery at once is slow on mobile. The
 current page is in the URL (`?page=2`), so a specific page is shareable and survives a
 refresh. Grid thumbnails are small generated copies (up to 480px), not the
