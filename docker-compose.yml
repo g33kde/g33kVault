@@ -13,6 +13,10 @@ services:
       # server/src/displayCache.ts) — deliberately not a named volume, so it
       # just starts empty and refills itself after a container recreate.
       - DISPLAY_CACHE_DIR=/app/cache/display
+      # Same reasoning as DISPLAY_CACHE_DIR above, just for /webpage's grid
+      # thumbnails (see server/src/thumbnailCache.ts) instead of the
+      # slideshow's capped-resolution copies.
+      - THUMBNAIL_CACHE_DIR=/app/cache/thumbnail
       - MAX_FILE_SIZE_MB=100
       - SLIDESHOW_INTERVAL_MS=6000
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}

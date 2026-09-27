@@ -18,6 +18,21 @@ function isPreviewMode(): boolean {
   return new URLSearchParams(window.location.search).get('preview') === '1';
 }
 
+// Rendering hundreds of grid thumbnails at once is what actually makes this
+// page slow on mobile — not just each image's weight (see the thumbnail
+// route below), but sheer DOM/layout cost. Paginating caps how many
+// `.admin-thumb` cells exist at a time.
+const PAGE_SIZE = 500;
+
+// Mirrors PhotoViewer.tsx's ?id= pattern — keeps the current page
+// shareable/bookmarkable and surviving a refresh, via history.replaceState
+// rather than a full navigation.
+function getPageFromUrl(): number {
+  const raw = new URLSearchParams(window.location.search).get('page');
+  const n = raw ? parseInt(raw, 10) : 1;
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
 // A public, read-only counterpart to /admin's Photo Gallery grid — same
 // approved photos/videos, same grid styling (.admin-grid/.admin-thumb,
 // reused rather than duplicated), but no admin actions: no rotate, no
@@ -32,6 +47,15 @@ export default function Webpage() {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
   const [eventImageScale, setEventImageScale] = useState(100);
+  const [page, setPageState] = useState(getPageFromUrl);
+
+  const setPage = useCallback((n: number) => {
+    setPageState(n);
+    const url = new URL(window.location.href);
+    if (n <= 1) url.searchParams.delete('page');
+    else url.searchParams.set('page', String(n));
+    window.history.replaceState(null, '', url.toString());
+  }, []);
 
   // Same window.open() popup mechanism Admin.tsx's openPhotoViewer uses —
   // PhotoViewer.tsx relies on window.close() when the photo itself is
@@ -79,6 +103,17 @@ export default function Webpage() {
     };
   }, []);
 
+  // Clamps an out-of-range page — either a stale/hand-edited ?page= from
+  // before some photos were deleted, or the (unlikely) case of loading
+  // straight into a page number beyond what actually exists. Skipped while
+  // items hasn't loaded yet (length 0) so this doesn't clamp back to page 1
+  // for a split second before the real count is known.
+  useEffect(() => {
+    if (items.length === 0) return;
+    const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    if (page > totalPages) setPage(totalPages);
+  }, [items.length, page, setPage]);
+
   if (enabled === null) {
     return (
       <div className="page">
@@ -102,6 +137,27 @@ export default function Webpage() {
 
   // Newest-first, same order the admin gallery grid shows.
   const reversed = [...items].reverse();
+  const totalPages = Math.max(1, Math.ceil(reversed.length / PAGE_SIZE));
+  const pageItems = reversed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const pagination = totalPages > 1 && (
+    <div className="webpage-pagination">
+      <button type="button" className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+        ‹ Prev
+      </button>
+      <span className="tagline">
+        Page {page} of {totalPages}
+      </span>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        disabled={page >= totalPages}
+        onClick={() => setPage(page + 1)}
+      >
+        Next ›
+      </button>
+    </div>
+  );
 
   return (
     <div className="page webpage-page">
@@ -127,15 +183,17 @@ export default function Webpage() {
         <>
           <p className="tagline">
             {items.length} item{items.length === 1 ? '' : 's'}
+            {totalPages > 1 && ` · page ${page} of ${totalPages}`}
           </p>
+          {pagination}
           <div className="admin-grid">
-            {reversed.map((item) => (
+            {pageItems.map((item) => (
               <div key={item.id} className="admin-thumb">
                 {item.kind === 'video' ? (
                   <video src={`/media/${item.filename}`} controls muted playsInline />
                 ) : (
                   <button type="button" className="admin-thumb-open-btn" onClick={() => openPhotoViewer(item.id)}>
-                    <img src={`/media/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
+                    <img src={`/media-thumbnail/${item.filename}?v=${item.size}`} alt="" loading="lazy" />
                   </button>
                 )}
                 {item.uploader && (
@@ -146,6 +204,7 @@ export default function Webpage() {
               </div>
             ))}
           </div>
+          {pagination}
         </>
       )}
     </div>

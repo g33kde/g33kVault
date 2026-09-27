@@ -764,6 +764,15 @@ a.upload-url:focus-visible {
   color: #ffb84d;
 }
 
+.webpage-pagination {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.webpage-pagination .btn {
+  padding: 0.5rem 1.25rem;
+}
+
 .admin-link {
   color: var(--text-dim);
   font-size: 0.85rem;

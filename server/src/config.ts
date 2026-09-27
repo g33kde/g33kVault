@@ -37,6 +37,11 @@ export const config = {
   // this to be plain ephemeral container storage rather than a backed-up
   // volume like mediaDir/dbPath are.
   displayCacheDir: process.env.DISPLAY_CACHE_DIR || path.join(__dirname, '..', 'cache', 'display'),
+  // Small cached copies for /webpage's grid (see thumbnailCache.ts) — same
+  // "ephemeral, regeneratable, never the source of truth" reasoning as
+  // displayCacheDir above, just a separate directory since these are a much
+  // smaller target size, not interchangeable with the slideshow's copies.
+  thumbnailCacheDir: process.env.THUMBNAIL_CACHE_DIR || path.join(__dirname, '..', 'cache', 'thumbnail'),
   // Applies to photos only now — see maxVideoSizeMb below for videos, which
   // need a much higher ceiling.
   maxFileSizeMb: parseInt(process.env.MAX_FILE_SIZE_MB || '100', 10),

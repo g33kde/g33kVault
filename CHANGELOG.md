@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### /webpage: pagination + real thumbnails, for mobile performance
+
+- `/webpage`'s gallery now shows 500 items per page instead of the whole approved
+  library at once, with **"‹ Prev"** / **"Next ›"** buttons and a "Page X of Y"
+  indicator (above and below the grid). Newest-first, same order as before — page 1 is
+  always the most recent 500. The current page is reflected in the URL (`?page=2`), so
+  a specific page is shareable/bookmarkable and survives a refresh; an out-of-range
+  page (stale link, or photos deleted since) clamps to the nearest valid one instead
+  of erroring.
+- Grid thumbnails now load a small generated copy (max 480px on a side) instead of the
+  full-resolution original — new `/media-thumbnail/:filename` route and
+  `thumbnailCache.ts`, generated and cached on first request, same pattern
+  `displayCache.ts` already uses for the slideshow's capped-resolution copies. Clicking
+  a thumbnail still opens the full-resolution photo in the popup viewer, unaffected.
+  Videos are unchanged (no thumbnail generation for those — a `<video>` tag already
+  only preloads metadata by default, not the whole file).
+- Together these address the actual reported symptom (`/webpage` slow to open on
+  mobile with a large gallery): far fewer DOM nodes rendered per page, and each
+  thumbnail image now genuinely small instead of a multi-megabyte original scaled down
+  by CSS.
+  - Verified against a real running server: uploaded 250 test photos with a smaller
+    page size during development, confirmed correct "N items · page X of Y" text,
+    Prev/Next disabled at the first/last page respectively, and an out-of-range
+    `?page=` correctly clamping to the last valid page — all via real screenshots,
+    not just reading the code (pagination math itself is page-size-independent, so
+    this still covers the shipped 500). Confirmed `/media-thumbnail/<file>` returns
+    a resized copy (360×480 from an 800×600 source, capped to 480px) distinct from
+    the full-resolution `/media/<file>`.
+
 ### Swipe left/right in the photo viewer, on iOS and Android
 
 - `/photo-viewer` now responds to a horizontal swipe the same way as the left/right
