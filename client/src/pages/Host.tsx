@@ -7,6 +7,11 @@ export default function Host() {
   const [dest, setDest] = useState<Dest>('upload');
   const [url, setUrl] = useState('');
   const [slideshowEnabled, setSlideshowEnabled] = useState(true);
+  // Independent of slideshowEnabled above — this controls whether the
+  // Launch Slideshow / "currently disabled" element appears on this screen
+  // at all, not whether the slideshow itself works. On by default (opt-out,
+  // not opt-in — same convention as this app's other display toggles).
+  const [showSlideshowButton, setShowSlideshowButton] = useState(true);
 
   useEffect(() => {
     fetch(`/api/upload-url?dest=${dest}`)
@@ -15,12 +20,18 @@ export default function Host() {
   }, [dest]);
 
   useEffect(() => {
+    type ConfigData = { slideshowEnabled: boolean; showSlideshowButton: boolean };
+    const applyConfig = (data: ConfigData) => {
+      setSlideshowEnabled(data.slideshowEnabled);
+      setShowSlideshowButton(data.showSlideshowButton);
+    };
+
     fetch('/api/config')
       .then((r) => r.json())
-      .then((data: { slideshowEnabled: boolean }) => setSlideshowEnabled(data.slideshowEnabled));
+      .then(applyConfig);
 
     const socket: Socket = io({ path: '/socket.io' });
-    socket.on('config:updated', (data: { slideshowEnabled: boolean }) => setSlideshowEnabled(data.slideshowEnabled));
+    socket.on('config:updated', applyConfig);
 
     return () => {
       socket.disconnect();
@@ -71,13 +82,14 @@ export default function Host() {
         </a>
       )}
 
-      {slideshowEnabled ? (
-        <a href="/slideshow" className="btn btn-primary" target="_blank" rel="noreferrer">
-          Launch Slideshow
-        </a>
-      ) : (
-        <span className="btn btn-secondary btn-disabled-text">Slideshow currently disabled</span>
-      )}
+      {showSlideshowButton &&
+        (slideshowEnabled ? (
+          <a href="/slideshow" className="btn btn-primary" target="_blank" rel="noreferrer">
+            Launch Slideshow
+          </a>
+        ) : (
+          <span className="btn btn-secondary btn-disabled-text">Slideshow currently disabled</span>
+        ))}
 
       <a href="/admin" className="admin-link">
         Admin

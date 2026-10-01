@@ -103,6 +103,14 @@ interface Settings {
   maxFileSizeMb?: number;
   maxArchiveSizeMb?: number;
   maxVideoSizeMb?: number;
+  // Shows/hides the "Launch Slideshow" button (or, when slideshowEnabled is
+  // off, the greyed-out "Slideshow currently disabled" message in its
+  // place) on the Host/QR screen — independent of slideshowEnabled itself,
+  // which controls whether the slideshow *works*, not whether this element
+  // appears. On by default, same opt-out convention as the other display
+  // toggles in this file: it's existing visible behavior, not a new surface
+  // a fresh install needs to opt into.
+  showSlideshowButton?: boolean;
   // The current event-image file's name within config.eventImageDir (e.g.
   // "event-image.png") — undefined/null means none uploaded. Set by
   // routes/eventImage.ts's upload/delete handlers, not by the admin
@@ -421,6 +429,18 @@ export function getMaxVideoSizeMb(): number {
 export function setMaxVideoSizeMb(value: number): number {
   const settings = readSettings();
   settings.maxVideoSizeMb = value;
+  writeSettings(settings);
+  return value;
+}
+
+// On by default — see the doc comment on Settings.showSlideshowButton above.
+export function getShowSlideshowButton(): boolean {
+  return readSettings().showSlideshowButton ?? true;
+}
+
+export function setShowSlideshowButton(value: boolean): boolean {
+  const settings = readSettings();
+  settings.showSlideshowButton = value;
   writeSettings(settings);
   return value;
 }

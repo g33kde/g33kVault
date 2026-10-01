@@ -12,6 +12,7 @@ import {
   getShowBoothQr,
   getScaleSmallPhotos,
   getWebpageEnabled,
+  getShowSlideshowButton,
   getEventImageUrl,
   getEventImageScale,
 } from '../settings';
@@ -32,6 +33,7 @@ configRouter.get('/', (_req, res) => {
     showBoothQr: getShowBoothQr(),
     scaleSmallPhotos: getScaleSmallPhotos(),
     webpageEnabled: getWebpageEnabled(),
+    showSlideshowButton: getShowSlideshowButton(),
     eventImageUrl: getEventImageUrl(),
     eventImageScale: getEventImageScale(),
   });

@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Toggle to hide the Launch Slideshow button on the Host/QR screen
+
+- New Playback Settings checkbox, **"Show Launch Slideshow button on Host screen"**
+  (on by default) — independent of the existing "Enable Slideshow" toggle. "Enable
+  Slideshow" controls whether the slideshow actually works; this new one controls
+  whether the button (or, when the slideshow is disabled, the greyed-out "Slideshow
+  currently disabled" message in its place) appears on the Host screen at all. Useful
+  if that element looks out of place on a screen guests see, like a projected QR
+  display, even while the slideshow itself stays enabled elsewhere.
+  - Verified against a real running server via screenshots: on by default, "Launch
+    Slideshow" visible; after flipping the new toggle off via `PUT
+    /api/admin/settings`, the button is gone entirely from the Host screen with the
+    rest of the page (QR code, upload URL, Admin link) unaffected.
+
 ### /webpage: pagination + real thumbnails, for mobile performance
 
 - `/webpage`'s gallery now shows 150 items per page instead of the whole approved

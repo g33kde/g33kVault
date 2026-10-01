@@ -296,6 +296,7 @@ interface SettingsPayload {
   maxFileSizeMb: number;
   maxArchiveSizeMb: number;
   maxVideoSizeMb: number;
+  showSlideshowButton: boolean;
   eventImageUrl: string | null;
   eventImageScale: number;
   lastBackup: LastBackup | null;
@@ -494,6 +495,7 @@ export default function Admin() {
   const [maxFileSizeMbInput, setMaxFileSizeMbInput] = useState('');
   const [maxArchiveSizeMbInput, setMaxArchiveSizeMbInput] = useState('');
   const [maxVideoSizeMbInput, setMaxVideoSizeMbInput] = useState('');
+  const [showSlideshowButton, setShowSlideshowButton] = useState(true);
   const [eventImageUrl, setEventImageUrl] = useState<string | null>(null);
   const [eventImageScale, setEventImageScale] = useState(100);
   const [eventImageError, setEventImageError] = useState('');
@@ -636,6 +638,7 @@ export default function Admin() {
         setMaxFileSizeMbInput(String(data.maxFileSizeMb));
         setMaxArchiveSizeMbInput(String(data.maxArchiveSizeMb));
         setMaxVideoSizeMbInput(String(data.maxVideoSizeMb));
+        setShowSlideshowButton(data.showSlideshowButton);
         setEventImageUrl(data.eventImageUrl);
         setEventImageScale(data.eventImageScale);
         setLastBackupState(data.lastBackup);
@@ -682,6 +685,7 @@ export default function Admin() {
       setMaxFileSizeMbInput(String(data.maxFileSizeMb));
       setMaxArchiveSizeMbInput(String(data.maxArchiveSizeMb));
       setMaxVideoSizeMbInput(String(data.maxVideoSizeMb));
+      setShowSlideshowButton(data.showSlideshowButton);
       setEventImageUrl(data.eventImageUrl);
       setEventImageScale(data.eventImageScale);
       setLastBackupState(data.lastBackup);
@@ -749,6 +753,7 @@ export default function Admin() {
           maxFileSizeMb: Math.round(maxFileSizeMb),
           maxArchiveSizeMb: Math.round(maxArchiveSizeMb),
           maxVideoSizeMb: Math.round(maxVideoSizeMb),
+          showSlideshowButton,
         }),
       });
 
@@ -1889,6 +1894,24 @@ export default function Admin() {
             </a>{' '}
             — opens the real rotation even while disabled above, so you can check it
             looks right before guests can see it.
+          </p>
+
+          <label htmlFor="show-slideshow-button-input" className="admin-checkbox-label">
+            <input
+              id="show-slideshow-button-input"
+              type="checkbox"
+              checked={showSlideshowButton}
+              onChange={(e) => {
+                setShowSlideshowButton(e.target.checked);
+                setSaveStatus('idle');
+              }}
+            />
+            Show Launch Slideshow button on Host screen
+          </label>
+          <p className="tagline admin-settings-caption">
+            Independent of "Enable Slideshow" above — that controls whether the
+            slideshow works; this controls whether the button (or the "currently
+            disabled" message in its place) appears on the QR/Host screen at all.
           </p>
 
           <label htmlFor="show-upload-qr-input" className="admin-checkbox-label">

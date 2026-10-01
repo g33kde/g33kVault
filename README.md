@@ -732,6 +732,13 @@ is currently disabled" instead of the normal rotation, and the "Launch Slideshow
 on the host page (`/`) turns into plain non-clickable text reading "Slideshow currently
 disabled" in the same spot. Defaults to enabled.
 
+A separate **"Show Launch Slideshow button on Host screen"** checkbox controls whether
+that button (or the "currently disabled" text) appears on `/` at all — independent of
+Enable Slideshow above, which controls whether the slideshow *works*, not whether this
+element is visible. Defaults on; turn it off if that element doesn't belong on a screen
+guests see, like a QR code projected for the room, even while the slideshow itself
+stays enabled elsewhere.
+
 Right below that toggle, **🔍 Preview slideshow** opens `/slideshow?preview=1` — the
 real rotation, even while Enable Slideshow is off — so an admin can check it looks
 right (a new transition, collage layout, a just-approved batch) before turning it on

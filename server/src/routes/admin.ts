@@ -43,6 +43,8 @@ import {
   setMaxArchiveSizeMb,
   getMaxVideoSizeMb,
   setMaxVideoSizeMb,
+  getShowSlideshowButton,
+  setShowSlideshowButton,
   getEventImageUrl,
   getEventImageScale,
   getGrafanaEnabled,
@@ -93,6 +95,7 @@ export function currentSettings() {
     maxFileSizeMb: getMaxFileSizeMb(),
     maxArchiveSizeMb: getMaxArchiveSizeMb(),
     maxVideoSizeMb: getMaxVideoSizeMb(),
+    showSlideshowButton: getShowSlideshowButton(),
     eventImageUrl: getEventImageUrl(),
     eventImageScale: getEventImageScale(),
     lastBackup: getLastBackup(),
@@ -184,6 +187,7 @@ export function adminRouter(io: SocketIOServer) {
       maxFileSizeMb,
       maxArchiveSizeMb,
       maxVideoSizeMb,
+      showSlideshowButton,
     } = req.body ?? {};
 
     if (
@@ -271,6 +275,11 @@ export function adminRouter(io: SocketIOServer) {
       }
     }
 
+    if (typeof showSlideshowButton !== 'boolean') {
+      res.status(400).json({ error: 'showSlideshowButton must be a boolean' });
+      return;
+    }
+
     setSlideshowIntervalMs(Math.round(slideshowIntervalMs));
     setShuffle(shuffle);
     setTransitionStyle(transitionStyle as TransitionStyle);
@@ -286,6 +295,7 @@ export function adminRouter(io: SocketIOServer) {
     setMaxFileSizeMb(Math.round(maxFileSizeMb));
     setMaxArchiveSizeMb(Math.round(maxArchiveSizeMb));
     setMaxVideoSizeMb(Math.round(maxVideoSizeMb));
+    setShowSlideshowButton(showSlideshowButton);
 
     const updated = currentSettings();
     logEvent('moderation', 'settings_changed', updated);
